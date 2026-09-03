@@ -235,6 +235,29 @@ def write_report(content: str, filename: str = "research_report.md") -> dict:
 
 
 # ----------------------------------------------------------------
+# 外部记忆工具(由 memory.py 提供)
+# ----------------------------------------------------------------
+
+
+def save_note(topic: str, title: str, content: str) -> dict:
+    """保存研究笔记到外部记忆。"""
+    from .memory import save_note as _save
+    return _save(topic, title, content)
+
+
+def read_notes(topic: str = "", k: int = 5) -> dict:
+    """读取外部记忆中的笔记。"""
+    from .memory import read_notes as _read
+    return {"notes": _read(topic, k)}
+
+
+def recall_facts(query: str, k: int = 3) -> dict:
+    """从外部记忆检索事实/结论。"""
+    from .memory import recall_facts as _recall
+    return {"facts": _recall(query, k)}
+
+
+# ----------------------------------------------------------------
 # 工具注册表
 # ----------------------------------------------------------------
 
@@ -249,6 +272,9 @@ TOOLS: dict[str, Callable] = {
     "list_dir": list_dir,
     "grep": grep,
     "write_report": write_report,
+    "save_note": save_note,
+    "read_notes": read_notes,
+    "recall_facts": recall_facts,
 }
 
 
@@ -387,6 +413,51 @@ def tool_schemas() -> list[dict]:
                         "filename": {"type": "string", "description": "文件名(默认 research_report.md)"},
                     },
                     "required": ["content"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "save_note",
+                "description": "保存研究笔记到外部记忆(SQLite),跨会话可检索。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "topic": {"type": "string", "description": "主题/分类"},
+                        "title": {"type": "string", "description": "笔记标题"},
+                        "content": {"type": "string", "description": "笔记内容"},
+                    },
+                    "required": ["topic", "title", "content"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "read_notes",
+                "description": "读取外部记忆中的研究笔记。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "topic": {"type": "string", "description": "按主题过滤(默认全部)"},
+                        "k": {"type": "integer", "description": "最近 k 条(默认5)"},
+                    },
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "recall_facts",
+                "description": "从外部记忆检索已保存的事实/结论。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "检索关键词"},
+                        "k": {"type": "integer", "description": "结果数(默认3)"},
+                    },
+                    "required": ["query"],
                 },
             },
         },

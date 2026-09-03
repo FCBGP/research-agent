@@ -26,6 +26,9 @@ SYSTEM_PROMPT = """你是本地科研智能体。你的任务是帮用户做研�
 - list_dir(path)           浏览目录结构
 - grep(pattern, path)      搜索文件内容
 - write_report(content)    把研究成果存成 Markdown 报告
+- save_note(topic,title,content) 保存研究笔记到外部记忆
+- read_notes(topic)        读取笔记
+- recall_facts(query)      检索已保存事实
 
 规则:
 1. 需要查资料时,先用 web_search 找到候选,再用 web_fetch 精读。
