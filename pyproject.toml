@@ -1,0 +1,21 @@
+[project]
+name = "research-agent"
+version = "0.1.0"
+description = "本地 LLM 驱动的通用多工具科研智能体:搜索/网页/PDF/代码/报告"
+readme = "README.md"
+authors = [
+    { name = "basilguo", email = "basilguo@163.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "ddgs>=9.16.0",
+    "openai>=3.7.0",
+    "pypdf>=6.16.2",
+]
+
+[project.scripts]
+research-agent = "research_agent:main"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
