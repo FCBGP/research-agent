@@ -35,19 +35,26 @@ def web_search(query: str, max_results: int = 5) -> dict:
 
 
 def web_fetch(url: str, max_chars: int = 6000) -> dict:
-    """抓取网页内容并转为纯文本。"""
-    try:
-        import primp
+    """抓取网页内容并转为纯文本。
 
-        resp = primp.get(url, timeout=20.0)
-        text = resp.text
-        # 粗略去标签,保留可读文本
-        text = re.sub(r"<script[\s\S]*?</script>", " ", text, flags=re.I)
-        text = re.sub(r"<style[\s\S]*?</style>", " ", text, flags=re.I)
-        text = re.sub(r"<[^>]+>", " ", text)
-        text = re.sub(r"\s+", " ", text).strip()
-    except Exception as exc:
-        return {"error": f"抓取失败: {exc}"}
+    稳健性:首次失败自动重试一次(换稍长超时),仍失败则返回友好错误。
+    """
+    for attempt in (1, 2):
+        try:
+            import primp
+
+            resp = primp.get(url, timeout=20.0 if attempt == 1 else 40.0)
+            text = resp.text
+            # 粗略去标签,保留可读文本
+            text = re.sub(r"<script[\s\S]*?</script>", " ", text, flags=re.I)
+            text = re.sub(r"<style[\s\S]*?</style>", " ", text, flags=re.I)
+            text = re.sub(r"<[^>]+>", " ", text)
+            text = re.sub(r"\s+", " ", text).strip()
+        except Exception as exc:
+            if attempt == 1:
+                continue  # 重试一次
+            return {"error": f"抓取失败(已重试): {exc}"}
+        break
     if len(text) > max_chars:
         text = text[:max_chars] + "\n[已截断]"
     return {"url": url, "text": text}

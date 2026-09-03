@@ -91,6 +91,28 @@ def _tool_calls_from(msg: str) -> list[dict]:
     return blocks
 
 
+def _chat(client, messages: list[dict]) -> tuple[str, list[dict], list[dict]]:
+    """调用本地 LLM,返回 (内容, 原生工具调用, 文本工具调用)。
+
+    优先用 OpenAI 原生 tools 参数;模型不返回 tool_calls 时,
+    回退解析文本中内嵌的 JSON 工具调用(稳健性)。
+    """
+    resp = client.chat.completions.create(
+        model=config.MODEL,
+        messages=messages,
+        temperature=config.TEMPERATURE,
+        tools=tool_schemas(),
+    )
+    message = resp.choices[0].message
+    content = message.content or ""
+    native_calls: list[dict] = []
+    for tc in getattr(message, "tool_calls", None) or []:
+        fn = tc.function
+        native_calls.append({"tool": fn.name, "args": json.loads(fn.arguments or "{}")})
+    text_calls = _tool_calls_from(content)
+    return content, native_calls, text_calls
+
+
 def run_agent(user_query: str, max_turns: int | None = None, session: str = "default") -> str:
     """执行完整 agentic 循环,返回最终研究结论。
 
@@ -126,15 +148,10 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
             current_tool=current_tool,
             conversation=conversation,
         )
-        resp = client.chat.completions.create(
-            model=config.MODEL,
-            messages=messages,
-            temperature=config.TEMPERATURE,
-        )
-        content = resp.choices[0].message.content or ""
+        content, native_calls, text_calls = _chat(client, messages)
         print(f"\n[模型] {content}", end="", flush=True)
 
-        calls = _tool_calls_from(content)
+        calls = native_calls or text_calls
         if not calls:
             # 模型直接给出了最终答案
             final_answer = content
@@ -172,14 +189,9 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
         conversation=conversation,
     )
     messages.append({"role": "user", "content": "请把上述研究结论整理成一份 Markdown 报告,调用 write_report 保存。"})
-    resp = client.chat.completions.create(
-        model=config.MODEL,
-        messages=messages,
-        temperature=config.TEMPERATURE,
-    )
-    content = resp.choices[0].message.content or ""
+    content, native_calls, text_calls = _chat(client, messages)
     print(f"\n[模型] {content}", end="", flush=True)
-    for call in _tool_calls_from(content):
+    for call in native_calls or text_calls:
         tool = call.get("tool")
         args = call.get("args", {})
         if tool == "write_report":
