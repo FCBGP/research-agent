@@ -201,6 +201,66 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
     return final_answer
 
 
-# 便捷别名(兼容旧的直接调用方式)
-def run(user_query: str, max_turns: int | None = None) -> str:
-    return run_agent(user_query, max_turns)
+def agent_events(user_query: str, max_turns: int | None = None, session: str = "default"):
+    """生成器版 agent 循环:逐事件 yield,供后端 SSE 流式推送。
+
+    yield {"type": "model"|"tool"|"result"|"final"|"report", ...}
+    """
+    from openai import OpenAI
+
+    max_turns = max_turns or config.MAX_TOOL_TURNS
+    client = OpenAI(**config.client_kwargs())
+
+    task_state = user_query
+    research_summary = memory.resume(session)
+    conversation: list[dict] = []
+    current_tool = ""
+    final_answer = ""
+
+    for turn in range(max_turns):
+        evidence_parts = memory.recall_papers(user_query, k=3)
+        evidence_parts += memory.recall_facts(user_query, k=3)
+        evidence = "\n".join(f"- {p['title']} ({p['url']})" for p in evidence_parts)
+        messages = context.build_messages(
+            system=SYSTEM_PROMPT, task_state=task_state,
+            research_summary=research_summary, evidence=evidence,
+            current_tool=current_tool, conversation=conversation,
+        )
+        content, native_calls, text_calls = _chat(client, messages)
+        yield {"type": "model", "content": content}
+        calls = native_calls or text_calls
+        if not calls:
+            final_answer = content
+            research_summary = content
+            memory.checkpoint(session, content)
+            break
+        conversation.append({"role": "assistant", "content": content})
+        for call in calls:
+            tool = call.get("tool")
+            args = call.get("args", {})
+            yield {"type": "tool", "tool": tool, "args": args}
+            result = run_tool(tool, args)
+            yield {"type": "result", "content": result}
+            current_tool = f"{tool}: {result[:800]}"
+            conversation.append({"role": "tool", "name": tool, "content": result})
+            if tool in ("web_search", "arxiv_search", "scholar_search"):
+                memory.save_papers(json.loads(result).get("results", []))
+            if tool == "write_report":
+                memory.checkpoint(session, "已生成报告")
+
+    # 收尾:保存报告
+    messages = context.build_messages(
+        system=SYSTEM_PROMPT, task_state=task_state,
+        research_summary=research_summary, evidence=evidence,
+        current_tool=current_tool, conversation=conversation,
+    )
+    messages.append({"role": "user", "content": "请把上述研究结论整理成一份 Markdown 报告,调用 write_report 保存。"})
+    content, native_calls, text_calls = _chat(client, messages)
+    yield {"type": "model", "content": content}
+    for call in native_calls or text_calls:
+        if call.get("tool") == "write_report":
+            args = call.get("args", {})
+            res = run_tool("write_report", args)
+            yield {"type": "report", "filename": args.get("filename", "research_report.md"), "content": res}
+
+    yield {"type": "final", "content": final_answer}
