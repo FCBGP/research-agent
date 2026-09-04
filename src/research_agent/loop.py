@@ -39,6 +39,13 @@ SYSTEM_PROMPT = """你是本地科研智能体。你的任务是帮用户做研�
 6. 保持简洁,不要反复问用户;有歧义就按合理默认处理。
 """
 
+# Harness 注入:hooks + 权限(settings.json),包裹 run_tool
+try:
+    from .harness import install_harness
+    install_harness()
+except Exception:
+    pass
+
 # 技能注入:把 skills/ 目录技能并入系统提示
 try:
     from .skills import skills_prompt

@@ -413,8 +413,12 @@ TOOLS: dict[str, Callable] = {
 
 
 def tool_schemas() -> list[dict]:
-    """OpenAI 格式的工具 schema 列表,供 chat 接口使用。"""
-    return [
+    """OpenAI 格式的工具 schema 列表,供 chat 接口使用。
+
+    含 MCP 注册的额外工具(经 mcp.extra_tool_schemas)。
+    """
+    from . import mcp as _mcp
+    schemas = [
         {
             "type": "function",
             "function": {
@@ -610,6 +614,9 @@ def tool_schemas() -> list[dict]:
             },
         },
     ]
+    # 附加 MCP 注册的额外工具 schema
+    schemas += _mcp.extra_tool_schemas()
+    return schemas
 
 
 def run_tool(name: str, args: dict) -> str:

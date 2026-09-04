@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": ["web_search", "arxiv_search", "scholar_search", "read_file", "read_pdf", "list_dir", "grep", "write_report", "save_note", "read_notes", "recall_facts"],
+    "deny": []
+  },
+  "hooks": {
+    "before_tool": [
+      {
+        "tools": ["web_fetch", "write_report"],
+        "command": "echo before tool",
+        "message": "记录工具调用前状态"
+      }
+    ],
+    "after_tool": [
+      {
+        "pattern": "write_.*",
+        "command": "echo after tool"
+      }
+    ]
+  }
+}
