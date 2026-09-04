@@ -163,6 +163,32 @@ def read_file(req: FileRequest) -> dict:
 
 
 # ----------------------------------------------------------------
+# Skill 与 MCP
+# ----------------------------------------------------------------
+
+
+@app.get("/skills")
+def get_skills() -> dict:
+    from .skills import install_skills
+    return install_skills()
+
+
+@app.post("/mcp/register")
+def mcp_register() -> dict:
+    from .mcp import register_mcp_tools
+    return register_mcp_tools()
+
+
+@app.get("/mcp/tools")
+def mcp_tools() -> dict:
+    from . import mcp as _mcp
+    out = {}
+    for srv in _mcp._servers():
+        out[srv] = _mcp.list_remote_tools(srv)
+    return {"servers": out}
+
+
+# ----------------------------------------------------------------
 # 启动
 # ----------------------------------------------------------------
 

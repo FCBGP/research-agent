@@ -39,6 +39,15 @@ SYSTEM_PROMPT = """你是本地科研智能体。你的任务是帮用户做研�
 6. 保持简洁,不要反复问用户;有歧义就按合理默认处理。
 """
 
+# 技能注入:把 skills/ 目录技能并入系统提示
+try:
+    from .skills import skills_prompt
+    _sp = skills_prompt()
+    if _sp:
+        SYSTEM_PROMPT = SYSTEM_PROMPT + "\n\n[可用技能]\n" + _sp
+except Exception:
+    pass
+
 
 def _tool_calls_from(msg: str) -> list[dict]:
     """从模型文本中解析 JSON 工具调用(宽容解析)。
