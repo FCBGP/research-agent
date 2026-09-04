@@ -35,6 +35,7 @@ def _init(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS papers(
             id INTEGER PRIMARY KEY,
             title TEXT, authors TEXT, abstract TEXT, url TEXT,
+            findings TEXT,
             added_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE IF NOT EXISTS notes(
@@ -55,6 +56,12 @@ def _init(conn: sqlite3.Connection) -> None:
         """
     )
     conn.commit()
+    # 迁移:旧库 papers 表补 findings 列(已存在则跳过)
+    try:
+        conn.execute("ALTER TABLE papers ADD COLUMN findings TEXT")
+        conn.commit()
+    except Exception:
+        pass
 
 
 # ----------------------------------------------------------------
@@ -63,16 +70,20 @@ def _init(conn: sqlite3.Connection) -> None:
 
 
 def save_papers(papers: list[dict]) -> int:
-    """把学术搜索结果存进外部记忆,返回新增条数。"""
+    """把学术搜索结果存进外部记忆,返回新增条数。
+
+    每条论文同时存一条「要点」(findings,默认取标题),让检索证据更丰富。
+    """
     conn = _conn()
     _init(conn)
     added = 0
     for p in papers:
         url = p.get("url", "")
         title = p.get("title", "")
+        findings = p.get("findings", "") or title
         conn.execute(
-            "INSERT OR IGNORE INTO papers(title, authors, abstract, url) VALUES (?,?,?,?)",
-            (title, p.get("authors", ""), p.get("abstract", ""), url),
+            "INSERT OR IGNORE INTO papers(title, authors, abstract, url, findings) VALUES (?,?,?,?,?)",
+            (title, p.get("authors", ""), p.get("abstract", ""), url, findings),
         )
         if conn.total_changes:
             added += 1
@@ -82,20 +93,47 @@ def save_papers(papers: list[dict]) -> int:
 
 
 def recall_papers(query: str, k: int = 3) -> list[dict]:
-    """按关键词从外部记忆检索论文(简单 top-K)。"""
+    """按关键词从外部记忆检索论文(相关度优先 + 最近优先)。
+
+    标题命中分最高,摘要/要点其次,作者再次;同分保持最近优先。
+    返回含摘要切片(abstract_slice)与要点(findings),让证据更丰富。
+    """
     conn = _conn()
     _init(conn)
     q = f"%{query}%"
     rows = conn.execute(
         """
-        SELECT title, authors, abstract, url FROM papers
+        SELECT title, authors, abstract, url, findings FROM papers
         WHERE title LIKE ? OR abstract LIKE ? OR authors LIKE ?
-        ORDER BY added_at DESC LIMIT ?
+        ORDER BY added_at DESC
         """,
-        (q, q, q, k),
+        (q, q, q),
     ).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    ql = query.lower()
+    scored = []
+    for r in rows:
+        d = dict(r)
+        title = d.get("title", "") or ""
+        abstract = d.get("abstract", "") or ""
+        authors = d.get("authors", "") or ""
+        findings = d.get("findings", "") or ""
+        score = 0
+        if ql in title.lower():
+            score += 3
+        if ql in abstract.lower():
+            score += 2
+        if ql in findings.lower():
+            score += 2
+        if ql in authors.lower():
+            score += 1
+        scored.append((score, d))
+    scored.sort(key=lambda x: x[0], reverse=True)  # 稳定排序:同分保持最近优先
+    out = [d for _, d in scored[:k]]
+    for d in out:
+        if d.get("abstract"):
+            d["abstract_slice"] = d["abstract"][:400]
+    return out
 
 
 # ----------------------------------------------------------------
@@ -150,16 +188,25 @@ def save_fact(fact: str, source: str = "") -> dict:
 
 
 def recall_facts(query: str, k: int = 3) -> list[dict]:
-    """按关键词检索事实(简单 top-K)。"""
+    """按关键词检索事实(相关度优先 + 最近优先)。"""
     conn = _conn()
     _init(conn)
     q = f"%{query}%"
     rows = conn.execute(
-        "SELECT fact, source FROM facts WHERE fact LIKE ? OR source LIKE ? ORDER BY added_at DESC LIMIT ?",
-        (q, q, k),
+        "SELECT fact, source FROM facts WHERE fact LIKE ? OR source LIKE ? ORDER BY added_at DESC",
+        (q, q),
     ).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    ql = query.lower()
+    scored = []
+    for r in rows:
+        d = dict(r)
+        fact = d.get("fact", "") or ""
+        source = d.get("source", "") or ""
+        score = 3 if ql in fact.lower() else (1 if ql in source.lower() else 0)
+        scored.append((score, d))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [d for _, d in scored[:k]]
 
 
 # ----------------------------------------------------------------

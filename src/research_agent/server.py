@@ -53,6 +53,41 @@ class ToolRequest(BaseModel):
     args: dict = {}
 
 
+class EvaluateRequest(BaseModel):
+    report: str
+    query: str = ""
+
+
+class TopicRequest(BaseModel):
+    topic: str
+    constraints: str = ""
+
+
+class MapRequest(BaseModel):
+    domain: str
+    k: int = 12
+
+
+class CitationsRequest(BaseModel):
+    references: str
+
+
+class ExperimentRequest(BaseModel):
+    spec: str
+
+
+class JournalRequest(BaseModel):
+    draft: str
+
+
+class ReviewRequest(BaseModel):
+    review: str
+
+
+class DecisionRequest(BaseModel):
+    options: str
+
+
 class FileRequest(BaseModel):
     path: str
 
@@ -119,6 +154,67 @@ def agent_research(req: AgentRequest) -> dict:
     """六阶段科研流程(非流式)。"""
     from .research import run_research
     return {"result": run_research(req.query, session=req.session)}
+
+
+@app.post("/agent/evaluate")
+def agent_evaluate(req: EvaluateRequest) -> dict:
+    """事实性评分:对研究结论做证据支撑评分(基准/评估)。"""
+    from .loop import evaluate_report
+    return {"result": evaluate_report(req.report, req.query)}
+
+
+# ----------------------------------------------------------------
+# 科研规划层(对齐 requirements.md 高价值缺口)
+# ----------------------------------------------------------------
+
+
+@app.post("/research/topic_score")
+def research_topic_score(req: TopicRequest) -> dict:
+    """选题评分与优先排序(UC-2.2-1)。"""
+    from .planning import topic_score
+    return {"result": topic_score(req.topic, req.constraints)}
+
+
+@app.post("/research/map")
+def research_map(req: MapRequest) -> dict:
+    """研究图谱构建与空白区识别(UC-2.1-2)。"""
+    from .planning import research_map
+    return {"result": research_map(req.domain, req.k)}
+
+
+@app.post("/research/citations")
+def research_citations(req: CitationsRequest) -> dict:
+    """引用一致性校验与书目管理(UC-2.1-3)。"""
+    from .planning import citation_check
+    return {"result": citation_check(req.references)}
+
+
+@app.post("/research/experiment_design")
+def research_experiment_design(req: ExperimentRequest) -> dict:
+    """实验设计助手与功效分析(UC-2.3-1)。"""
+    from .planning import experiment_design
+    return {"result": experiment_design(req.spec)}
+
+
+@app.post("/research/journal_match")
+def research_journal_match(req: JournalRequest) -> dict:
+    """选刊匹配与命中率预测(UC-2.5-1)。"""
+    from .planning import journal_match
+    return {"result": journal_match(req.draft)}
+
+
+@app.post("/research/reviewer_response")
+def research_reviewer_response(req: ReviewRequest) -> dict:
+    """审稿意见分析与回复生成(UC-2.5-4)。"""
+    from .planning import reviewer_response
+    return {"result": reviewer_response(req.review)}
+
+
+@app.post("/research/decision")
+def research_decision(req: DecisionRequest) -> dict:
+    """多方案比较与决策支持(UC-2.3-4)。"""
+    from .planning import decision_support
+    return {"result": decision_support(req.options)}
 
 
 @app.post("/agent/stream")

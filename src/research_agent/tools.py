@@ -12,6 +12,9 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
+# 科研规划层工具(选题评分/实验设计/选刊匹配)
+from . import planning as _planning
+
 # ----------------------------------------------------------------
 # Web 搜索与网页读取
 # ----------------------------------------------------------------
@@ -409,6 +412,9 @@ TOOLS: dict[str, Callable] = {
     "read_notes": read_notes,
     "recall_facts": recall_facts,
     "svg_draw": svg_draw,
+    "topic_score": _planning.topic_score,
+    "experiment_design": _planning.experiment_design,
+    "journal_match": _planning.journal_match,
 }
 
 
@@ -610,6 +616,49 @@ def tool_schemas() -> list[dict]:
                         "spec": {"type": "string", "description": "插图描述(见格式)"},
                     },
                     "required": ["spec"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "topic_score",
+                "description": "对候选研究选题做多维评分(新颖度/影响力/可行性/数据/资源/时间)并给优先级建议。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "topic": {"type": "string", "description": "候选选题"},
+                        "constraints": {"type": "string", "description": "约束(资源/时间/数据),可选"},
+                    },
+                    "required": ["topic"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "experiment_design",
+                "description": "实验设计助手:根据效应量/显著性/功效计算样本量,给设计蓝图与统计检验。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "spec": {"type": "string", "description": "实验规格(效应量/α/1-β/变量/对照)"},
+                    },
+                    "required": ["spec"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "journal_match",
+                "description": "选刊匹配:根据论文主题/关键词/方法推荐候选期刊/会议与命中率。",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "draft": {"type": "string", "description": "论文草稿/主题关键词"},
+                    },
+                    "required": ["draft"],
                 },
             },
         },
