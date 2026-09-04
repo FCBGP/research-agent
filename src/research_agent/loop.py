@@ -91,8 +91,8 @@ def _tool_calls_from(msg: str) -> list[dict]:
             j += 1
         if depth == 0:
             block = msg[start : j + 1]
-            # 清理 JSON 中的非法控制字符(如原始换行),宽容解析
-            block = block.replace("\n", " ").replace("\r", " ")
+            # 清理 JSON 中的全部非法控制字符,宽容解析
+            block = "".join(ch for ch in block if ch >= " " or ch in "\t")
             try:
                 d = json.loads(block)
                 if isinstance(d, dict) and "tool" in d:
