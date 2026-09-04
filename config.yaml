@@ -1,0 +1,60 @@
+# config.yaml — 本地科研智能体配置(模型切换)
+# 优先级: 环境变量 > 本文件;per-call model 参数最高。
+# provider 预设见 providers 块;api 块值覆盖对应 provider 预设。
+
+api:
+  provider: local              # openai|claude|gemini|deepseek|glm|kimi|relay|local
+  base_url: "http://127.0.0.1:8080/v1"   # 默认本地 omlx
+  api_key: "0731"
+  model: "DeepSeek-V4-Flash-0731-2.4bit-mixed"
+  temperature: 0.3
+
+# 多智能体辩论/研究进化各角色可配不同底层模型(默认沿用 api.model)
+agent_models:
+  proposer: "DeepSeek-V4-Flash-0731-2.4bit-mixed"
+  critic: "DeepSeek-V4-Flash-0731-2.4bit-mixed"
+  synthesizer: "DeepSeek-V4-Flash-0731-2.4bit-mixed"
+  learner: "DeepSeek-V4-Flash-0731-2.4bit-mixed"
+  designer: "DeepSeek-V4-Flash-0731-2.4bit-mixed"
+  analyzer: "DeepSeek-V4-Flash-0731-2.4bit-mixed"
+
+# 预设供应商(供快速切换 api.provider;${VAR} 用同名环境变量填充)
+providers:
+  openai:
+    base_url: "https://api.openai.com/v1"
+    api_key: "${OPENAI_API_KEY}"
+    model: "gpt-4o"
+  claude:
+    base_url: "https://api.anthropic.com/v1"
+    api_key: "${ANTHROPIC_API_KEY}"
+    model: "claude-3-5-sonnet"
+  gemini:
+    base_url: "https://generativelanguage.googleapis.com/v1beta/openai"
+    api_key: "${GEMINI_API_KEY}"
+    model: "gemini-1.5-pro"
+  deepseek:
+    base_url: "https://api.deepseek.com/v1"
+    api_key: "${DEEPSEEK_API_KEY}"
+    model: "deepseek-chat"
+  glm:
+    base_url: "https://open.bigmodel.cn/api/paas/v4"
+    api_key: "${GLM_API_KEY}"
+    model: "glm-4"
+  kimi:
+    base_url: "https://api.moonshot.cn/v1"
+    api_key: "${MOONSHOT_API_KEY}"
+    model: "kimi-k2"
+  relay:                        # 中转站(任意 OpenAI 兼容)
+    base_url: "${RELAY_BASE_URL}"
+    api_key: "${RELAY_API_KEY}"
+    model: "${RELAY_MODEL}"
+  local:
+    base_url: "http://127.0.0.1:8080/v1"
+    api_key: "0731"
+    model: "DeepSeek-V4-Flash-0731-2.4bit-mixed"
+
+debate:
+  rounds: 3
+max_tool_turns: 12
+max_context_chars: 12000
+output_root: "output"

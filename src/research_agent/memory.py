@@ -53,6 +53,13 @@ def _init(conn: sqlite3.Connection) -> None:
             session TEXT, summary TEXT,
             added_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS trials(
+            id INTEGER PRIMARY KEY,
+            session TEXT, round_no INTEGER,
+            motivation TEXT, hypothesis TEXT, evidence TEXT, lesson TEXT,
+            parent_id INTEGER,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
         """
     )
     conn.commit()
@@ -236,6 +243,64 @@ def resume(session: str) -> str:
     ).fetchone()
     conn.close()
     return row["summary"] if row else ""
+
+
+# ----------------------------------------------------------------
+# 试验/进化(trials) — ASI-Evolve 式进化环用
+# ----------------------------------------------------------------
+
+
+def save_trial(session: str, round_no: int, motivation: str,
+               hypothesis: str, evidence: str, lesson: str, parent_id: int | None = None) -> dict:
+    """保存一次研究进化试验(带谱系 parent_id,可续跑)。"""
+    conn = _conn()
+    _init(conn)
+    conn.execute(
+        """INSERT INTO trials(session, round_no, motivation, hypothesis, evidence, lesson, parent_id)
+        VALUES (?,?,?,?,?,?,?)""",
+        (session, round_no, motivation, hypothesis, evidence, lesson, parent_id),
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True, "id": None, "session": session, "round_no": round_no}
+
+
+def recall_trials(session: str, k: int = 5) -> list[dict]:
+    """按会话检索最近的进化试验(谱系上下文)。"""
+    conn = _conn()
+    _init(conn)
+    rows = conn.execute(
+        """SELECT id, round_no, motivation, hypothesis, evidence, lesson, parent_id FROM trials
+        WHERE session=? ORDER BY created_at DESC LIMIT ?""",
+        (session, k),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def trial_lineage(session: str) -> list[dict]:
+    """沿 parent_id 链从最近试验往上走,返回谱系(可续跑上下文)。"""
+    conn = _conn()
+    _init(conn)
+    latest = conn.execute(
+        "SELECT * FROM trials WHERE session=? ORDER BY created_at DESC LIMIT 1",
+        (session,),
+    ).fetchone()
+    conn.close()
+    if not latest:
+        return []
+    lineage = [dict(latest)]
+    parent_id = lineage[0].get("parent_id")
+    conn = _conn()
+    _init(conn)
+    while parent_id:
+        row = conn.execute("SELECT * FROM trials WHERE id=?", (parent_id,)).fetchone()
+        if not row:
+            break
+        lineage.append(dict(row))
+        parent_id = row["parent_id"]
+    conn.close()
+    return lineage
 
 
 # ----------------------------------------------------------------

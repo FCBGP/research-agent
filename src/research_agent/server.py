@@ -88,6 +88,12 @@ class DecisionRequest(BaseModel):
     options: str
 
 
+class EvolveRequest(BaseModel):
+    topic: str
+    max_rounds: int | None = None
+    session: str = "evolve"
+
+
 class FileRequest(BaseModel):
     path: str
 
@@ -106,6 +112,7 @@ class DocConvertRequest(BaseModel):
 @app.get("/config")
 def get_config() -> dict:
     return {
+        "provider": config.PROVIDER,
         "model": config.MODEL,
         "base_url": config.BASE_URL,
         "api_key_masked": config.API_KEY[:3] + "***",
@@ -215,6 +222,36 @@ def research_decision(req: DecisionRequest) -> dict:
     """多方案比较与决策支持(UC-2.3-4)。"""
     from .planning import decision_support
     return {"result": decision_support(req.options)}
+
+
+# ----------------------------------------------------------------
+# 科研进化层(ASI-Evolve 式 LEARN→DESIGN→EXPERIMENT→ANALYZE)
+# ----------------------------------------------------------------
+
+
+@app.post("/agent/evolve")
+def agent_evolve(req: EvolveRequest) -> dict:
+    """网络/路由研究进化环(非流式)。"""
+    from .evolve import evolve
+    return {"result": evolve(req.topic, req.max_rounds or 3, req.session)}
+
+
+@app.post("/agent/evolve/stream")
+def agent_evolve_stream(req: EvolveRequest) -> StreamingResponse:
+    """SSE 流式:逐事件推送 learn/design/experiment/analyze/trial/final。"""
+    from .evolve import evolve_events
+
+    def gen():
+        for ev in evolve_events(req.topic, req.max_rounds or 3, req.session):
+            yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@app.get("/evolve/trials")
+def evolve_trials(session: str = "evolve") -> dict:
+    """查看进化试验谱系。"""
+    from . import memory as _mem
+    return {"trials": _mem.recall_trials(session)}
 
 
 @app.post("/agent/stream")
