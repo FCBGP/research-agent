@@ -90,8 +90,11 @@ def _tool_calls_from(msg: str) -> list[dict]:
                         break
             j += 1
         if depth == 0:
+            block = msg[start : j + 1]
+            # 清理 JSON 中的非法控制字符(如原始换行),宽容解析
+            block = block.replace("\n", " ").replace("\r", " ")
             try:
-                d = json.loads(msg[start : j + 1])
+                d = json.loads(block)
                 if isinstance(d, dict) and "tool" in d:
                     blocks.append(d)
             except json.JSONDecodeError:
