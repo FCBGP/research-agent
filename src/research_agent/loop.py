@@ -115,7 +115,9 @@ def _chat(client, messages: list[dict]) -> tuple[str, list[dict], list[dict]]:
         temperature=config.TEMPERATURE,
         tools=tool_schemas(),
     )
-    message = resp.choices[0].message
+    message = resp.choices[0].message if resp.choices else None
+    if message is None:
+        return "", [], []
     content = message.content or ""
     native_calls: list[dict] = []
     for tc in getattr(message, "tool_calls", None) or []:
