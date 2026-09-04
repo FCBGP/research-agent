@@ -90,7 +90,7 @@ def generate_longdoc_pandoc(
 def generate_longdoc(
     topic: str,
     target_chars: int = 100000,
-    filename: str = "long_report.md",
+    filename: str = "long_report.docx",
     max_sections: int = 200,
 ) -> dict:
     """分段生成长文档,直到字数≥target 或章节数用尽。

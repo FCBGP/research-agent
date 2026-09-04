@@ -83,6 +83,15 @@ def add_figure(doc: Document, spec: str) -> None:
 # ----------------------------------------------------------------
 
 
+def _outdocs(filename: str) -> str:
+    """把裸文件名放进 output/docs;已在 output/ 下则原样。"""
+    from pathlib import Path
+    from . import config as _config
+    if filename.startswith(_config.OUTPUT_ROOT) or "/" not in filename:
+        return _config.output_path("docs", filename)
+    return filename
+
+
 def _chat(client, messages: list[dict]) -> str:
     resp = client.chat.completions.create(model=config.MODEL, messages=messages, temperature=0.3)
     return resp.choices[0].message.content or ""
@@ -143,6 +152,7 @@ def generate_worddoc_pandoc(
     domain: str = "",
     max_sections: int = 120,
 ) -> dict:
+    filename = _outdocs(filename)
     """分段生成 Word 长文档:pandoc 模板管线。
 
     智能体先写结构化 md(章节/表格/图),再 pandoc 按模板转 .docx。

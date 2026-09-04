@@ -114,6 +114,13 @@ def run_agent_sync(req: AgentRequest) -> str:
     return run_agent(req.query, max_turns=req.max_turns, session=req.session)
 
 
+@app.post("/agent/research")
+def agent_research(req: AgentRequest) -> dict:
+    """六阶段科研流程(非流式)。"""
+    from .research import run_research
+    return {"result": run_research(req.query, session=req.session)}
+
+
 @app.post("/agent/stream")
 def agent_stream(req: AgentRequest) -> StreamingResponse:
     """SSE 流式:逐事件推送 model/tool/result/final/report。"""

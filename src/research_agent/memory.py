@@ -19,7 +19,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-DB_PATH = Path("memory/research.db")
+DB_PATH = Path("output/memory/research.db")
 
 
 def _conn() -> sqlite3.Connection:

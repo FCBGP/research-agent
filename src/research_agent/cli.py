@@ -64,9 +64,15 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--serve", action="store_true", help="启动 FastAPI 后端服务")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="后端监听地址")
     parser.add_argument("--port", type=int, default=8000, help="后端端口")
+    parser.add_argument("--research", type=str, help="科研任务(走六阶段科研流程)")
     args = parser.parse_args(argv)
 
-    if args.md2docx:
+    if args.research:
+        from .research import run_research
+        print(f"\n=== 科研任务(六阶段): {args.research} ===", flush=True)
+        result = run_research(args.research, session=args.session)
+        print(f"\n=== 最终结论 ===\n{result}", flush=True)
+    elif args.md2docx:
         from .md2docx import md_file_to_docx
         print(f"\n=== pandoc 转 Word: {args.md2docx} → {args.out} ===", flush=True)
         result = md_file_to_docx(args.md2docx, args.out, args.template)

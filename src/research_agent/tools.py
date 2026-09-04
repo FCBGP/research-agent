@@ -229,10 +229,11 @@ def grep(pattern: str, path: str = ".", max_results: int = 50) -> dict:
 
 
 def write_report(content: str, filename: str = "research_report.md") -> dict:
-    """将研究成果写入 Markdown 报告文件。"""
+    """将研究成果写入 Markdown 报告文件(进 output/docs)。"""
     from datetime import datetime
 
-    p = Path(filename)
+    from . import config as _config
+    p = Path(_config.output_path("docs", filename))
     header = f"# 研究报告\n\n> 生成时间: {datetime.now().isoformat(timespec='seconds')}\n"
     try:
         p.write_text(header + "\n" + content, encoding="utf-8")
@@ -367,8 +368,13 @@ def _sin_deg(d: float) -> float:
 
 
 def save_note(topic: str, title: str, content: str) -> dict:
-    """保存研究笔记到外部记忆。"""
+    """保存研究笔记到外部记忆(notes 也在 output/notes)。"""
+    from . import config as _config
     from .memory import save_note as _save
+
+    # 同步写一份到 output/notes(可读文件)
+    p = _config.output_path("notes", f"{title}.md")
+    p.write_text(content, encoding="utf-8")
     return _save(topic, title, content)
 
 
