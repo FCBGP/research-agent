@@ -38,6 +38,15 @@ RESEARCH_PROMPT = """你是科研智能体,按六阶段科研流程执行研究�
 """
 
 
+def _safe_json(result: str) -> dict:
+    """宽容解析工具结果 JSON(清控制字符,截断则原样)。"""
+    clean = "".join(ch for ch in result if ch >= " " or ch in "\t")
+    try:
+        return json.loads(clean)
+    except json.JSONDecodeError:
+        return {}
+
+
 def run_research(query: str, max_stages: int = 8, session: str = "research") -> str:
     """执行六阶段科研流程,返回最终结论。
 
@@ -69,7 +78,7 @@ def run_research(query: str, max_stages: int = 8, session: str = "research") -> 
             print(f"\n[工具] {tool} → {result[:120]}", end="", flush=True)
             messages.append({"role": "tool", "name": tool, "content": result})
             if tool in ("arxiv_search", "scholar_search", "web_search"):
-                papers = json.loads(result).get("results", [])
+                papers = _safe_json(result).get("results", [])
                 memory.save_papers(papers)
                 for p in papers:
                     evidence_trail.append({"type": "paper", "source": p.get("url", ""),
