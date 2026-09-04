@@ -52,9 +52,17 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("-l", "--longdoc", type=str, help="长文档生成主题(分段生成)")
     parser.add_argument("-c", "--chars", type=int, default=100000, help="长文档目标字数(默认10万)")
     parser.add_argument("-f", "--file", type=str, default="long_report.md", help="长文档输出文件")
+    parser.add_argument("-w", "--worddoc", type=str, help="Word 长文档主题(固定模板 .docx,图文并茂)")
+    parser.add_argument("-wc", "--wchars", type=int, default=10000, help="Word 文档目标字数(默认≥1万)")
+    parser.add_argument("-wf", "--wfile", type=str, default="out.docx", help="Word 文档输出文件")
     args = parser.parse_args(argv)
 
-    if args.longdoc:
+    if args.worddoc:
+        from .worddoc import generate_worddoc
+        print(f"\n=== Word 文档生成: {args.worddoc} (目标 {args.wchars} 字,图文) ===", flush=True)
+        result = generate_worddoc(args.worddoc, target_chars=args.wchars, filename=args.wfile)
+        print(f"\n=== 结果 ===\n{result}", flush=True)
+    elif args.longdoc:
         from .longdoc import generate_longdoc
         print(f"\n=== 长文档生成: {args.longdoc} (目标 {args.chars} 字) ===", flush=True)
         result = generate_longdoc(args.longdoc, target_chars=args.chars, filename=args.file)
