@@ -57,9 +57,23 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("-wf", "--wfile", type=str, default="out.docx", help="Word 文档输出文件")
     parser.add_argument("-wo", "--outline", type=str, default="", help="Word 文档必填章节结构")
     parser.add_argument("-wd", "--domain", type=str, default="", help="领域/专业上下文")
+    parser.add_argument("--md2docx", type=str, help="把 Markdown 文件转成 Word .docx")
+    parser.add_argument("-o", "--out", type=str, default="out.docx", help="md2docx 输出文件")
+    parser.add_argument("-t", "--template", type=str, default="", help="Word 参考模板(pandoc --reference-doc)")
+    parser.add_argument("--serve", action="store_true", help="启动 FastAPI 后端服务")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="后端监听地址")
+    parser.add_argument("--port", type=int, default=8000, help="后端端口")
     args = parser.parse_args(argv)
 
-    if args.worddoc:
+    if args.md2docx:
+        from .md2docx import md_file_to_docx
+        print(f"\n=== pandoc 转 Word: {args.md2docx} → {args.out} ===", flush=True)
+        result = md_file_to_docx(args.md2docx, args.out, args.template)
+        print(f"\n=== 结果 ===\n{result}", flush=True)
+    elif args.serve:
+        from .server import serve
+        serve(host=args.host, port=args.port)
+    elif args.worddoc:
         from .worddoc import generate_worddoc
         print(f"\n=== Word 文档生成: {args.worddoc} (目标 {args.wchars} 字,图文) ===", flush=True)
         result = generate_worddoc(args.worddoc, target_chars=args.wchars, filename=args.wfile,
