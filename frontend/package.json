@@ -1,0 +1,19 @@
+{
+  "name": "research-agent-gui",
+  "version": "0.1.0",
+  "description": "科研智能体图形界面(共用后端,Electron + 浏览器双端)",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "electron": "electron .",
+    "start": "vite build && electron ."
+  },
+  "dependencies": {
+    "vue": "^3.4.0",
+    "vite": "^5.0.0"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0"
+  }
+}
