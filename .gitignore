@@ -11,6 +11,11 @@ wheels/
 
 # 中间产物(不纳入 git):生成的临时报告/测试文件/外部记忆 DB/临时图
 # 注:交付类 .docx(如 bgp-*.docx)保留;中间 md/报告/DB/临时图忽略
+# pandoc 中间产物 md(生成 docx 前的临时 md;真正交付是 .docx)
+bgp-route-*.md
+bgp-*.md
+routing_intro.md
+*_intro.md
 research_report.md
 bgp_intro.md
 test_long.md
