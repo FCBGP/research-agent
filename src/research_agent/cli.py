@@ -47,9 +47,24 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("-i", "--interactive", action="store_true", help="交互式对话")
     parser.add_argument("-t", "--turns", type=int, default=None, help="工具调用轮数上限")
     parser.add_argument("-s", "--session", type=str, default="default", help="会话名(外部记忆/跨会话延续)")
+    parser.add_argument("-d", "--debate", type=str, help="对一个 idea 多智能体辩论(反复讨论到定论)")
+    parser.add_argument("-r", "--rounds", type=int, default=None, help="辩论轮数")
+    parser.add_argument("-l", "--longdoc", type=str, help="长文档生成主题(分段生成)")
+    parser.add_argument("-c", "--chars", type=int, default=100000, help="长文档目标字数(默认10万)")
+    parser.add_argument("-f", "--file", type=str, default="long_report.md", help="长文档输出文件")
     args = parser.parse_args(argv)
 
-    if args.interactive:
+    if args.longdoc:
+        from .longdoc import generate_longdoc
+        print(f"\n=== 长文档生成: {args.longdoc} (目标 {args.chars} 字) ===", flush=True)
+        result = generate_longdoc(args.longdoc, target_chars=args.chars, filename=args.file)
+        print(f"\n=== 结果 ===\n{result}", flush=True)
+    elif args.debate:
+        from .debate import debate
+        print(f"\n=== 辩论 idea: {args.debate} ===", flush=True)
+        result = debate(args.debate, rounds=args.rounds, session=args.session)
+        print(f"\n=== 定论 ===\n{result}", flush=True)
+    elif args.interactive:
         _interactive(session=args.session)
     elif args.query:
         from .loop import run_agent

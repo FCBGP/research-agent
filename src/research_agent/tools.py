@@ -242,6 +242,126 @@ def write_report(content: str, filename: str = "research_report.md") -> dict:
 
 
 # ----------------------------------------------------------------
+# SVG 绘图工具(长文档图文并茂)
+# ----------------------------------------------------------------
+
+
+def svg_draw(spec: str) -> dict:
+    """根据插图描述生成 SVG 字符串(供 Markdown/HTML 文档内嵌)。
+
+    spec 格式:
+      chart:<标题>|柱名:值,柱名:值...    → 柱状图
+      pie:<标题>|名:值,名:值...          → 饼图
+      flow:<标题>|A→B→C                  → 流程框
+      box:<标题>|框名                  → 说明框
+    其他文本 → 标题 + 简单图形框。
+    """
+    import re as _re
+
+    kind = "box"
+    title = ""
+    if spec.startswith("chart:"):
+        kind = "bar"
+    elif spec.startswith("pie:"):
+        kind = "pie"
+    elif spec.startswith("flow:"):
+        kind = "flow"
+    elif spec.startswith("box:"):
+        kind = "box"
+
+    parts = spec.split("|")
+    title = parts[0].split(":", 1)[-1].strip() if ":" in parts[0] else spec
+    data = parts[1].strip() if len(parts) > 1 else ""
+
+    width, height = 800, 500
+    bg = "white"
+    stroke = "#444"
+    label_color = "#222"
+    svg = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+        f'<rect width="100%" height="100%" fill="{bg}"/>',
+        f'<text x="400" y="40" text-anchor="middle" font-size="28" fill="{stroke}" font-weight="bold">{_esc(title)}</text>',
+    ]
+
+    if kind == "bar":
+        items = [x.split(":") for x in data.split(",") if x]
+        n = len(items) or 1
+        base = 60
+        top = 420
+        bw = (width - base * 2) / n
+        for i, (name, val) in enumerate(items):
+            try:
+                v = float(val)
+            except ValueError:
+                v = 0
+            h = max(20, (v or 0) / 100 * (top - 60))
+            x = base + i * bw
+            svg.append(f'<rect x="{x:.0f}" y="{top - h:.0f}" width="{bw - 20:.0f}" height="{h:.0f}" fill="#4a90e2" stroke="{stroke}"/>')
+            svg.append(f'<text x="{x + bw / 2:.0f}" y="{top + 25}" text-anchor="middle" font-size="18" fill="{label_color}">{_esc(name)}</text>')
+            svg.append(f'<text x="{x + bw / 2:.0f}" y="{top - h - 15:.0f}" text-anchor="middle" font-size="16" fill="{label_color}">{v:.0f}</text>')
+
+    elif kind == "pie":
+        items = [x.split(":") for x in data.split(",") if x]
+        total = sum(_num(v) for _, v in items) or 1
+        cx, cy, r = width / 2, height * 0.55, height * 0.30
+        colors = ["#4a90e2", "#50b848", "#e26b4a", "#b84ae2", "#e2b84a", "#4ae2b8"]
+        start = -90
+        for i, (name, val) in enumerate(items):
+            frac = _num(val) / total
+            end = start + frac * 360
+            large = 1 if frac > 0.5 else 0
+            x1 = cx + r * 0.9 * _cos_deg(start)
+            y1 = cy + r * 0.9 * _sin_deg(start)
+            x2 = cx + r * 0.9 * _cos_deg(end)
+            y2 = cy + r * 0.9 * _sin_deg(end)
+            svg.append(f'<path d="M {cx} {cy} L {x1:.0f} {y1:.0f} A {r} {r} 0 {large} 1 {x2:.0f} {y2:.0f} Z" fill="{colors[i % len(colors)]}" stroke="{stroke}"/>')
+            svg.append(f'<text x="{cx + r * 0.55 * _cos_deg((start + end) / 2):.0f}" y="{cy + r * 0.55 * _sin_deg((start + end) / 2):.0f}" text-anchor="middle" font-size="16" fill="#fff">{_esc(name)}</text>')
+            start = end
+
+    elif kind == "flow":
+        steps = [s.strip() for s in data.split("→") if s.strip()]
+        n = len(steps) or 1
+        bx, by, bw, bh = 60, 60, 140, 60
+        for i, s in enumerate(steps):
+            x = 80 + i * (bw + 40)
+            svg.append(f'<rect x="{x}" y="{by}" width="{bw}" height="{bh}" rx="8" fill="#fff" stroke="{stroke}" stroke-width="2"/>')
+            svg.append(f'<text x="{x + bw / 2}" y="{by + 35}" text-anchor="middle" font-size="16" fill="{label_color}">{_esc(s)}</text>')
+            if i < n - 1:
+                sx = x + bw
+                svg.append(f'<line x1="{sx}" y1="{by + 30}" x2="{sx + 40}" y2="{by + 30}" stroke="{stroke}" stroke-width="2"/>')
+                svg.append(f'<polygon points="{sx + 40},{by + 25} {sx + 48},{by + 30} {sx + 40},{by + 35}" fill="{stroke}"/>')
+
+    else:  # box
+        svg.append(f'<rect x="80" y="80" width="640" height="300" rx="12" fill="#fafafa" stroke="{stroke}" stroke-width="2"/>')
+        svg.append(f'<text x="400" y="180" text-anchor="middle" font-size="24" fill="{label_color}">{_esc(data or title)}</text>')
+
+    svg.append("</svg>")
+    svg_str = "\n".join(svg)
+    return {"kind": kind, "title": title, "svg": svg_str}
+
+
+def _esc(s: str) -> str:
+    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _num(v) -> float:
+    try:
+        return float(v)
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def _cos_deg(d: float) -> float:
+    import math
+    return math.cos(math.radians(d))
+
+
+def _sin_deg(d: float) -> float:
+    import math
+    return math.sin(math.radians(d))
+
+
+# ----------------------------------------------------------------
 # 外部记忆工具(由 memory.py 提供)
 # ----------------------------------------------------------------
 
@@ -282,6 +402,7 @@ TOOLS: dict[str, Callable] = {
     "save_note": save_note,
     "read_notes": read_notes,
     "recall_facts": recall_facts,
+    "svg_draw": svg_draw,
 }
 
 
@@ -465,6 +586,20 @@ def tool_schemas() -> list[dict]:
                         "k": {"type": "integer", "description": "结果数(默认3)"},
                     },
                     "required": ["query"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "svg_draw",
+                "description": "根据插图描述生成 SVG 字符串(图文并茂)。spec 格式: chart:<标题>|名:值,名:值 / pie:... / flow:... / box:...",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "spec": {"type": "string", "description": "插图描述(见格式)"},
+                    },
+                    "required": ["spec"],
                 },
             },
         },
