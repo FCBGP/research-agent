@@ -60,7 +60,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("-wt", "--wtemplate", type=str, default="", help="Word 参考模板(pandoc --reference-doc)")
     parser.add_argument("--md2docx", type=str, help="把 Markdown 文件转成 Word .docx")
     parser.add_argument("-o", "--out", type=str, default="out.docx", help="md2docx 输出文件")
-    parser.add_argument("-t", "--template", type=str, default="", help="Word 参考模板(pandoc --reference-doc)")
+    parser.add_argument("--template", type=str, default="", help="Word 参考模板(pandoc --reference-doc)")
     parser.add_argument("--serve", action="store_true", help="启动 FastAPI 后端服务")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="后端监听地址")
     parser.add_argument("--port", type=int, default=8000, help="后端端口")

@@ -8,3 +8,20 @@ wheels/
 
 # Virtual environments
 .venv
+
+# 中间产物(不纳入 git):生成的临时报告/测试文件/外部记忆 DB/临时图
+# 注:交付类 .docx(如 bgp-*.docx)保留;中间 md/报告/DB/临时图忽略
+research_report.md
+bgp_intro.md
+test_long.md
+long_report.md
+long_report.docx
+rag_definition.md
+*_report.md
+*_report.docx
+memory/
+fig_*.png
+test_long.docx
+out.docx
+/tmp/
+*.output
