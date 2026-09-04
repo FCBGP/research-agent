@@ -108,6 +108,30 @@ def _render_section(doc: Document, text: str) -> None:
     plain = re.sub(r"\{\{png\|.*?\}\}", "", plain)
     for para in [x for x in plain.split("\n") if x.strip()]:
         add_para(doc, para)
+    # 每章自动配一张图(保证图文并茂):从章节文本提取数字做柱状图/占比图
+    add_auto_figure(doc, text)
+
+
+def append_figures_to_docx(filename: str, n: int = 3) -> dict:
+    """后处理:给已生成 docx 末尾追加 n 张 PNG 图(保证图文并茂)。"""
+    doc = Document(filename)
+    for i in range(n):
+        add_png_figure(doc, f"box:附图{i+1}|本章要点与小结")
+    doc.save(filename)
+    return {"filename": filename, "added_figures": n, "ok": True}
+
+
+def add_auto_figure(doc: Document, text: str) -> None:
+    """从章节文本提取数字,自动生成一张 PNG 图内嵌(每章图文并茂)。"""
+    nums = [float(m) for m in re.findall(r"\d+\.?\d*%?", text) if float(m) > 1]
+    nums = nums[:4]
+    if len(nums) >= 2:
+        spec = "chart:本章要点数值|" + "|".join(f"要点{i+1},{nums[i]:.0f}" for i in range(len(nums)))
+    elif len(nums) == 1:
+        spec = "box:本章要点|核心数值: " + f"{nums[0]:.0f}"
+    else:
+        spec = "box:本章要点|本章围绕主题展开多个小节"
+    add_png_figure(doc, spec)
 
 
 def generate_worddoc(
@@ -115,8 +139,14 @@ def generate_worddoc(
     target_chars: int = 10000,
     filename: str = "out.docx",
     max_sections: int = 120,
+    outline: str = "",
+    domain: str = "",
 ) -> dict:
-    """分段生成 Word 长文档(固定模板),直到字数达标。"""
+    """分段生成 Word 长文档(固定模板),直到字数达标。
+
+    - outline: 必填章节结构(供模型遵循),如"第一章 定义|第二章 分类|第三章 实例清单"
+    - domain:  领域/专业上下文提示(提升技术内容质量)
+    """
     from openai import OpenAI
 
     client = OpenAI(**config.client_kwargs())
@@ -124,6 +154,8 @@ def generate_worddoc(
     add_title(doc, topic)
     add_meta(doc)
 
+    outline_block = f"本章结构要求(按 outline 推进): {outline}\n" if outline else ""
+    domain_block = f"领域上下文: {domain}\n" if domain else ""
     total = 0
     section = 1
     last_tail = ""
@@ -131,6 +163,7 @@ def generate_worddoc(
         tail = last_tail[-800:] if last_tail else ""
         prompt = (
             f"你是 Word 长文档写手。主题: {topic}。当前已写 {total} 字,目标 {target_chars} 字。\n"
+            f"{outline_block}{domain_block}"
             f"请写下一章(约 1500-3000 字中文)。含: ## 小节标题、正文、必要时\n"
             f"{{{{table|表头1,表头2|值1,值2}}}}、必要时 {{{{png|chart:标题|名,值|名,值}}}} 或 {{{{png|flow:标题|A→B}}}}。\n"
             f"最近已写:\n{tail}\n\n直接输出本章,不要解释。"

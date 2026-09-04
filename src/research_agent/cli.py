@@ -55,12 +55,15 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("-w", "--worddoc", type=str, help="Word 长文档主题(固定模板 .docx,图文并茂)")
     parser.add_argument("-wc", "--wchars", type=int, default=10000, help="Word 文档目标字数(默认≥1万)")
     parser.add_argument("-wf", "--wfile", type=str, default="out.docx", help="Word 文档输出文件")
+    parser.add_argument("-wo", "--outline", type=str, default="", help="Word 文档必填章节结构")
+    parser.add_argument("-wd", "--domain", type=str, default="", help="领域/专业上下文")
     args = parser.parse_args(argv)
 
     if args.worddoc:
         from .worddoc import generate_worddoc
         print(f"\n=== Word 文档生成: {args.worddoc} (目标 {args.wchars} 字,图文) ===", flush=True)
-        result = generate_worddoc(args.worddoc, target_chars=args.wchars, filename=args.wfile)
+        result = generate_worddoc(args.worddoc, target_chars=args.wchars, filename=args.wfile,
+                                  outline=args.outline, domain=args.domain)
         print(f"\n=== 结果 ===\n{result}", flush=True)
     elif args.longdoc:
         from .longdoc import generate_longdoc
