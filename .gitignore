@@ -33,3 +33,4 @@ test_long.docx
 out.docx
 /tmp/
 *.output
+node_modules/

@@ -1,6 +1,6 @@
 {
   "permissions": {
-    "allow": ["web_search", "arxiv_search", "scholar_search", "read_file", "read_pdf", "list_dir", "write_report", "save_note", "read_notes", "recall_facts", "Grep"],
+    "allow": ["web_search", "web_fetch", "arxiv_search", "scholar_search", "read_file", "read_pdf", "list_dir", "grep", "write_report", "save_note", "read_notes", "recall_facts", "Grep"],
     "deny": []
   },
   "hooks": {

@@ -376,7 +376,8 @@ def save_note(topic: str, title: str, content: str) -> dict:
     from .memory import save_note as _save
 
     # 同步写一份到 output/notes(可读文件)
-    p = _config.output_path("notes", f"{title}.md")
+    from pathlib import Path
+    p = Path(_config.output_path("notes", f"{title}.md"))
     p.write_text(content, encoding="utf-8")
     return _save(topic, title, content)
 
