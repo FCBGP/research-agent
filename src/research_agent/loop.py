@@ -272,4 +272,6 @@ def agent_events(user_query: str, max_turns: int | None = None, session: str = "
             res = run_tool("write_report", args)
             yield {"type": "report", "filename": args.get("filename", "research_report.md"), "content": res}
 
+    # final 兜底:若循环用尽仍无直接答案,回退到最近摘要
+    final_answer = final_answer or research_summary or "已完成研究(未生成明确结论)"
     yield {"type": "final", "content": final_answer}
