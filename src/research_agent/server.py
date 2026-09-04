@@ -197,6 +197,24 @@ def mcp_tools() -> dict:
 
 
 # ----------------------------------------------------------------
+# Harness / Settings
+# ----------------------------------------------------------------
+
+
+@app.get("/harness")
+def get_harness() -> dict:
+    from . import harness as _h
+    return {"settings_path": str(_h.SETTINGS_PATH), "settings": _h._settings(),
+            "hooks_active": bool(_h._settings().get("hooks"))}
+
+
+@app.get("/settings")
+def get_settings() -> dict:
+    from . import harness as _h
+    return _h._settings()
+
+
+# ----------------------------------------------------------------
 # 启动
 # ----------------------------------------------------------------
 
