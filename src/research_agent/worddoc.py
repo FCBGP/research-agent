@@ -176,6 +176,8 @@ def generate_worddoc_pandoc(
         msgs.append({"role": "user", "content": prompt})
         text = _chat(client, msgs)
         text = _resolve_figs_md(text, md_path)
+        # 每章自动补一张图(保证图文并茂)
+        text = text + "\n" + _auto_fig_md(text, md_path)
         with open(md_path, "a", encoding="utf-8") as f:
             f.write(text + "\n")
         last_tail = text
@@ -186,6 +188,27 @@ def generate_worddoc_pandoc(
     result = md_to_docx(md_path.read_text(encoding="utf-8"), filename, reference_doc)
     print(f"\n=== 完成: {filename} ~{total} 字,pandoc {result.get('ok')} ===", flush=True)
     return {"filename": filename, "chars": total, "sections": section, "pandoc": result, "ok": True}
+
+
+def _auto_fig_md(text: str, md_path: Path) -> str:
+    """从章节文本提取数字,自动生成一张 PNG 图并追加 md 引用(每章图文并茂)。"""
+    import re as _re
+    from .figures import draw_figure_png
+    import hashlib
+
+    nums = [float(m) for m in _re.findall(r"\d+\.?\d*%?", text) if float(m) > 1]
+    nums = nums[:4]
+    if len(nums) >= 2:
+        spec = "chart:本章要点数值|" + "|".join(f"要点{i+1},{nums[i]:.0f}" for i in range(len(nums)))
+    elif len(nums) == 1:
+        spec = "box:本章要点|核心数值: " + f"{nums[0]:.0f}"
+    else:
+        spec = "box:本章要点|本章围绕主题展开多个小节"
+    png = draw_figure_png(spec)
+    name = hashlib.md5(spec.encode()).hexdigest()[:8]
+    fig_file = md_path.parent / f"fig_{name}.png"
+    fig_file.write_bytes(png)
+    return f"\n![图]({fig_file.name})\n"
 
 
 def _resolve_figs_md(text: str, md_path: Path) -> str:
