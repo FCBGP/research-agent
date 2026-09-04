@@ -134,6 +134,80 @@ def add_auto_figure(doc: Document, text: str) -> None:
     add_png_figure(doc, spec)
 
 
+def generate_worddoc_pandoc(
+    topic: str,
+    target_chars: int = 10000,
+    filename: str = "out.docx",
+    reference_doc: str = "",
+    outline: str = "",
+    domain: str = "",
+    max_sections: int = 120,
+) -> dict:
+    """分段生成 Word 长文档:pandoc 模板管线。
+
+    智能体先写结构化 md(章节/表格/图),再 pandoc 按模板转 .docx。
+    格式完全由 reference_doc 模板定义。图:PNG 存文件,md 引用,图文并茂。
+    """
+    from openai import OpenAI
+    from .md2docx import md_to_docx
+    from .figures import draw_figure_png
+    import io, re as _re
+    from PIL import Image as PILImage
+
+    client = OpenAI(**config.client_kwargs())
+    md_path = Path(filename).with_suffix(".md")
+    md_path.write_text(f"# {topic}\n\n", encoding="utf-8")
+
+    outline_block = f"本章结构要求(按 outline 推进): {outline}\n" if outline else ""
+    domain_block = f"领域上下文: {domain}\n" if domain else ""
+    total = 0
+    section = 1
+    last_tail = ""
+    while total < target_chars and section <= max_sections:
+        tail = last_tail[-800:] if last_tail else ""
+        prompt = (
+            f"你是长文档写手。主题: {topic}。当前已写 {total} 字,目标 {target_chars} 字。\n"
+            f"{outline_block}{domain_block}"
+            f"请写下一章(约 1500-3000 字,Markdown)。含: ## 小节标题、正文、必要时\n"
+            f"Markdown 表格、必要时图(用 {{fig|chart:标题|名,值|名,值}})。\n"
+            f"最近已写:\n{tail}\n\n直接输出本章 Markdown,不要解释。"
+        )
+        msgs = [{"role": "system", "content": "你是资深技术写手,生成结构清晰、图文并茂的长文档 Markdown。"}]
+        msgs.append({"role": "user", "content": prompt})
+        text = _chat(client, msgs)
+        text = _resolve_figs_md(text, md_path)
+        with open(md_path, "a", encoding="utf-8") as f:
+            f.write(text + "\n")
+        last_tail = text
+        total = len(md_path.read_text(encoding="utf-8"))
+        print(f"\n[章节 {section}] 累计 {total} 字", end="", flush=True)
+        section += 1
+
+    result = md_to_docx(md_path.read_text(encoding="utf-8"), filename, reference_doc)
+    print(f"\n=== 完成: {filename} ~{total} 字,pandoc {result.get('ok')} ===", flush=True)
+    return {"filename": filename, "chars": total, "sections": section, "pandoc": result, "ok": True}
+
+
+def _resolve_figs_md(text: str, md_path: Path) -> str:
+    """把章节内 {{fig|spec}} 指令替换为 PNG 文件 + md 图片引用。"""
+    import re as _re
+    from .figures import draw_figure_png
+    from PIL import Image as PILImage
+    import io, hashlib
+
+    while True:
+        m = _re.search(r'\{\{fig\|(.+?)\}\}', text)
+        if not m:
+            break
+        spec = m.group(1)
+        png = draw_figure_png(spec)
+        name = hashlib.md5(spec.encode()).hexdigest()[:8]
+        fig_file = md_path.with_suffix(".md").parent / f"fig_{name}.png"
+        fig_file.write_bytes(png)
+        text = text.replace(m.group(0), f"\n![图]({fig_file.name})\n")
+    return text
+
+
 def generate_worddoc(
     topic: str,
     target_chars: int = 10000,

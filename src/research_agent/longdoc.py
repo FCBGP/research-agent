@@ -47,6 +47,46 @@ def _tail_chars(file: Path, n: int = 800) -> str:
     return data[-n:] if len(data) > n else data
 
 
+def generate_longdoc_pandoc(
+    topic: str,
+    target_chars: int = 100000,
+    filename: str = "long_report.docx",
+    reference_doc: str = "",
+    max_sections: int = 200,
+) -> dict:
+    """长文档 pandoc 模板管线:分段写 md → pandoc 转 .docx(模板定义格式)。"""
+    from openai import OpenAI
+    from .md2docx import md_to_docx
+
+    client = OpenAI(**config.client_kwargs())
+    md_path = Path(filename).with_suffix(".md")
+    md_path.write_text(f"# {topic}\n\n", encoding="utf-8")
+
+    total = 0
+    section = 1
+    while total < target_chars and section <= max_sections:
+        tail = _tail_chars(md_path, 800)
+        prompt = (
+            f"你是长文档写手。主题: {topic}。当前已写 {total} 字,目标 {target_chars} 字。\n"
+            f"请写下一章(约 2000-4000 字,Markdown,含小节标题与正文)。\n"
+            f"最近已写:\n{tail}\n\n直接输出本章 Markdown,不要解释。"
+        )
+        msgs = [{"role": "system", "content": "你是资深技术写手,生成结构清晰的长文档章节。"}]
+        msgs.append({"role": "user", "content": prompt})
+        text = _chat(client, msgs)
+        text = _resolve_svg(text)
+        with open(md_path, "a", encoding="utf-8") as f:
+            f.write(text + "\n")
+        total = _chars_of(md_path.read_text(encoding="utf-8"))
+        print(f"\n[章节 {section}] 累计 {total} 字", end="", flush=True)
+        section += 1
+
+    total = _chars_of(md_path.read_text(encoding="utf-8"))
+    result = md_to_docx(md_path.read_text(encoding="utf-8"), filename, reference_doc)
+    print(f"\n=== 完成: {filename} ~{total} 字,pandoc {result.get('ok')} ===", flush=True)
+    return {"filename": filename, "chars": total, "sections": section, "pandoc": result, "ok": True}
+
+
 def generate_longdoc(
     topic: str,
     target_chars: int = 100000,

@@ -21,7 +21,7 @@ from . import md2docx
 from .loop import agent_events
 from .debate import debate
 from .longdoc import generate_longdoc
-from .worddoc import generate_worddoc, append_figures_to_docx
+from .worddoc import generate_worddoc_pandoc, append_figures_to_docx
 
 app = FastAPI(title="Research Agent API")
 
@@ -44,6 +44,7 @@ class WordRequest(BaseModel):
     filename: str = "out.docx"
     outline: str = ""
     domain: str = ""
+    reference_doc: str = ""
     max_sections: int = 120
 
 
@@ -129,9 +130,9 @@ def agent_stream(req: AgentRequest) -> StreamingResponse:
 
 @app.post("/doc/word")
 def doc_word(req: WordRequest) -> dict:
-    result = generate_worddoc(req.topic, req.target_chars, req.filename,
-                              req.max_sections, req.outline, req.domain)
-    return {"result": result, "message": "若需 pandoc 模板排版,再用 /doc/convert"}
+    result = generate_worddoc_pandoc(req.topic, req.target_chars, req.filename,
+                                     req.reference_doc, req.outline, req.domain, req.max_sections)
+    return {"result": result}
 
 
 @app.post("/doc/convert")

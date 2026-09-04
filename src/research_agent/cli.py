@@ -57,6 +57,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("-wf", "--wfile", type=str, default="out.docx", help="Word 文档输出文件")
     parser.add_argument("-wo", "--outline", type=str, default="", help="Word 文档必填章节结构")
     parser.add_argument("-wd", "--domain", type=str, default="", help="领域/专业上下文")
+    parser.add_argument("-wt", "--wtemplate", type=str, default="", help="Word 参考模板(pandoc --reference-doc)")
     parser.add_argument("--md2docx", type=str, help="把 Markdown 文件转成 Word .docx")
     parser.add_argument("-o", "--out", type=str, default="out.docx", help="md2docx 输出文件")
     parser.add_argument("-t", "--template", type=str, default="", help="Word 参考模板(pandoc --reference-doc)")
@@ -74,10 +75,11 @@ def main(argv: list[str] | None = None) -> None:
         from .server import serve
         serve(host=args.host, port=args.port)
     elif args.worddoc:
-        from .worddoc import generate_worddoc
-        print(f"\n=== Word 文档生成: {args.worddoc} (目标 {args.wchars} 字,图文) ===", flush=True)
-        result = generate_worddoc(args.worddoc, target_chars=args.wchars, filename=args.wfile,
-                                  outline=args.outline, domain=args.domain)
+        from .worddoc import generate_worddoc_pandoc
+        print(f"\n=== Word 文档生成(pandoc 模板): {args.worddoc} (目标 {args.wchars} 字,图文) ===", flush=True)
+        result = generate_worddoc_pandoc(args.worddoc, target_chars=args.wchars, filename=args.wfile,
+                                         reference_doc=args.wtemplate,
+                                         outline=args.outline, domain=args.domain)
         print(f"\n=== 结果 ===\n{result}", flush=True)
     elif args.longdoc:
         from .longdoc import generate_longdoc
