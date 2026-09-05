@@ -78,9 +78,27 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick } from "vue";
+import { ref, reactive, onMounted, nextTick, watch } from "vue";
 
 const view = ref("chat");
+
+// 前端本地持久化:刷新不丢失会话(每问一题,本地历史就多一条)
+const STORAGE_KEY = "research-agent-history";
+const messages = reactive([]);
+watch(messages, (val) => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(val));
+}, { deep: true });
+
+// 每问一题,问题与最终结论同步进外部记忆(SQLite notes),跨会话/长期累积
+const API = "http://127.0.0.1:8000";
+async function persistQuestion(q, final) {
+  if (!final) return;
+  const topic = (q || "研究").slice(0, 40);
+  await fetch(`${API}/tool/run`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tool: "save_note", args: { topic, title: topic, content: final } }),
+  });
+}
 const views = [
   { id: "chat", label: "聊天" },
   { id: "tools", label: "工具" },
@@ -89,7 +107,6 @@ const views = [
   { id: "settings", label: "设置" },
 ];
 
-const messages = reactive([]);
 const prompt = ref("");
 const mode = ref("agent");
 const busy = ref(false);
@@ -110,8 +127,6 @@ const docResult = ref("");
 
 const configInfo = ref("");
 const skillMcpResult = ref("");
-
-const API = "http://127.0.0.1:8000";
 
 function roleLabel(role) {
   return role === "user" ? "你" : role === "model" ? "模型" : role === "tool" ? "工具" : role;
@@ -146,7 +161,11 @@ async function send() {
         const d = JSON.parse(line.slice(5).trim());
         messages.push({ role: d.type, text: d.content || d.tool || d.filename || d.result, roleLabel: roleLabel(d.type) });
         nextTick(() => log.value?.scrollTo({ top: log.value.scrollHeight }));
-        if (d.type === "final") break;
+        if (d.type === "final") {
+          // 每问一题:把问题与最终结论持久化到外部记忆(累积,刷新/跨会话都在)
+          persistQuestion(q, d.content || d.result || "");
+          break;
+        }
       } catch (e) {
         /* ignore partial lines */
       }
@@ -196,5 +215,10 @@ async function refreshMcp() {
 onMounted(async () => {
   tools.value = (await (await fetch(`${API}/tools`)).json()).tools;
   configInfo.value = JSON.stringify(await (await fetch(`${API}/config`)).json(), null, 2);
+  // 刷新后恢复本地会话历史(不丢失已问过的问题)
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try { messages.push(...JSON.parse(saved)); } catch (e) { /* ignore corrupt */ }
+  }
 });
 </script>

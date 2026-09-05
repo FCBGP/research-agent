@@ -281,7 +281,7 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
             conversation.append({"role": "tool", "name": tool, "content": result})
             # 有意义的中间结论进外部记忆
             if tool in ("web_search", "arxiv_search", "scholar_search"):
-                memory.save_papers(json.loads(result).get("results", []))
+                memory.save_papers(json.loads(_extract_json(result)).get("results", []) if _extract_json(result).startswith("{") else [])
             if tool == "write_report":
                 memory.checkpoint(session, "已生成报告")
 
@@ -372,7 +372,7 @@ def agent_events(user_query: str, max_turns: int | None = None, session: str = "
             current_tool = f"{tool}: {result[:800]}"
             conversation.append({"role": "tool", "name": tool, "content": result})
             if tool in ("web_search", "arxiv_search", "scholar_search"):
-                memory.save_papers(json.loads(result).get("results", []))
+                memory.save_papers(json.loads(_extract_json(result)).get("results", []) if _extract_json(result).startswith("{") else [])
             if tool == "write_report":
                 memory.checkpoint(session, "已生成报告")
 
