@@ -213,7 +213,7 @@ def grep(pattern: str, path: str = ".", max_results: int = 50) -> dict:
                     continue
                 fpath = os.path.join(root, name)
                 try:
-                    for i, line in enumerate(open(fpath, "rb", errors="ignore"), 1):
+                    for i, line in enumerate(open(fpath, "rb"), 1):
                         line = line.decode("utf-8", errors="ignore").rstrip("\n")
                         if compiled.search(line):
                             hits.append(f"{fpath}:{i}: {line}")
@@ -669,13 +669,30 @@ def tool_schemas() -> list[dict]:
     return schemas
 
 
+# 已知整数参数名(模型可能以字符串传递,需先转 int 再分派)
+_INT_PARAMS = {"max_results", "max_chars", "depth", "k", "max_turns",
+               "rounds", "max_rounds", "top_k", "limit", "width", "height",
+               "sample_n", "steps"}
+
+
+def _coerce_int(name: str, args: dict) -> dict:
+    """把已知整数参数从字符串/浮点转成 int(模型常以字符串传数值)。"""
+    for p in _INT_PARAMS:
+        if p in args and not isinstance(args[p], int):
+            try:
+                args[p] = int(args[p])
+            except (ValueError, TypeError):
+                pass  # 保持原值,工具内部会报参数错误
+    return args
+
+
 def run_tool(name: str, args: dict) -> str:
     """执行工具调用,结果转为 JSON 字符串返回给模型。"""
     func = TOOLS.get(name)
     if func is None:
         return json.dumps({"error": f"未知工具: {name}"})
     try:
-        result = func(**args)
+        result = func(**(_coerce_int(name, dict(args))))
     except TypeError as exc:
         return json.dumps({"error": f"参数错误: {exc}"})
     except Exception as exc:
