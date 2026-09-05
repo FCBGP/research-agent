@@ -123,20 +123,35 @@ async function send() {
   const q = prompt.value;
   prompt.value = "";
   messages.push({ role: "user", text: q, roleLabel: "你" });
-  const ev = new EventSource(`${API}/agent/stream`);
   const body = JSON.stringify({ query: q, mode: mode.value, max_turns: 8 });
-  ev.onmessage = (e) => {
-    const d = JSON.parse(e.data);
-    messages.push({ role: d.type, text: d.content || d.tool || d.filename, roleLabel: roleLabel(d.type) });
-    nextTick(() => log.value?.scrollTo({ top: log.value.scrollHeight }));
-    if (d.type === "final") ev.close();
-  };
-  // 先发送请求建立流
-  await fetch(`${API}/agent/stream`, {
+  // 用 fetch POST 读取 SSE 流(EventSource 只发 GET,后端是 POST 端点)
+  const resp = await fetch(`${API}/agent/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
   });
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    // 解析 SSE 的 data: 行
+    const lines = buf.split("\n");
+    buf = lines.pop() || "";
+    for (const line of lines) {
+      if (!line.startsWith("data:")) continue;
+      try {
+        const d = JSON.parse(line.slice(5).trim());
+        messages.push({ role: d.type, text: d.content || d.tool || d.filename || d.result, roleLabel: roleLabel(d.type) });
+        nextTick(() => log.value?.scrollTo({ top: log.value.scrollHeight }));
+        if (d.type === "final") break;
+      } catch (e) {
+        /* ignore partial lines */
+      }
+    }
+  }
   busy.value = false;
 }
 
