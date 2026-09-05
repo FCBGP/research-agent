@@ -53,6 +53,22 @@ def _extract_json(s: str) -> dict:
 # 证据工具白名单(网络/路由研究)
 EVIDENCE_TOOLS = ["web_search", "web_fetch", "arxiv_search", "scholar_search", "read_file", "grep"]
 
+# 置信度评分映射(ASI-Evolve 式节点分数)
+CONF_SCORES = {"高": 3, "中": 2, "低": 1}
+
+
+def _node_score(lesson: str, confidence: str, n_papers: int) -> float:
+    """给一轮进化节点打分(置信度 + 证据量)。"""
+    conf = CONF_SCORES.get(str(confidence).strip()[:1] or "中", 2)
+    return float(conf) + min(n_papers, 3) * 0.5 + (1.0 if lesson else 0.0)
+
+
+def _best_prior(rounds: list[dict]) -> dict:
+    """从已完成轮次里取样最高分节点(ASI-Evolve 式按分数选择)。"""
+    if not rounds:
+        return {}
+    return max(rounds, key=lambda r: r.get("score", 0.0))
+
 
 # ----------------------------------------------------------------
 # Stage 1 LEARN — 学习已知/空白
@@ -149,28 +165,45 @@ def analyze(hypothesis: str, evidence: list[str], session: str = "evolve") -> di
 
 
 def evolve(topic: str, max_rounds: int = 3, session: str = "evolve") -> dict:
-    """执行 LEARN→DESIGN→EXPERIMENT→ANALYZE 进化环,存试验谱系并写报告。"""
+    """执行 LEARN→DESIGN→EXPERIMENT→ANALYZE 进化环,存试验谱系并写报告。
+
+    ASI-Evolve 式增强:每轮给节点打分(置信度+证据量),取样最高分节点
+    的假设/经验引导下一轮设计;最终报告含最佳节点(最佳经验)。
+    """
     rounds = []
     lessons = []
     for rnd in range(1, max_rounds + 1):
+        # 用上一轮最佳节点经验引导本轮设计(取样)
+        prior = _best_prior(rounds)
+        prior_hint = ("\n\n【最佳经验】\n" + prior.get("lesson", "")) if prior.get("lesson") else ""
         lrn = learn(topic, session)
-        des = design(topic, lrn.get("motivation", ""), session, rnd)
+        des = design(topic, lrn.get("motivation", "") + prior_hint, session, rnd)
         exp = experiment(des.get("hypothesis", ""), des.get("tool_plan", []), session)
         ana = analyze(des.get("hypothesis", ""), exp.get("evidence", []), session)
+        score = _node_score(ana.get("lesson", ""), ana.get("confidence", "中"), exp.get("papers", 0))
         rounds.append({"round": rnd, "hypothesis": des.get("hypothesis", ""),
-                       "evidence": exp.get("evidence", []), "lesson": ana.get("lesson", "")})
+                       "evidence": exp.get("evidence", []), "lesson": ana.get("lesson", ""),
+                       "score": score, "papers": exp.get("papers", 0)})
         lessons.append(ana.get("lesson", ""))
         memory.save_trial(session, rnd, lrn.get("motivation", ""), des.get("hypothesis", ""),
                           "\n".join(exp.get("evidence", []))[:800], ana.get("lesson", ""))
-        memory.checkpoint(session, f"{rnd} 轮完成")
+        memory.checkpoint(session, f"{rnd} 轮完成(score={score:.1f})")
+
+    # 最佳节点取样(ASI-Evolve 式 best-node)
+    best = _best_prior(rounds)
+    best_lesson = best.get("lesson", "") if best else ""
 
     # 综合报告
-    summary = "\n".join(f"- 第{rd['round']}轮: {rd['lesson']}" for rd in rounds)
-    report = f"# 网络/路由进化研究\n\n主题: {topic}\n\n{summary}\n"
+    summary = "\n".join(
+        f"- 第{rd['round']}轮(score {rd.get('score', 0):.1f}): {rd['lesson']}" for rd in rounds
+    )
+    best_line = f"\n\n## 最佳节点(score {best.get('score', 0):.1f})\n{best_lesson}" if best_lesson else ""
+    report = f"# 网络/路由进化研究\n\n主题: {topic}\n\n{summary}\n{best_line}\n"
     filename = f"evolve_{topic}.md"
     tools.write_report(report, filename=filename)
     return {"rounds": rounds, "lessons": lessons,
-            "final": lessons[-1] if lessons else "已完成进化研究",
+            "best": best_lesson,
+            "final": best_lesson or (lessons[-1] if lessons else "已完成进化研究"),
             "report": filename}
 
 

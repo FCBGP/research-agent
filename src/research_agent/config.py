@@ -81,6 +81,10 @@ def _resolve() -> None:
     MAX_CONTEXT_CHARS = int(os.getenv("MAX_CONTEXT_CHARS", str(cfg.get("max_context_chars", 12000) or 12000)))
     OUTPUT_ROOT = os.getenv("OUTPUT_ROOT", cfg.get("output_root", "output") or "output")
 
+    # 进化环(ASI-Evolve 式)参数
+    EVOLVE_MAX_ROUNDS = int(os.getenv("EVOLVE_MAX_ROUNDS", str(cfg.get("evolve", {}).get("max_rounds", 3) or 3)))
+    EVOLVE_SAMPLE_BEST = str(os.getenv("EVOLVE_SAMPLE_BEST", str(cfg.get("evolve", {}).get("sample_best", True) or True))).lower() == "true"
+
 
 _resolve()
 
@@ -103,6 +107,25 @@ def client_kwargs() -> dict:
         "api_key": API_KEY,
         "default_headers": {"Authorization": f"Bearer {API_KEY}"},
     }
+
+
+def set_provider(provider: str, model: str | None = None) -> None:
+    """运行时切换供应商/模型(覆盖 config.yaml/env;供 CLI --provider/--model)。
+
+    用法: set_provider("deepseek", "deepseek-chat") 或 set_provider("claude")。
+    调用后 config.MODEL / BASE_URL / API_KEY / PROVIDER 立即生效。
+    """
+    cfg = _load_yaml()
+    preset = cfg.get("providers", {}).get(provider, {}) or {}
+    base = _resolve_env(preset.get("base_url", ""))
+    key = _resolve_env(preset.get("api_key", ""))
+    md = _resolve_env(preset.get("model", ""))
+
+    global PROVIDER, BASE_URL, API_KEY, MODEL
+    PROVIDER = provider
+    BASE_URL = os.getenv("LLM_BASE_URL", base) or base or BASE_URL
+    API_KEY = os.getenv("LLM_API_KEY", key) or key or API_KEY
+    MODEL = os.getenv("LLM_MODEL", model or md) or model or MODEL
 
 
 def model_for(role: str) -> str:

@@ -71,13 +71,17 @@ def run_after_tool(tool: str, args: dict, result: str) -> dict:
 
 
 def tool_allowed(tool: str) -> bool:
-    """按 settings 判断工具是否允许。默认允许。"""
+    """按 settings 判断工具是否允许。默认允许。
+
+    大小写不敏感:settings.allow 里 "Grep" 与自定义工具名 "grep" 视为同一工具,
+    避免自定义小写工具名被 Claude Code 大写规则误拒。
+    """
     s = _settings()
     deny = s.get("permissions", {}).get("deny", [])
-    if tool in deny:
+    if any(t.lower() == tool.lower() for t in deny):
         return False
     allow = s.get("permissions", {}).get("allow", [])
-    if allow and tool not in allow:
+    if allow and not any(t.lower() == tool.lower() for t in allow):
         return False
     return True
 

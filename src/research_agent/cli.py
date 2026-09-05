@@ -65,7 +65,14 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--host", type=str, default="127.0.0.1", help="后端监听地址")
     parser.add_argument("--port", type=int, default=8000, help="后端端口")
     parser.add_argument("--research", type=str, help="科研任务(走六阶段科研流程)")
+    parser.add_argument("-m", "--model", type=str, default=None, help="运行时切换模型(覆盖 config.yaml;如 gpt-4o/claude-3-5-sonnet/deepseek-chat)")
+    parser.add_argument("-p", "--provider", type=str, default=None, help="运行时切换供应商(openai|claude|gemini|deepseek|glm|kimi|relay|local;覆盖 config.yaml)")
     args = parser.parse_args(argv)
+
+    # 运行时模型/供应商切换:先于任务执行生效
+    if args.provider or args.model:
+        from . import config as _cfg
+        _cfg.set_provider(args.provider or "local", args.model)
 
     if args.research:
         from .research import run_research

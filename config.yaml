@@ -55,6 +55,13 @@ providers:
 
 debate:
   rounds: 3
+
+# 进化环(ASI-Evolve 式)可调参数
+evolve:
+  max_rounds: 3          # 每轮 LEARN→DESIGN→EXPERIMENT→ANALYZE 的最大轮数
+  sample_best: true      # 每轮取样上一轮最佳节点(score 最高)引导本轮设计
+  score_confidence: true # 用置信度(高/中/低)打分节点
+
 max_tool_turns: 12
 max_context_chars: 12000
 output_root: "output"
