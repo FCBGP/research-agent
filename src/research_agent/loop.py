@@ -281,7 +281,13 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
             conversation.append({"role": "tool", "name": tool, "content": result})
             # 有意义的中间结论进外部记忆
             if tool in ("web_search", "arxiv_search", "scholar_search"):
-                memory.save_papers(json.loads(_extract_json(result)).get("results", []) if _extract_json(result).startswith("{") else [])
+                # 截断结果可能使 JSON 不完整;宽容解析,失败则跳过保存(绝不崩 loop)
+                try:
+                    papers = json.loads(_extract_json(result)).get("results", [])
+                except Exception:
+                    papers = []
+                if papers:
+                    memory.save_papers(papers)
             if tool == "write_report":
                 memory.checkpoint(session, "已生成报告")
 
@@ -325,6 +331,10 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
     print(f"\n[事实] 已提炼 {len(facts)} 条", end="", flush=True)
     eval_ = _evaluate_inline(client, final_answer, evidence)
     print(f"\n[评分] {eval_.get('score')}/100", end="", flush=True)
+
+    # 兜底结论:模型用尽轮数仍未给出明确答案时,回退到研究摘要/证据,绝不返回空白
+    if not (final_answer or "").strip():
+        final_answer = research_summary or "已完成研究(未生成明确结论;已保存检索证据与笔记)"
 
     return final_answer
 
@@ -372,7 +382,13 @@ def agent_events(user_query: str, max_turns: int | None = None, session: str = "
             current_tool = f"{tool}: {result[:800]}"
             conversation.append({"role": "tool", "name": tool, "content": result})
             if tool in ("web_search", "arxiv_search", "scholar_search"):
-                memory.save_papers(json.loads(_extract_json(result)).get("results", []) if _extract_json(result).startswith("{") else [])
+                # 截断结果可能使 JSON 不完整;宽容解析,失败则跳过保存(绝不崩 loop)
+                try:
+                    papers = json.loads(_extract_json(result)).get("results", [])
+                except Exception:
+                    papers = []
+                if papers:
+                    memory.save_papers(papers)
             if tool == "write_report":
                 memory.checkpoint(session, "已生成报告")
 
