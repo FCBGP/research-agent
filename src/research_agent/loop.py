@@ -297,6 +297,7 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
         memory.checkpoint(session, content or research_summary)
 
     # 收尾:保存报告(仍用有界上下文)
+    _reported_flag = False
     messages = context.build_messages(
         system=SYSTEM_PROMPT,
         task_state=task_state,
@@ -312,8 +313,19 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
         tool = call.get("tool")
         args = call.get("args", {})
         if tool == "write_report":
+            _reported_flag = True
             run_tool(tool, args)
             print(f"\n[工具] {tool} 已执行", flush=True)
+
+    # 兜底报告:若模型未调用 write_report,则由最终结论+检索证据合成报告并直接写入,
+    # 保证每次研究都落一份具体文件到 output/docs/(用户可读取)。
+    if not _reported_flag:
+        _reported_flag = True
+        report_text = f"# 研究结论\n\n主题: {task_state}\n\n{final_answer or content or research_summary or '已完成研究'}\n\n## 证据链\n" + (evidence or "(无检索证据)")
+        filename = "research_" + (task_state[:20].strip() or "agent").replace(" ", "_").replace("?", "") + ".md"
+        from . import tools as _t
+        _t.run_tool("write_report", {"content": report_text, "filename": filename})
+        print(f"\n[报告] 已写入 output/docs/{filename}", end="", flush=True)
 
     # 综述《科研智能体「漫游指南」》增强:
     # 推理增强(自洽验证) + 记忆增强(原子事实蒸馏) + 基准评估(事实性评分)
