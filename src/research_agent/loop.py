@@ -170,6 +170,22 @@ def _chat(client, messages: list[dict]) -> tuple[str, list[dict], list[dict]]:
     return content, native_calls, text_calls
 
 
+def _chat_plain(client, messages: list[dict]) -> str:
+    """纯写作调用:不带 tools,模型只能写文本(用于报告章节生成)。
+
+    `_chat` 带 tools 会让模型在写作提示下反而去调工具,导致章节空输出。
+    报告写手必须用本函数:model/messages/temperature,无 tools。
+    """
+    resp = client.chat.completions.create(
+        model=config.MODEL,
+        messages=messages,
+        temperature=config.TEMPERATURE,
+    )
+    if resp.choices and resp.choices[0].message:
+        return resp.choices[0].message.content or ""
+    return ""
+
+
 def _distill_facts(client, final: str, evidence: str) -> list[dict]:
     """把最终结论提炼成原子事实并存入外部记忆(记忆增强)。"""
     msgs = [
@@ -339,6 +355,61 @@ def _hanzi_count(text: str) -> int:
         return len(re.findall(r"[一-鿿]", text))
 
 
+def _prompt_chapter_plan(prompt_text: str) -> list[str]:
+    """从用户 prompt 解析顶层章节规划(字母章节 A. B. C. ... 或 ## 章节标题)。
+
+    识别 `## A.` / `A.` / `## B.` / `B.` 等字母章节,或 `## X章` 等标题章节。
+    无则返回空(让模型自行规划)。"""
+    import re
+    plan: list[str] = []
+    for line in (prompt_text or "").split("\n"):
+        line = line.strip()
+        # 字母章节:A. / A. 研究范围 / ## A. 研究范围
+        m = re.match(r"^#{0,3}\s*([A-Z])\.\s*(.+)$", line)
+        if m:
+            plan.append(f"{m.group(1)}. {m.group(2)}")
+            continue
+        # 中文章节编号:第一章 / 一、等
+        m2 = re.match(r"^#{0,3}\s*第([一二三四五六七八九十\d]+)章\s*(.+)$", line)
+        if m2:
+            plan.append(f"第{m2.group(1)}章 {m2.group(2)}")
+            continue
+    # 去重
+    seen = set(); out = []
+    for p in plan:
+        if p not in seen:
+            seen.add(p); out.append(p)
+    return out
+
+
+def _figs_to_md(text: str, md_path: Path) -> str:
+    """把章节内 {{fig|spec}}/{{png|spec}}/{{svg|spec}} 指令替换为 PNG 文件 + md 图片引用。
+
+    复用 worddoc._resolve_figs_md 的思路:用 figures.draw_figure_png 生成 PNG,
+    存到 output/figures/,在 md 里写 ![图](fig_xxx.png)。"""
+    import re as _re
+    import hashlib
+    from . import figures as _figures
+    from pathlib import Path as _Path
+    figs_dir = _Path(config.OUTPUT_ROOT) / "figures"  # output/figures 目录
+    figs_dir.mkdir(parents=True, exist_ok=True)
+    while True:
+        m = _re.search(r"\{\{(fig|png|svg)\|(.+?)\}\}", text)
+        if not m:
+            break
+        spec = m.group(2)
+        try:
+            png = _figures.draw_figure_png(spec)
+            name = hashlib.md5(spec.encode()).hexdigest()[:8]
+            fig_file = figs_dir / f"fig_{name}.png"
+            fig_file.write_bytes(png)
+            text = text.replace(m.group(0), f"\n![图 {m.group(1)}]({fig_file.name})\n")
+        except Exception:
+            # 图生成失败则留占位文本(不崩写手)
+            text = text.replace(m.group(0), "\n[图占位:无法生成该图]\n")
+    return text
+
+
 def _research_report_segmented(
     client,
     topic: str,
@@ -346,13 +417,14 @@ def _research_report_segmented(
     conclusion: str,
     chars_target: int,
     filename_md: str,
+    user_prompt: str = "",
 ) -> dict:
-    """分段生成完整研究报告:顶层章节(≤config.REPORT_MAX_SECTIONS,默认10)逐章推进。
+    """分段生成完整研究报告:章节由用户 prompt 规划(不设上限),每章图文并茂、嵌套子章节。
 
-    每章由模型自主生成:可含 ## 小节 / ### 子小节,段落错落有致(长度不限,按内容需要)。
-    质量受控:顶层章节上限(默认10)、每章最少/最多字数(config.REPORT_SECTION_MIN/MAX)、
-    去重提示(不复述前面)。循环直到 hanzi ≥ chars_target 或顶层章节数用尽。
-    写完 md 落 output/md;参考文献与最终结论随文。返回 {"chars","sections","filename"}。
+    用 `_chat_plain`(不带 tools)写章节,避免模型调工具导致空输出。
+    顶层章节 = 用户 prompt 解析出的章节(如 A-O);每章内部子章节/子子/子子子不限。
+    每章含图({{fig|...}}→PNG 落 output/figures)。循环直到 hanzi ≥ chars_target 或章节全部填完。
+    空输出时重新提示(换角度),不落占位符。收尾:参考文献 + 最终结论。
     """
     from pathlib import Path
     md_path = Path(config.report_path(filename_md))
@@ -363,63 +435,69 @@ def _research_report_segmented(
     )
     md_path.write_text(seed, encoding="utf-8")
     total = _hanzi_count(md_path.read_text(encoding="utf-8"))
-    top = 1
-    max_top = max(1, config.REPORT_MAX_SECTIONS)
     refs_block = "\n".join(references[:15]) or "(无)"
-    all_text = ""  # 全文去重参考(跨章)
-    while total < chars_target and top <= max_top:
+
+    # 章节规划:优先用户 prompt 结构;无则让模型规划
+    plan = _prompt_chapter_plan(user_prompt) or [""]  # [""] 触发模型规划
+    all_text = ""
+    chapter_no = 0
+    max_chapters = 999  # 不设章节上限,仅兜底大值
+    while total < chars_target and chapter_no < max_chapters:
+        chapter_no += 1
+        plan_block = "\n".join(plan) or "(无既定章节,请自行规划合理章节结构)"
         tail = all_text[-1200:] if all_text else ""
+        target_chapter = plan[chapter_no - 1] if chapter_no <= len(plan) else f"后续章节(按研究推进)"
         prompt = (
             f"你是资深技术写手。主题: {topic}。当前已写 {total} 汉字,目标 {chars_target} 汉字。\n"
-            f"已检索证据(参考文献):\n{refs_block[:1000]}\n"
-            f"结论草案:\n{conclusion[:600]}\n"
-            f"最近已写:\n{tail}\n\n"
-            f"请写本报告的【第 {top} 章】(一级章节),深入技术细节,延续当前主题但讲新的内容,不要复述前面。\n"
+            f"【本章应写】{target_chapter}\n"
+            f"【报告章节规划(用户 prompt 给定,逐章推进)】\n{plan_block}\n"
+            f"【已检索证据(参考文献)】\n{refs_block[:1200]}\n"
+            f"【最近已写】\n{tail}\n\n"
+            f"请写本章(一级章节),深入技术细节,延续当前主题但讲新的内容,不要复述前面。\n"
             f"要求:\n"
-            f"- 本章可含 ## 小节标题 与 ### 子小节,嵌套结构;段落错落有致,长度不限(按内容需要)。\n"
-            f"- 至少 {config.REPORT_SECTION_MIN} 汉字,不必超过 {config.REPORT_SECTION_MAX}。\n"
-            f"- 必要时用 Markdown 表格或图({{fig|chart:标题|名,值|名,值}})。\n"
+            f"- 本章可含 ## 小节 / ### 子小节 / #### 子子小节,嵌套结构不限;段落错落有致,长度不限(按内容需要)。\n"
+            f"- 至少 {config.REPORT_SECTION_MIN} 汉字;若本章是该章节,应把它写完整、写深。\n"
+            f"- 每章配图:用 {{fig|chart:标题|名,值|名,值}} 或 {{fig|flow:标题|A→B→C}} 或 {{fig|box:标题|要点}} 等指令,生成 1-3 张图。\n"
+            f"- 必要时用 Markdown 表格。\n"
             f"直接输出本章 Markdown,不要解释。"
         )
         msgs = [
             {"role": "system", "content": "你是资深技术写手,生成结构清晰、嵌套小节、图文并茂的长报告章节。"},
             {"role": "user", "content": prompt},
         ]
-        text, _, _ = _chat(client, msgs)
-        text = text.strip() or _fallback_section(topic, top, refs_block)
+        text = _chat_plain(client, msgs)
+        text = text.strip()
+        # 空输出:重新提示(换角度),最多 2 次;仍空则记"该章未生成"
+        if not text:
+            for _r in range(2):
+                text = _chat_plain(client, [
+                    {"role": "system", "content": "你是资深技术写手,生成结构清晰、嵌套小节、图文并茂的长报告章节。"},
+                    {"role": "user", "content": f"上轮未输出本章。请现在直接写出【{target_chapter}】一章(可含子小节),深入技术细节,配 {{fig|...}} 图。主题: {topic}。参考: {refs_block[:1000]}。不要解释,直接输出。"},
+                ]).strip()
+                if text:
+                    break
+        if not text:
+            text = f"\n## {target_chapter}\n\n(该章生成失败,后续章节继续;见参考文献与结论获取要点)\n"
         # 去重:若整章与已写高度重复,强制换角度
         if _dup_similar(text, all_text):
-            text = _chat(client, [
+            text = _chat_plain(client, [
                 {"role": "system", "content": "你是资深技术写手,生成结构清晰、嵌套小节、图文并茂的长报告章节。"},
-                {"role": "user", "content": f"刚才章节与已写内容重复。请换一个全新角度写【第 {top} 章】(一级章节,可含子小节),讲新的技术细节。主题: {topic}。参考: {refs_block[:1000]}。长度不限,段落错落有致。直接输出。"},
-            ])[0] or _fallback_section(topic, top, refs_block)
+                {"role": "user", "content": f"刚才章节与已写内容重复。请换一个全新角度写【{target_chapter}】一章(可含子小节),讲新的技术细节。主题: {topic}。参考: {refs_block[:1000]}。配 {{fig|...}} 图。直接输出。"},
+            ]).strip() or text
+        # 图指令 → PNG 引用
+        text = _figs_to_md(text, md_path)
         with open(md_path, "a", encoding="utf-8") as f:
-            f.write("\n## 第{}章\n".format(top) if not text.startswith("#") else "\n")
-            f.write(text + "\n")
+            f.write("\n" + text + "\n")
         all_text += text
         total = _hanzi_count(md_path.read_text(encoding="utf-8"))
-        print(f"\n[章节 {top}] hanzi {total}", end="", flush=True)
-        top += 1
+        print(f"\n[章节 {chapter_no}] hanzi {total}", end="", flush=True)
+        # 若该章是计划内最后章节且已达标,可提前结束
+        if total >= chars_target:
+            break
     # 收尾:追加完整结论(已达标时)并保证参考文献在文中
     with open(md_path, "a", encoding="utf-8") as f:
         f.write("\n## 结论\n" + conclusion + "\n")
-    return {"chars": total, "sections": top, "filename": str(md_path)}
-
-
-def _fallback_section(topic: str, top: int, refs_block: str) -> str:
-    """写手空输出时的兜底章节(保证章节不至于空白)。"""
-    return f"\n## 第{top}章\n\n本节围绕主题 {topic} 的技术细节展开,结合检索证据 {refs_block[:80]} 深入分析。\n"
-
-
-def _dup_similar(a: str, b: str) -> bool:
-    """粗略判断两段是否高度重复(用于去重)。"""
-    import re
-    a_cn = set(re.findall(r"[一-鿿]{2,}", a))
-    b_cn = set(re.findall(r"[一-鿿]{2,}", b))
-    if not a_cn or not b_cn:
-        return False
-    inter = a_cn & b_cn
-    return len(inter) / min(len(a_cn), len(b_cn)) > 0.6
+    return {"chars": total, "sections": chapter_no, "filename": str(md_path)}
 
 
 def _dup_similar(a: str, b: str) -> bool:
@@ -561,7 +639,8 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
         if chars_target or template_docx:
             # 模板驱动完整报告:分段生成至 hanzi 达标(质量受控)
             seg = _research_report_segmented(client, task_state, references, conclusion,
-                                             chars_target or config.MIN_REPORT_CHARS, filename)
+                                             chars_target or config.MIN_REPORT_CHARS, filename,
+                                             user_prompt=full_prompt)
             if template_docx:
                 from . import md2docx
                 docx_path = config.output_path("docs", filename.replace(".md", ".docx"))
@@ -703,7 +782,8 @@ def agent_events(user_query: str, max_turns: int | None = None, session: str = "
         if chars_target or template_docx:
             # 模板驱动完整报告:分段生成至 hanzi 达标(质量受控)
             seg = _research_report_segmented(client, task_state, references, conclusion,
-                                             chars_target or config.MIN_REPORT_CHARS, filename)
+                                             chars_target or config.MIN_REPORT_CHARS, filename,
+                                             user_prompt=full_prompt)
             if template_docx:
                 from . import md2docx
                 docx_path = config.output_path("docs", filename.replace(".md", ".docx"))

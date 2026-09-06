@@ -107,7 +107,8 @@ def run_research(query: str, max_stages: int = 8, session: str = "research",
     filename = "research_" + (query[:20].strip() or "agent").replace(" ", "_").replace("?", "") + ".md"
     if chars_target or template_docx:
         seg = _loop._research_report_segmented(client, query, references, final,
-                                               chars_target or config.MIN_REPORT_CHARS, filename)
+                                               chars_target or config.MIN_REPORT_CHARS, filename,
+                                               user_prompt=full_prompt)
         if template_docx:
             from . import md2docx
             docx_path = config.output_path("docs", filename.replace(".md", ".docx"))
