@@ -232,11 +232,11 @@ def grep(pattern: str, path: str = ".", max_results: int = 50) -> dict:
 
 
 def write_report(content: str, filename: str = "research_report.md") -> dict:
-    """将研究成果写入 Markdown 报告文件(进 output/docs)。"""
+    """将研究成果写入 Markdown 报告文件(进 output/md)。"""
     from datetime import datetime
 
     from . import config as _config
-    p = Path(_config.output_path("docs", filename))
+    p = Path(_config.report_path(filename))
     header = f"# 研究报告\n\n> 生成时间: {datetime.now().isoformat(timespec='seconds')}\n"
     try:
         p.write_text(header + "\n" + content, encoding="utf-8")

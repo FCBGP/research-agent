@@ -35,8 +35,10 @@ SYSTEM_PROMPT = """你是本地科研智能体。你的任务是帮用户做研�
 2. 读本地文件/PDF 用 read_file/read_pdf;浏览代码用 list_dir/grep。
 3. 每一步工具调用都发一条消息,格式:{"tool":"工具名","args":{...}}。
 4. 看工具返回结果后继续,直到信息足够。
-5. 信息足够时,给出最终研究结论(中文),并调用 write_report 保存报告。
-6. 保持简洁,不要反复问用户;有歧义就按合理默认处理。
+5. 信息足够时(已搜到并精读过足够来源),给出最终研究结论(中文),并调用 write_report 保存报告。
+6. 报告必须严谨:包含【研究过程】(你用了哪些工具、搜了什么、读了什么)与【参考文献】(找到的来源标题/链接),不只给结论。
+7. 当检索证据已足够(至少几条来源/论文)时,应停止继续搜索,直接给出结论;不要无限循环搜资料。
+8. 保持简洁,不要反复问用户;有歧义就按合理默认处理。
 """
 
 # Harness 注入:hooks + 权限(settings.json),包裹 run_tool
@@ -224,6 +226,60 @@ def evaluate_report(report: str, query: str = "") -> dict:
         return {"score": 50, "issues": ["无法解析评分"]}
 
 
+def _process_trail(conversation: list[dict]) -> list[str]:
+    """从 conversation 的 tool 消息重建研究过程(有序工具步骤)。"""
+    steps = []
+    for m in conversation:
+        if m.get("role") == "tool":
+            steps.append(f"{m.get('name')}: {m.get('content', '')[:200]}")
+    return steps
+
+
+def _collect_references(conversation: list[dict]) -> list[str]:
+    """从搜索/抓取结果去重收集参考文献(标题/链接)。"""
+    refs = []
+    seen = set()
+    for m in conversation:
+        if m.get("role") != "tool":
+            continue
+        name = m.get("name", "")
+        content = m.get("content", "") or ""
+        if name in ("web_search", "arxiv_search", "scholar_search"):
+            try:
+                data = json.loads(_extract_json(content))
+                for r in data.get("results", []):
+                    title = r.get("title", "")
+                    url = r.get("url", "") or r.get("href", "")
+                    if title and url and url not in seen:
+                        seen.add(url)
+                        refs.append(f"[{title}]({url})")
+                    elif title and url:
+                        seen.add(url)
+                        refs.append(f"- {title} ({url})")
+            except Exception:
+                continue
+        elif name == "web_fetch":
+            try:
+                data = json.loads(_extract_json(content))
+                url = data.get("url", "")
+                if url and url not in seen:
+                    seen.add(url)
+                    refs.append(f"- {url}")
+            except Exception:
+                continue
+    return refs
+
+
+def _synthesize_conclusion(client, final: str, evidence_chain: str, references: list[str]) -> str:
+    """后处理总结器:一次 LLM 调用,把证据链+参考文献合成真正结论。"""
+    msgs = [
+        {"role": "system", "content": "你是研究总结器。基于检索证据与参考文献,写一段严谨的最终研究结论(中文)。"},
+        {"role": "user", "content": "【证据链】\n" + (evidence_chain[:1500] or "(无)") + "\n\n【参考文献】\n" + "\n".join(references[:10]) + "\n\n【草案】\n" + (final[:800] or "无") + "\n\n请给出结论。"},
+    ]
+    resp = client.chat.completions.create(model=config.MODEL, messages=msgs, temperature=0.3)
+    return resp.choices[0].message.content or ""
+
+
 def run_agent(user_query: str, max_turns: int | None = None, session: str = "default") -> str:
     """执行完整 agentic 循环,返回最终研究结论。
 
@@ -317,21 +373,34 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
             run_tool(tool, args)
             print(f"\n[工具] {tool} 已执行", flush=True)
 
-    # 兜底报告:若模型未调用 write_report,则由最终结论+本轮收集的工具证据合成报告并直接写入,
-    # 保证每次研究都落一份具体文件到 output/docs/(用户可读取)。
+    # 严谨报告生成:无论模型是否调用 write_report,都合成一份含
+    # 【研究过程】+【参考文献】+【结论】的报告,写到 output/md/。
+    # 结论由后处理总结器从证据链合成(模型不结论也能落实质结论)。
     if not _reported_flag:
         _reported_flag = True
-        # 从 conversation 里收集本轮工具结果(搜索/抓取/论文),作证据链,让报告有实质内容
+        process_trail = _process_trail(conversation)
+        references = _collect_references(conversation)
+        # 证据链:取工具结果摘要(前 8 条),供总结器与报告用
         tool_ev = []
         for m in conversation:
             if m.get("role") == "tool":
-                tool_ev.append(f"- {m.get('name')}: {m.get('content', '')[:300]}")
-        evidence_chain = "\n".join(tool_ev[:10]) or (evidence or "(本轮无工具证据)")
-        report_text = f"# 研究结论\n\n主题: {task_state}\n\n{final_answer or content or research_summary or '已完成研究'}\n\n## 证据链\n{evidence_chain}"
+                tool_ev.append(f"- {m.get('name')}: {m.get('content', '')[:200]}")
+        evidence_chain = "\n".join(tool_ev[:8]) or (evidence or "(本轮无工具证据)")
+        # 后处理总结器:把证据链+参考文献合成真正结论
+        conclusion = _synthesize_conclusion(client, final_answer, evidence_chain, references) or (
+            final_answer or research_summary or "已完成研究(证据已收集,见参考文献)"
+        )
+        report_text = (
+            f"# 研究报告\n\n> 主题: {task_state}\n"
+            f"> 模型: {config.MODEL} | 供应商: {config.PROVIDER}\n\n"
+            f"## 研究过程\n" + ("\n".join(process_trail[:20]) or "(无工具调用)") + "\n\n"
+            f"## 参考文献\n" + ("\n".join(references[:20]) or "(未检索到外部来源)") + "\n\n"
+            f"## 结论\n{conclusion}\n"
+        )
         filename = "research_" + (task_state[:20].strip() or "agent").replace(" ", "_").replace("?", "") + ".md"
         from . import tools as _t
         _t.run_tool("write_report", {"content": report_text, "filename": filename})
-        print(f"\n[报告] 已写入 output/docs/{filename}", end="", flush=True)
+        print(f"\n[报告] 已写入 output/md/{filename}", end="", flush=True)
 
     # 综述《科研智能体「漫游指南」》增强:
     # 推理增强(自洽验证) + 记忆增强(原子事实蒸馏) + 基准评估(事实性评分)
@@ -427,13 +496,24 @@ def agent_events(user_query: str, max_turns: int | None = None, session: str = "
             res = run_tool("write_report", args)
             yield {"type": "report", "filename": args.get("filename", "research_report.md"), "content": res}
     if not reported:
-        # 兜底:模型未调 write_report 时,由最终结论+本轮工具证据合成报告并写入
+        # 严谨报告:模型未调 write_report 时,合成【研究过程】+【参考文献】+【结论】并写入 output/md
+        process_trail = _process_trail(conversation)
+        references = _collect_references(conversation)
         tool_ev = []
         for m in conversation:
             if m.get("role") == "tool":
-                tool_ev.append(f"- {m.get('name')}: {m.get('content', '')[:300]}")
-        evidence_chain = "\n".join(tool_ev[:10]) or (evidence or "(本轮无工具证据)")
-        report_text = f"# 研究结论\n\n主题: {task_state}\n\n{final_answer or content or research_summary or '已完成研究'}\n\n## 证据链\n{evidence_chain}"
+                tool_ev.append(f"- {m.get('name')}: {m.get('content', '')[:200]}")
+        evidence_chain = "\n".join(tool_ev[:8]) or (evidence or "(本轮无工具证据)")
+        conclusion = _synthesize_conclusion(client, final_answer, evidence_chain, references) or (
+            final_answer or research_summary or "已完成研究(证据已收集,见参考文献)"
+        )
+        report_text = (
+            f"# 研究报告\n\n> 主题: {task_state}\n"
+            f"> 模型: {config.MODEL} | 供应商: {config.PROVIDER}\n\n"
+            f"## 研究过程\n" + ("\n".join(process_trail[:20]) or "(无工具调用)") + "\n\n"
+            f"## 参考文献\n" + ("\n".join(references[:20]) or "(未检索到外部来源)") + "\n\n"
+            f"## 结论\n{conclusion}\n"
+        )
         filename = "research_" + (task_state[:20].strip() or "agent").replace(" ", "_").replace("?", "") + ".md"
         res = run_tool("write_report", {"content": report_text, "filename": filename})
         yield {"type": "report", "filename": filename, "content": res}

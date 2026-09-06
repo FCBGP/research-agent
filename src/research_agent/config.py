@@ -91,13 +91,19 @@ _resolve()
 
 # 输出组织:所有 agent 产物进 output/ 分门别类;output/ 整体 gitignore
 OUTPUT_SUBDIRS = {
-    "docs": "docs",    # Word/Markdown 长文档、报告
+    "docs": "docs",    # Word/长文档
+    "md": "md",        # 所有 Markdown 报告(研究/进化/QA)
     "slides": "slides",  # 演示文稿(未来)
     "codes": "codes",   # 实验/分析代码、脚本
     "figures": "figures",  # 图表/图片
     "notes": "notes",   # 研究笔记
     "memory": "memory",  # 外部记忆 DB
 }
+
+
+def report_path(filename: str) -> str:
+    """所有 Markdown 报告的落盘目录(output/md)。"""
+    return output_path("md", filename)
 
 
 def client_kwargs() -> dict:
