@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 
 from . import config
 from . import context, memory
@@ -280,12 +281,147 @@ def _synthesize_conclusion(client, final: str, evidence_chain: str, references: 
     return resp.choices[0].message.content or ""
 
 
-def run_agent(user_query: str, max_turns: int | None = None, session: str = "default") -> str:
+def _load_prompt(prompt_arg: str, topic: str) -> str:
+    """从 prompts/ 加载完整研究 prompt;返回空串表示用默认 SYSTEM_PROMPT。
+
+    规则:prompt_arg 是路径或文件名 → 直接用;否则按主题自动匹配 prompts/<topic>.<ext>。
+    """
+    if prompt_arg:
+        p = Path(prompt_arg)
+        if p.exists() and p.is_file():
+            return p.read_text(encoding="utf-8").strip()
+        # 文件名而非路径
+        cand = Path(config.PROMPTS_DIR) / prompt_arg
+        if cand.exists() and cand.is_file():
+            return cand.read_text(encoding="utf-8").strip()
+        # 按主题匹配
+        for ext in ("md", "txt", "prompt"):
+            cand = Path(config.PROMPTS_DIR) / f"{topic}.{ext}"
+            if cand.exists() and cand.is_file():
+                return cand.read_text(encoding="utf-8").strip()
+    # 自动按主题匹配(无显式 prompt_arg)
+    for ext in ("md", "txt", "prompt"):
+        cand = Path(config.PROMPTS_DIR) / f"{topic}.{ext}"
+        if cand.exists() and cand.is_file():
+            return cand.read_text(encoding="utf-8").strip()
+    return ""
+
+
+def _resolve_template(template_arg: str, topic: str) -> str:
+    """找 Word 模板:显式 template_arg(路径或 templates/ 内文件名)→ 主题自动匹配。无则返回空串(自建)。"""
+    if template_arg:
+        p = Path(template_arg)
+        if p.exists() and p.is_file():
+            return str(p)
+        cand = Path(config.TEMPLATES_DIR) / template_arg
+        if cand.exists() and cand.is_file():
+            return str(cand)
+        # 文件名带后缀则补 templates/ 前缀
+        for ext in ("docx",):
+            cand = Path(config.TEMPLATES_DIR) / f"{topic}.{ext}"
+            if cand.exists() and cand.is_file():
+                return str(cand)
+    # 自动按主题匹配
+    for ext in ("docx", "md"):
+        cand = Path(config.TEMPLATES_DIR) / f"{topic}.{ext}"
+        if cand.exists() and cand.is_file():
+            return str(cand)
+    return ""
+
+
+def _hanzi_count(text: str) -> int:
+    """用 scripts/chcount.py 的 count_text 数汉字。"""
+    try:
+        from scripts.chcount import count_text
+        return int(count_text(text).get("hanzi", 0))
+    except Exception:
+        import re
+        return len(re.findall(r"[一-鿿]", text))
+
+
+def _research_report_segmented(
+    client,
+    topic: str,
+    references: list[str],
+    conclusion: str,
+    chars_target: int,
+    filename_md: str,
+) -> dict:
+    """分段生成完整研究报告:每章写 800-1500 hanzi,循环到 hanzi 达标。
+
+    质量受控:章节上限(默认 30)、去重提示(不复述前面)、每章延续当前主题。
+    写完 md 落 output/md;参考文献与最终结论随文。返回 {"chars", "sections", "filename"}。
+    """
+    from pathlib import Path
+    md_path = Path(config.report_path(filename_md))
+    seed = (
+        f"# 研究报告\n\n> 主题: {topic}\n\n"
+        f"## 参考文献(检索证据)\n"
+        + ("\n".join(f"- {r}" for r in references[:20]) or "(本轮未检索到外部来源)") + "\n\n"
+        f"## 结论(草案)\n{conclusion}\n\n"
+    )
+    md_path.write_text(seed, encoding="utf-8")
+    total = _hanzi_count(md_path.read_text(encoding="utf-8"))
+    section = 1
+    max_sections = 30
+    last_tail = ""
+    refs_block = "\n".join(references[:15]) or "(无)"
+    while total < chars_target and section <= max_sections:
+        tail = last_tail[-800:] if last_tail else ""
+        prompt = (
+            f"你是资深技术写手。主题: {topic}。当前已写 {total} 汉字,目标 {chars_target} 汉字。\n"
+            f"已检索证据(参考文献):\n{refs_block[:800]}\n"
+            f"结论草案:\n{conclusion[:500]}\n"
+            f"最近已写:\n{tail}\n\n"
+            f"请写下一章(800-1500 汉字中文),延续当前主题,深入技术细节;不要复述前面内容。"
+            f"含 ## 小节标题、正文、必要时 Markdown 表格或图。直接输出本章,不要解释。"
+        )
+        msgs = [
+            {"role": "system", "content": "你是资深技术写手,生成结构清晰、图文并茂的长报告章节。"},
+            {"role": "user", "content": prompt},
+        ]
+        text, _, _ = _chat(client, msgs)
+        text = text.strip()
+        # 去重:若与最近章节高度相似,强制换角度
+        if last_tail and _dup_similar(text, last_tail):
+            text = _chat(client, [
+                {"role": "system", "content": "你是资深技术写手,生成结构清晰、图文并茂的长报告章节。"},
+                {"role": "user", "content": f"刚才章节与上文重复。请换一个角度写下一章(800-1500 汉字),讲新的技术细节,不要复述。主题: {topic}。参考: {refs_block[:800]}。直接输出。"},
+            ])[0]
+            text = text.strip()
+        with open(md_path, "a", encoding="utf-8") as f:
+            f.write(text + "\n")
+        last_tail = text
+        total = _hanzi_count(md_path.read_text(encoding="utf-8"))
+        print(f"\n[章节 {section}] hanzi {total}", end="", flush=True)
+        section += 1
+    # 收尾:追加完整结论(已达标时)并保证参考文献在文中
+    with open(md_path, "a", encoding="utf-8") as f:
+        f.write("\n## 结论\n" + conclusion + "\n")
+    return {"chars": total, "sections": section, "filename": str(md_path)}
+
+
+def _dup_similar(a: str, b: str) -> bool:
+    """粗略判断两段是否高度重复(用于去重)。"""
+    import re
+    a_cn = set(re.findall(r"[一-鿿]{2,}", a))
+    b_cn = set(re.findall(r"[一-鿿]{2,}", b))
+    if not a_cn or not b_cn:
+        return False
+    inter = a_cn & b_cn
+    return len(inter) / min(len(a_cn), len(b_cn)) > 0.6
+
+
+def run_agent(user_query: str, max_turns: int | None = None, session: str = "default",
+              chars: int | None = None, prompt: str = "", template: str = "") -> str:
     """执行完整 agentic 循环,返回最终研究结论。
 
     架构:有界工作上下文(Active Context) + 外部记忆(External Memory)。
     模型每轮只看分层构建的 ~15K 工作台,不把全部历史塞进 messages[]。
     研究摘要/证据来自外部记忆(SQLite)检索;每步进展做 Checkpoint。
+
+    chars: 目标 hanzi 字数(0/None=自然长度);prompt: 完整工作指引(prompts/ 加载);
+    template: Word 模板(templates/ 加载,有则逐项填充,无则自建)。
     """
     from openai import OpenAI
 
@@ -298,6 +434,12 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
     conversation: list[dict] = []
     current_tool = ""
 
+    # 完整工作指引(用户巨长 prompt;加载后并入每轮工作台)
+    full_prompt = _load_prompt(prompt, user_query)
+    _prompt = (full_prompt + "\n\n" + SYSTEM_PROMPT) if full_prompt else SYSTEM_PROMPT
+    chars_target = chars if chars is not None else config.CHARS_TARGET
+    template_docx = _resolve_template(template, user_query)
+
     final_answer = ""
     for turn in range(max_turns):
         # 检索 top-K 证据(论文/事实,与任务相关)
@@ -308,13 +450,15 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
         )
 
         messages = context.build_messages(
-            system=SYSTEM_PROMPT,
+            system=_prompt,
             task_state=task_state,
             research_summary=research_summary,
             evidence=evidence,
             current_tool=current_tool,
             conversation=conversation,
         )
+        if full_prompt:
+            messages.append({"role": "user", "content": "【完整工作指引(务必遵守)】\n" + full_prompt})
         content, native_calls, text_calls = _chat(client, messages)
         print(f"\n[模型] {content}", end="", flush=True)
 
@@ -355,13 +499,15 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
     # 收尾:保存报告(仍用有界上下文)
     _reported_flag = False
     messages = context.build_messages(
-        system=SYSTEM_PROMPT,
+        system=_prompt,
         task_state=task_state,
         research_summary=research_summary,
         evidence=evidence,
         current_tool=current_tool,
         conversation=conversation,
     )
+    if full_prompt:
+        messages.append({"role": "user", "content": "【完整工作指引(务必遵守)】\n" + full_prompt})
     messages.append({"role": "user", "content": "请把上述研究结论整理成一份 Markdown 报告,调用 write_report 保存。"})
     content, native_calls, text_calls = _chat(client, messages)
     print(f"\n[模型] {content}", end="", flush=True)
@@ -373,33 +519,44 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
             run_tool(tool, args)
             print(f"\n[工具] {tool} 已执行", flush=True)
 
-    # 严谨报告生成:无论模型是否调用 write_report,都合成一份含
-    # 【研究过程】+【参考文献】+【结论】的报告,写到 output/md/。
-    # 结论由后处理总结器从证据链合成(模型不结论也能落实质结论)。
+    # 报告生成:模型未调 write_report 时,由后处理总结器合成结论,
+    # 生成【参考文献(证据)】+【最终结论】;若指定目标 hanzi 字数或 Word 模板,
+    # 则分段生成完整报告至字数达标,有模板则逐项填充渲染成 docx。
+    # 报告不含 LLM 思考/工具结果 dump。
     if not _reported_flag:
         _reported_flag = True
-        process_trail = _process_trail(conversation)
         references = _collect_references(conversation)
-        # 证据链:取工具结果摘要(前 8 条),供总结器与报告用
+        # 证据链(供总结器内部用,不 dump 进报告)
         tool_ev = []
         for m in conversation:
             if m.get("role") == "tool":
                 tool_ev.append(f"- {m.get('name')}: {m.get('content', '')[:200]}")
         evidence_chain = "\n".join(tool_ev[:8]) or (evidence or "(本轮无工具证据)")
-        # 后处理总结器:把证据链+参考文献合成真正结论
         conclusion = _synthesize_conclusion(client, final_answer, evidence_chain, references) or (
             final_answer or research_summary or "已完成研究(证据已收集,见参考文献)"
         )
-        report_text = (
-            f"# 研究报告\n\n> 主题: {task_state}\n"
-            f"> 模型: {config.MODEL} | 供应商: {config.PROVIDER}\n\n"
-            f"## 研究过程\n" + ("\n".join(process_trail[:20]) or "(无工具调用)") + "\n\n"
-            f"## 参考文献\n" + ("\n".join(references[:20]) or "(未检索到外部来源)") + "\n\n"
-            f"## 结论\n{conclusion}\n"
-        )
         filename = "research_" + (task_state[:20].strip() or "agent").replace(" ", "_").replace("?", "") + ".md"
         from . import tools as _t
-        _t.run_tool("write_report", {"content": report_text, "filename": filename})
+        if chars_target or template_docx:
+            # 模板驱动完整报告:分段生成至 hanzi 达标(质量受控)
+            seg = _research_report_segmented(client, task_state, references, conclusion,
+                                             chars_target or config.MIN_REPORT_CHARS, filename)
+            if template_docx:
+                from . import md2docx
+                docx_path = config.output_path("docs", filename.replace(".md", ".docx"))
+                md2docx.md_file_to_docx(seg["filename"], docx_path, reference_doc=template_docx)
+                print(f"\n[报告] 已写入 output/md/{filename} 与 output/docs/{filename.replace('.md', '.docx')}", end="", flush=True)
+            else:
+                print(f"\n[报告] 已写入 output/md/{filename}", end="", flush=True)
+        else:
+            report_text = (
+                f"# 研究报告\n\n> 主题: {task_state}\n"
+                f"> 模型: {config.MODEL} | 供应商: {config.PROVIDER}\n\n"
+                f"## 参考文献(检索证据)\n" + ("\n".join(f"- {r}" for r in references[:20]) or "(未检索到外部来源)") + "\n\n"
+                f"## 结论\n{conclusion}\n"
+            )
+            _t.run_tool("write_report", {"content": report_text, "filename": filename})
+            print(f"\n[报告] 已写入 output/md/{filename}", end="", flush=True)
         print(f"\n[报告] 已写入 output/md/{filename}", end="", flush=True)
 
     # 综述《科研智能体「漫游指南」》增强:
@@ -426,10 +583,12 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
     return final_answer
 
 
-def agent_events(user_query: str, max_turns: int | None = None, session: str = "default"):
+def agent_events(user_query: str, max_turns: int | None = None, session: str = "default",
+                 chars: int | None = None, prompt: str = "", template: str = ""):
     """生成器版 agent 循环:逐事件 yield,供后端 SSE 流式推送。
 
     yield {"type": "model"|"tool"|"result"|"final"|"report", ...}
+    chars: 目标 hanzi 字数(0/None=自然长度);prompt: 完整工作指引;template: Word 模板。
     """
     from openai import OpenAI
 
@@ -442,15 +601,23 @@ def agent_events(user_query: str, max_turns: int | None = None, session: str = "
     current_tool = ""
     final_answer = ""
 
+    # 完整工作指引(用户巨长 prompt;并入每轮工作台)
+    full_prompt = _load_prompt(prompt, user_query)
+    _prompt = (full_prompt + "\n\n" + SYSTEM_PROMPT) if full_prompt else SYSTEM_PROMPT
+    chars_target = chars if chars is not None else config.CHARS_TARGET
+    template_docx = _resolve_template(template, user_query)
+
     for turn in range(max_turns):
         evidence_parts = memory.recall_papers(user_query, k=3)
         evidence_parts += memory.recall_facts(user_query, k=3)
         evidence = "\n".join(f"- {p['title']} ({p['url']})" for p in evidence_parts)
         messages = context.build_messages(
-            system=SYSTEM_PROMPT, task_state=task_state,
+            system=_prompt, task_state=task_state,
             research_summary=research_summary, evidence=evidence,
             current_tool=current_tool, conversation=conversation,
         )
+        if full_prompt:
+            messages.append({"role": "user", "content": "【完整工作指引(务必遵守)】\n" + full_prompt})
         content, native_calls, text_calls = _chat(client, messages)
         yield {"type": "model", "content": content}
         calls = native_calls or text_calls
@@ -481,10 +648,12 @@ def agent_events(user_query: str, max_turns: int | None = None, session: str = "
 
     # 收尾:保存报告
     messages = context.build_messages(
-        system=SYSTEM_PROMPT, task_state=task_state,
+        system=_prompt, task_state=task_state,
         research_summary=research_summary, evidence=evidence,
         current_tool=current_tool, conversation=conversation,
     )
+    if full_prompt:
+        messages.append({"role": "user", "content": "【完整工作指引(务必遵守)】\n" + full_prompt})
     messages.append({"role": "user", "content": "请把上述研究结论整理成一份 Markdown 报告,调用 write_report 保存。"})
     content, native_calls, text_calls = _chat(client, messages)
     yield {"type": "model", "content": content}
@@ -496,8 +665,9 @@ def agent_events(user_query: str, max_turns: int | None = None, session: str = "
             res = run_tool("write_report", args)
             yield {"type": "report", "filename": args.get("filename", "research_report.md"), "content": res}
     if not reported:
-        # 严谨报告:模型未调 write_report 时,合成【研究过程】+【参考文献】+【结论】并写入 output/md
-        process_trail = _process_trail(conversation)
+        # 报告生成:模型未调 write_report 时,合成【参考文献(证据)】+【最终结论】;
+        # 若指定目标 hanzi 字数或 Word 模板,则分段生成完整报告至字数达标,有模板则渲染成 docx。
+        # 报告不含 LLM 思考/工具结果 dump。
         references = _collect_references(conversation)
         tool_ev = []
         for m in conversation:
@@ -507,16 +677,30 @@ def agent_events(user_query: str, max_turns: int | None = None, session: str = "
         conclusion = _synthesize_conclusion(client, final_answer, evidence_chain, references) or (
             final_answer or research_summary or "已完成研究(证据已收集,见参考文献)"
         )
-        report_text = (
-            f"# 研究报告\n\n> 主题: {task_state}\n"
-            f"> 模型: {config.MODEL} | 供应商: {config.PROVIDER}\n\n"
-            f"## 研究过程\n" + ("\n".join(process_trail[:20]) or "(无工具调用)") + "\n\n"
-            f"## 参考文献\n" + ("\n".join(references[:20]) or "(未检索到外部来源)") + "\n\n"
-            f"## 结论\n{conclusion}\n"
-        )
         filename = "research_" + (task_state[:20].strip() or "agent").replace(" ", "_").replace("?", "") + ".md"
-        res = run_tool("write_report", {"content": report_text, "filename": filename})
-        yield {"type": "report", "filename": filename, "content": res}
+        from . import tools as _t
+        if chars_target or template_docx:
+            # 模板驱动完整报告:分段生成至 hanzi 达标(质量受控)
+            seg = _research_report_segmented(client, task_state, references, conclusion,
+                                             chars_target or config.MIN_REPORT_CHARS, filename)
+            if template_docx:
+                from . import md2docx
+                docx_path = config.output_path("docs", filename.replace(".md", ".docx"))
+                md2docx.md_file_to_docx(seg["filename"], docx_path, reference_doc=template_docx)
+                yield {"type": "report", "filename": filename, "docx": docx_path,
+                       "chars": seg["chars"], "content": f"已写 {seg['chars']} hanzi(md+docx)"}
+            else:
+                yield {"type": "report", "filename": filename, "chars": seg["chars"],
+                       "content": f"已写 {seg['chars']} hanzi"}
+        else:
+            report_text = (
+                f"# 研究报告\n\n> 主题: {task_state}\n"
+                f"> 模型: {config.MODEL} | 供应商: {config.PROVIDER}\n\n"
+                f"## 参考文献(检索证据)\n" + ("\n".join(f"- {r}" for r in references[:20]) or "(未检索到外部来源)") + "\n\n"
+                f"## 结论\n{conclusion}\n"
+            )
+            res = run_tool("write_report", {"content": report_text, "filename": filename})
+            yield {"type": "report", "filename": filename, "content": res}
 
     # 综述《科研智能体「漫游指南」》增强:验证 / 事实蒸馏 / 评分,在 final 前推送
     verify_msgs = context.build_messages(

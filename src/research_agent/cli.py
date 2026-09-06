@@ -65,6 +65,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--host", type=str, default="127.0.0.1", help="后端监听地址")
     parser.add_argument("--port", type=int, default=8000, help="后端端口")
     parser.add_argument("--research", type=str, help="科研任务(走六阶段科研流程)")
+    parser.add_argument("-rc", "--rchars", type=int, default=None, help="研究报告目标 hanzi 字数(0/None=自然长度;用 scripts/chcount.py 数)")
+    parser.add_argument("--prompt", type=str, default="", help="从 prompts/ 加载完整研究 prompt(文件路径或按主题自动匹配 prompts/<topic>.md)")
+    parser.add_argument("--rtemplate", type=str, default="", help="研究报告 Word 模板(指定 templates/<name>.docx 逐项填充;无则自建)")
     parser.add_argument("-m", "--model", type=str, default=None, help="运行时切换模型(覆盖 config.yaml;如 gpt-4o/claude-3-5-sonnet/deepseek-chat)")
     parser.add_argument("-p", "--provider", type=str, default=None, help="运行时切换供应商(openai|claude|gemini|deepseek|glm|kimi|relay|local;覆盖 config.yaml)")
     args = parser.parse_args(argv)
@@ -77,7 +80,8 @@ def main(argv: list[str] | None = None) -> None:
     if args.research:
         from .research import run_research
         print(f"\n=== 科研任务(六阶段): {args.research} ===", flush=True)
-        result = run_research(args.research, session=args.session)
+        result = run_research(args.research, session=args.session,
+                              chars=args.rchars, prompt=args.prompt, template=args.rtemplate)
         print(f"\n=== 最终结论 ===\n{result}", flush=True)
     elif args.md2docx:
         from .md2docx import md_file_to_docx
@@ -110,7 +114,8 @@ def main(argv: list[str] | None = None) -> None:
         from .loop import run_agent
 
         print(f"\n=== 研究任务: {args.query} ===", flush=True)
-        result = run_agent(args.query, max_turns=args.turns, session=args.session)
+        result = run_agent(args.query, max_turns=args.turns, session=args.session,
+                           chars=args.rchars, prompt=args.prompt, template=args.rtemplate)
         print(f"\n=== 最终结论 ===\n{result}", flush=True)
     else:
         parser.print_help()

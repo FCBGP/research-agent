@@ -47,10 +47,12 @@ def _safe_json(result: str) -> dict:
         return {}
 
 
-def run_research(query: str, max_stages: int = 8, session: str = "research") -> str:
+def run_research(query: str, max_stages: int = 8, session: str = "research",
+                 chars: int | None = None, prompt: str = "", template: str = "") -> str:
     """执行六阶段科研流程,返回最终结论。
 
     max_stages: 最多模型调用轮数(每轮推进一个阶段或收证据)。
+    chars: 目标 hanzi 字数;prompt: 完整工作指引;template: Word 模板。
     """
     from openai import OpenAI
 
@@ -91,6 +93,36 @@ def run_research(query: str, max_stages: int = 8, session: str = "research") -> 
     # Stage 6 加固:用辩论/批判视角
     final = debate(query, rounds=1, session=session + "-review")
     memory.checkpoint(session, final)
+
+    # 报告生成:按目标 hanzi/模板 生成完整研究报告(参考文献+结论;无工具 dump)
+    from . import loop as _loop
+    references = [
+        f"[{e.get('claim', '')}]({e.get('source', '')})"
+        for e in evidence_trail if e.get("type") == "paper" and e.get("source")
+    ]
+    references = references[:20] or []
+    full_prompt = _loop._load_prompt(prompt, query)
+    chars_target = chars if chars is not None else config.CHARS_TARGET
+    template_docx = _loop._resolve_template(template, query)
+    filename = "research_" + (query[:20].strip() or "agent").replace(" ", "_").replace("?", "") + ".md"
+    if chars_target or template_docx:
+        seg = _loop._research_report_segmented(client, query, references, final,
+                                               chars_target or config.MIN_REPORT_CHARS, filename)
+        if template_docx:
+            from . import md2docx
+            docx_path = config.output_path("docs", filename.replace(".md", ".docx"))
+            md2docx.md_file_to_docx(seg["filename"], docx_path, reference_doc=template_docx)
+            print(f"\n[报告] 已写入 output/md/{filename} 与 output/docs/{filename.replace('.md', '.docx')}", end="", flush=True)
+        else:
+            print(f"\n[报告] 已写入 output/md/{filename}", end="", flush=True)
+    else:
+        report_text = (
+            f"# 研究报告\n\n> 主题: {query}\n\n"
+            f"## 参考文献(检索证据)\n" + ("\n".join(f"- {r}" for r in references) or "(本轮未检索到外部来源)") + "\n\n"
+            f"## 结论\n{final}\n"
+        )
+        tools.run_tool("write_report", {"content": report_text, "filename": filename})
+        print(f"\n[报告] 已写入 output/md/{filename}", end="", flush=True)
     return final
 
 

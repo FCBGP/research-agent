@@ -29,6 +29,10 @@ rag_definition.md
 *_report.docx
 memory/
 fig_*.png
+
+# 用户自有的研究 prompt / Word 模板库(不随仓库上传)
+prompts/
+templates/
 test_long.docx
 out.docx
 /tmp/
