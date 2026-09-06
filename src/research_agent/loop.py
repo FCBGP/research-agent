@@ -317,11 +317,17 @@ def run_agent(user_query: str, max_turns: int | None = None, session: str = "def
             run_tool(tool, args)
             print(f"\n[工具] {tool} 已执行", flush=True)
 
-    # 兜底报告:若模型未调用 write_report,则由最终结论+检索证据合成报告并直接写入,
+    # 兜底报告:若模型未调用 write_report,则由最终结论+本轮收集的工具证据合成报告并直接写入,
     # 保证每次研究都落一份具体文件到 output/docs/(用户可读取)。
     if not _reported_flag:
         _reported_flag = True
-        report_text = f"# 研究结论\n\n主题: {task_state}\n\n{final_answer or content or research_summary or '已完成研究'}\n\n## 证据链\n" + (evidence or "(无检索证据)")
+        # 从 conversation 里收集本轮工具结果(搜索/抓取/论文),作证据链,让报告有实质内容
+        tool_ev = []
+        for m in conversation:
+            if m.get("role") == "tool":
+                tool_ev.append(f"- {m.get('name')}: {m.get('content', '')[:300]}")
+        evidence_chain = "\n".join(tool_ev[:10]) or (evidence or "(本轮无工具证据)")
+        report_text = f"# 研究结论\n\n主题: {task_state}\n\n{final_answer or content or research_summary or '已完成研究'}\n\n## 证据链\n{evidence_chain}"
         filename = "research_" + (task_state[:20].strip() or "agent").replace(" ", "_").replace("?", "") + ".md"
         from . import tools as _t
         _t.run_tool("write_report", {"content": report_text, "filename": filename})
@@ -413,11 +419,24 @@ def agent_events(user_query: str, max_turns: int | None = None, session: str = "
     messages.append({"role": "user", "content": "请把上述研究结论整理成一份 Markdown 报告,调用 write_report 保存。"})
     content, native_calls, text_calls = _chat(client, messages)
     yield {"type": "model", "content": content}
+    reported = False
     for call in native_calls or text_calls:
         if call.get("tool") == "write_report":
+            reported = True
             args = call.get("args", {})
             res = run_tool("write_report", args)
             yield {"type": "report", "filename": args.get("filename", "research_report.md"), "content": res}
+    if not reported:
+        # 兜底:模型未调 write_report 时,由最终结论+本轮工具证据合成报告并写入
+        tool_ev = []
+        for m in conversation:
+            if m.get("role") == "tool":
+                tool_ev.append(f"- {m.get('name')}: {m.get('content', '')[:300]}")
+        evidence_chain = "\n".join(tool_ev[:10]) or (evidence or "(本轮无工具证据)")
+        report_text = f"# 研究结论\n\n主题: {task_state}\n\n{final_answer or content or research_summary or '已完成研究'}\n\n## 证据链\n{evidence_chain}"
+        filename = "research_" + (task_state[:20].strip() or "agent").replace(" ", "_").replace("?", "") + ".md"
+        res = run_tool("write_report", {"content": report_text, "filename": filename})
+        yield {"type": "report", "filename": filename, "content": res}
 
     # 综述《科研智能体「漫游指南」》增强:验证 / 事实蒸馏 / 评分,在 final 前推送
     verify_msgs = context.build_messages(
