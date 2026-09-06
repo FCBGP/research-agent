@@ -21,19 +21,35 @@ from . import planning as _planning
 
 
 def web_search(query: str, max_results: int = 5) -> dict:
-    """网络搜索,返回标题/链接/摘要列表。"""
+    """网络搜索,返回标题/链接/摘要列表。
+
+    稳健性:失败(超时/空结果/网络错误)自动按 config.WEB_SEARCH_RETRIES 重试,
+    默认 3 次,间隔 config.WEB_SEARCH_RETRY_DELAY 秒;仍失败返回友好错误。
+    """
     from ddgs import DDGS
+    from . import config as _cfg
 
     results: list[dict[str, Any]] = []
-    try:
-        for r in DDGS().text(query, max_results=max_results):
-            results.append({
-                "title": r.get("title", ""),
-                "url": r.get("href", ""),
-                "snippet": r.get("snippet", ""),
-            })
-    except Exception as exc:  # 网络或解析失败
-        return {"error": f"搜索失败: {exc}", "results": []}
+    last_exc = ""
+    for attempt in range(1 + max(0, _cfg.WEB_SEARCH_RETRIES)):
+        try:
+            out = []
+            for r in DDGS().text(query, max_results=max_results):
+                out.append({
+                    "title": r.get("title", ""),
+                    "url": r.get("href", ""),
+                    "snippet": r.get("snippet", ""),
+                })
+            if out or attempt >= 1 + max(0, _cfg.WEB_SEARCH_RETRIES):
+                results = out
+                break
+        except Exception as exc:  # 网络或解析失败
+            last_exc = str(exc)
+        if attempt < max(0, _cfg.WEB_SEARCH_RETRIES):
+            import time
+            time.sleep(_cfg.WEB_SEARCH_RETRY_DELAY)
+    if not results:
+        return {"error": f"搜索失败: {last_exc or '多次重试仍无结果'}", "results": []}
     return {"query": query, "results": results}
 
 

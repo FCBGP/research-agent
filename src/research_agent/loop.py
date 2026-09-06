@@ -347,58 +347,79 @@ def _research_report_segmented(
     chars_target: int,
     filename_md: str,
 ) -> dict:
-    """分段生成完整研究报告:每章写 800-1500 hanzi,循环到 hanzi 达标。
+    """分段生成完整研究报告:顶层章节(≤config.REPORT_MAX_SECTIONS,默认10)逐章推进。
 
-    质量受控:章节上限(默认 30)、去重提示(不复述前面)、每章延续当前主题。
-    写完 md 落 output/md;参考文献与最终结论随文。返回 {"chars", "sections", "filename"}。
+    每章由模型自主生成:可含 ## 小节 / ### 子小节,段落错落有致(长度不限,按内容需要)。
+    质量受控:顶层章节上限(默认10)、每章最少/最多字数(config.REPORT_SECTION_MIN/MAX)、
+    去重提示(不复述前面)。循环直到 hanzi ≥ chars_target 或顶层章节数用尽。
+    写完 md 落 output/md;参考文献与最终结论随文。返回 {"chars","sections","filename"}。
     """
     from pathlib import Path
     md_path = Path(config.report_path(filename_md))
     seed = (
         f"# 研究报告\n\n> 主题: {topic}\n\n"
         f"## 参考文献(检索证据)\n"
-        + ("\n".join(f"- {r}" for r in references[:20]) or "(本轮未检索到外部来源)") + "\n\n"
-        f"## 结论(草案)\n{conclusion}\n\n"
+        + ("\n".join(f"- {r}" for r in references[:30]) or "(本轮未检索到外部来源)") + "\n\n"
     )
     md_path.write_text(seed, encoding="utf-8")
     total = _hanzi_count(md_path.read_text(encoding="utf-8"))
-    section = 1
-    max_sections = 30
-    last_tail = ""
+    top = 1
+    max_top = max(1, config.REPORT_MAX_SECTIONS)
     refs_block = "\n".join(references[:15]) or "(无)"
-    while total < chars_target and section <= max_sections:
-        tail = last_tail[-800:] if last_tail else ""
+    all_text = ""  # 全文去重参考(跨章)
+    while total < chars_target and top <= max_top:
+        tail = all_text[-1200:] if all_text else ""
         prompt = (
             f"你是资深技术写手。主题: {topic}。当前已写 {total} 汉字,目标 {chars_target} 汉字。\n"
-            f"已检索证据(参考文献):\n{refs_block[:800]}\n"
-            f"结论草案:\n{conclusion[:500]}\n"
+            f"已检索证据(参考文献):\n{refs_block[:1000]}\n"
+            f"结论草案:\n{conclusion[:600]}\n"
             f"最近已写:\n{tail}\n\n"
-            f"请写下一章(800-1500 汉字中文),延续当前主题,深入技术细节;不要复述前面内容。"
-            f"含 ## 小节标题、正文、必要时 Markdown 表格或图。直接输出本章,不要解释。"
+            f"请写本报告的【第 {top} 章】(一级章节),深入技术细节,延续当前主题但讲新的内容,不要复述前面。\n"
+            f"要求:\n"
+            f"- 本章可含 ## 小节标题 与 ### 子小节,嵌套结构;段落错落有致,长度不限(按内容需要)。\n"
+            f"- 至少 {config.REPORT_SECTION_MIN} 汉字,不必超过 {config.REPORT_SECTION_MAX}。\n"
+            f"- 必要时用 Markdown 表格或图({{fig|chart:标题|名,值|名,值}})。\n"
+            f"直接输出本章 Markdown,不要解释。"
         )
         msgs = [
-            {"role": "system", "content": "你是资深技术写手,生成结构清晰、图文并茂的长报告章节。"},
+            {"role": "system", "content": "你是资深技术写手,生成结构清晰、嵌套小节、图文并茂的长报告章节。"},
             {"role": "user", "content": prompt},
         ]
         text, _, _ = _chat(client, msgs)
-        text = text.strip()
-        # 去重:若与最近章节高度相似,强制换角度
-        if last_tail and _dup_similar(text, last_tail):
+        text = text.strip() or _fallback_section(topic, top, refs_block)
+        # 去重:若整章与已写高度重复,强制换角度
+        if _dup_similar(text, all_text):
             text = _chat(client, [
-                {"role": "system", "content": "你是资深技术写手,生成结构清晰、图文并茂的长报告章节。"},
-                {"role": "user", "content": f"刚才章节与上文重复。请换一个角度写下一章(800-1500 汉字),讲新的技术细节,不要复述。主题: {topic}。参考: {refs_block[:800]}。直接输出。"},
-            ])[0]
-            text = text.strip()
+                {"role": "system", "content": "你是资深技术写手,生成结构清晰、嵌套小节、图文并茂的长报告章节。"},
+                {"role": "user", "content": f"刚才章节与已写内容重复。请换一个全新角度写【第 {top} 章】(一级章节,可含子小节),讲新的技术细节。主题: {topic}。参考: {refs_block[:1000]}。长度不限,段落错落有致。直接输出。"},
+            ])[0] or _fallback_section(topic, top, refs_block)
         with open(md_path, "a", encoding="utf-8") as f:
+            f.write("\n## 第{}章\n".format(top) if not text.startswith("#") else "\n")
             f.write(text + "\n")
-        last_tail = text
+        all_text += text
         total = _hanzi_count(md_path.read_text(encoding="utf-8"))
-        print(f"\n[章节 {section}] hanzi {total}", end="", flush=True)
-        section += 1
+        print(f"\n[章节 {top}] hanzi {total}", end="", flush=True)
+        top += 1
     # 收尾:追加完整结论(已达标时)并保证参考文献在文中
     with open(md_path, "a", encoding="utf-8") as f:
         f.write("\n## 结论\n" + conclusion + "\n")
-    return {"chars": total, "sections": section, "filename": str(md_path)}
+    return {"chars": total, "sections": top, "filename": str(md_path)}
+
+
+def _fallback_section(topic: str, top: int, refs_block: str) -> str:
+    """写手空输出时的兜底章节(保证章节不至于空白)。"""
+    return f"\n## 第{top}章\n\n本节围绕主题 {topic} 的技术细节展开,结合检索证据 {refs_block[:80]} 深入分析。\n"
+
+
+def _dup_similar(a: str, b: str) -> bool:
+    """粗略判断两段是否高度重复(用于去重)。"""
+    import re
+    a_cn = set(re.findall(r"[一-鿿]{2,}", a))
+    b_cn = set(re.findall(r"[一-鿿]{2,}", b))
+    if not a_cn or not b_cn:
+        return False
+    inter = a_cn & b_cn
+    return len(inter) / min(len(a_cn), len(b_cn)) > 0.6
 
 
 def _dup_similar(a: str, b: str) -> bool:

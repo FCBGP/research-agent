@@ -45,7 +45,7 @@ def _resolve_env(s: str) -> str:
 
 def _resolve() -> None:
     """解析 config.yaml:providers[api.provider] 预设 → api 合并 → env 覆盖。"""
-    global BASE_URL, API_KEY, MODEL, TEMPERATURE, AGENT_MODELS, DEBATE_ROUNDS, MAX_TOOL_TURNS, MAX_CONTEXT_CHARS, OUTPUT_ROOT, PROVIDER, PROMPTS_DIR, TEMPLATES_DIR, CHARS_TARGET, MIN_REPORT_CHARS
+    global BASE_URL, API_KEY, MODEL, TEMPERATURE, AGENT_MODELS, DEBATE_ROUNDS, MAX_TOOL_TURNS, MAX_CONTEXT_CHARS, OUTPUT_ROOT, PROVIDER, PROMPTS_DIR, TEMPLATES_DIR, CHARS_TARGET, MIN_REPORT_CHARS, WEB_SEARCH_RETRIES, WEB_SEARCH_RETRY_DELAY, REPORT_MAX_SECTIONS, REPORT_SECTION_MIN, REPORT_SECTION_MAX
     cfg = _load_yaml()
     api = cfg.get("api", {}) or {}
     provider = api.get("provider", "local")
@@ -82,8 +82,15 @@ def _resolve() -> None:
     OUTPUT_ROOT = os.getenv("OUTPUT_ROOT", cfg.get("output_root", "output") or "output")
     PROMPTS_DIR = os.getenv("PROMPTS_DIR", cfg.get("prompts_dir", "prompts") or "prompts")
     TEMPLATES_DIR = os.getenv("TEMPLATES_DIR", cfg.get("templates_dir", "templates") or "templates")
-    CHARS_TARGET = int(os.getenv("CHARS_TARGET", str(cfg.get("chars_target", 0) or 0)))
-    MIN_REPORT_CHARS = int(os.getenv("MIN_REPORT_CHARS", str(cfg.get("min_report_chars", 0) or 0)))
+    rep = cfg.get("report", {}) or {}
+    CHARS_TARGET = int(os.getenv("CHARS_TARGET", str(rep.get("chars_target", 0) or 0)))
+    MIN_REPORT_CHARS = int(os.getenv("MIN_REPORT_CHARS", str(rep.get("min_report_chars", 0) or 0)))
+    REPORT_MAX_SECTIONS = int(os.getenv("REPORT_MAX_SECTIONS", str(rep.get("max_sections", 10) or 10)))
+    REPORT_SECTION_MIN = int(os.getenv("REPORT_SECTION_MIN", str(rep.get("min_section_chars", 300) or 300)))
+    REPORT_SECTION_MAX = int(os.getenv("REPORT_SECTION_MAX", str(rep.get("max_section_chars", 3000) or 3000)))
+    # 联网搜索重试
+    WEB_SEARCH_RETRIES = int(os.getenv("WEB_SEARCH_RETRIES", str(cfg.get("web_search_retries", 3) or 3)))
+    WEB_SEARCH_RETRY_DELAY = float(os.getenv("WEB_SEARCH_RETRY_DELAY", str(cfg.get("web_search_retry_delay", 2) or 2)))
 
     # 进化环(ASI-Evolve 式)参数
     EVOLVE_MAX_ROUNDS = int(os.getenv("EVOLVE_MAX_ROUNDS", str(cfg.get("evolve", {}).get("max_rounds", 3) or 3)))
