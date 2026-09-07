@@ -41,6 +41,64 @@ def _interactive(session: str = "interactive") -> None:
     print("再见!")
 
 
+# --type 输出格式:把已生成的 md 报告按需再转成 docx/pptx/code。
+_FORMAT_ALIASES = {"doc": "docx", "ppt": "pptx", "image": "figures", "slide": "pptx", "word": "docx"}
+
+
+def _normalize_formats(typestr: str) -> list[str]:
+    """把 --type 字符串规范化成格式列表,支持逗号多选与别名。"""
+    out = []
+    for tok in typestr.split(","):
+        tok = tok.strip().lower()
+        if not tok:
+            continue
+        tok = _FORMAT_ALIASES.get(tok, tok)
+        if tok not in out and tok in ("md", "docx", "pptx", "code", "figures"):
+            out.append(tok)
+    return out or ["md"]
+
+
+def _emit_code(md_text: str, stem: str) -> None:
+    """从 md 报告抽取 fenced code blocks 到 output/codes/<stem>.*。"""
+    import re
+    from pathlib import Path
+    from . import config as _cfg
+    blocks = re.findall(r"```(?:(\w+)[^\n]*\n)?(.*?)```", md_text, re.S)
+    if not blocks:
+        return
+    codes_dir = Path(_cfg.output_path("codes", stem))
+    codes_dir.mkdir(parents=True, exist_ok=True)
+    for i, (lang, body) in enumerate(blocks, 1):
+        ext = {"py": "py", "python": "py", "sh": "sh", "bash": "sh", "c": "c",
+               "cpp": "cpp", "go": "go", "js": "js", "sql": "sql"} \
+            .get(lang.strip().lower(), "txt")
+        p = codes_dir / f"{stem}_{i}.{ext}"
+        p.write_text(body.strip() + "\n", encoding="utf-8")
+        print(f"[报告] code 已写入 output/codes/{stem}/{stem}_{i}.{ext}", flush=True)
+
+
+def _emit_formats(md_path: str, formats: list[str], template: str = "") -> None:
+    """按 --type 把 md 报告转成 docx/pptx/code;md 本身已由 run_agent 产出。"""
+    from pathlib import Path
+    from . import config as _cfg
+    md_path = Path(md_path)
+    stem = md_path.name.replace(".md", "")
+    for fmt in formats:
+        if fmt == "docx":
+            from .md2docx import md_file_to_docx
+            docx_path = _cfg.output_path("docs", stem + ".docx")
+            md_file_to_docx(str(md_path), docx_path, template)
+            print(f"[报告] docx 已写入 output/docs/{stem}.docx", flush=True)
+        elif fmt == "pptx":
+            import subprocess
+            pptx_path = _cfg.output_path("slides", stem + ".pptx")
+            subprocess.run(["pandoc", str(md_path), "-o", str(pptx_path)], check=True)
+            print(f"[报告] pptx 已写入 output/slides/{stem}.pptx", flush=True)
+        elif fmt == "code":
+            _emit_code(md_path.read_text(encoding="utf-8"), stem)
+        # figures:图已由章节生成({{fig|...}}→PNG)落 output/figures/,无需额外动作
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="本地科研智能体")
     parser.add_argument("query", nargs="?", help="研究问题(一次性)")
@@ -70,6 +128,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--rtemplate", type=str, default="", help="研究报告 Word 模板(指定 templates/<name>.docx 逐项填充;无则自建)")
     parser.add_argument("-m", "--model", type=str, default=None, help="运行时切换模型(覆盖 config.yaml;如 gpt-4o/claude-3-5-sonnet/deepseek-chat)")
     parser.add_argument("-p", "--provider", type=str, default=None, help="运行时切换供应商(openai|claude|gemini|deepseek|glm|kimi|relay|local;覆盖 config.yaml)")
+    parser.add_argument("--type", type=str, default="md", help="研究输出格式(逗号分隔): md|docx|pptx|code|figures;默认 md;如 md,docx 同时生成 md 与 Word")
     args = parser.parse_args(argv)
 
     # 运行时模型/供应商切换:先于任务执行生效
@@ -83,6 +142,9 @@ def main(argv: list[str] | None = None) -> None:
         result = run_research(args.research, session=args.session,
                               chars=args.rchars, prompt=args.prompt, template=args.rtemplate)
         print(f"\n=== 最终结论 ===\n{result}", flush=True)
+        from . import config as _cfg
+        _emit_formats(_cfg.report_path("research_" + (args.research[:20].strip() or "agent").replace(" ", "_").replace("?", "") + ".md"),
+                      _normalize_formats(args.type), template=args.rtemplate or args.template)
     elif args.md2docx:
         from .md2docx import md_file_to_docx
         print(f"\n=== pandoc 转 Word: {args.md2docx} → {args.out} ===", flush=True)
@@ -117,6 +179,9 @@ def main(argv: list[str] | None = None) -> None:
         result = run_agent(args.query, max_turns=args.turns, session=args.session,
                            chars=args.rchars, prompt=args.prompt, template=args.rtemplate)
         print(f"\n=== 最终结论 ===\n{result}", flush=True)
+        from . import config as _cfg
+        _emit_formats(_cfg.report_path("research_" + (args.query[:20].strip() or "agent").replace(" ", "_").replace("?", "") + ".md"),
+                      _normalize_formats(args.type), template=args.rtemplate or args.template)
     else:
         parser.print_help()
 
