@@ -38,16 +38,29 @@ research-agents/
 cd /Users/basil/2500/agents/research-agents
 DSH_HOME="$HOME/.dsh" ./dsh-research/scripts/deploy-profile.sh
 
-# 2. 验证组合树（应出现 dsh-research-core 等行）
-DSH_HOME="$HOME/.dsh" dsh --profile research --dump-config | grep -E "headless|dsh-research-core"
+# 2. 验证组合树（应出现 web + dsh-research-core 等行）
+DSH_HOME="$HOME/.dsh" dsh --profile research --dump-config | grep -E "web|dsh-research-core"
 
-# 3. 运行（dsh research <任务> 即 dsh --profile research <任务>）
-dsh research "研究 RPKI+BGPsec 的安全缺口"
+# 3. 运行（dsh research 即 dsh --profile research；research profile 基于 web，启动 Web UI）
+dsh research
+#   → 浏览器打开 DeepSeek Harness Web UI（默认 http://127.0.0.1:3080/），
+#     web 基座不接受位置参数，科研任务在浏览器会话里交互执行。
+#     research 层（reviewer/experiment/autonomous 服务 + 13 个 research_* 工具）挂在会话里。
+#   不想自动开浏览器：dsh research --no-open；改端口：dsh research --port 8080
+
 ```
 
 > 若提示 `profile "research" does not exist`：profile 尚未部署到 `$DSH_HOME`，
 > 先执行第 1 步的 `deploy-profile.sh`。重跑 deploy 会刷新 `package.json` 与
 > `cordis.patch.yml`。
+
+## Profile 前端
+
+`profiles/research` 在 **web 基座**上实现（与 `dsh --profile web` 同构，仅多叠
+`@basil/dsh-research` 领域层）：bundle = `@deepseek-ai/dsh-base` +
+`@deepseek-ai/dsh-web-app` + `@basil/dsh-research`。因此 `dsh research` 启动的是
+**Web UI**（浏览器会话），而非 headless 一次性 CLI——位置参数任务已不再支持，
+科研交互（research_autonomous / research_campaign 等）在 web 会话中完成。
 
 ## 模型路由（401 问题）
 
@@ -62,8 +75,8 @@ dsh 生态分两层模型默认值：
 
 两层 overlay 已固化在 `profiles/research/cordis.patch.yml`（web 同款）。
 `baseURL` 是本机内网地址，改配置只需编辑该文件后重跑 deploy。
-若用 `dsh headless` 报 401，把同样的两层 overlay 加到
-`~/.dsh/profiles/headless/cordis.patch.yml` 即可。
+若其他 profile（如 `dsh headless`）报 401，把同样的两层 overlay 加到
+对应 profile（如 `~/.dsh/profiles/headless/cordis.patch.yml`）即可。
 
 ## 验证
 
@@ -71,7 +84,7 @@ dsh 生态分两层模型默认值：
 
 ```bash
 cd dsh-research
-node --test "src/**/*.test.ts"   # core + memory + agents + director + plugin 全绿（27/27）
+node --test "src/**/*.test.ts"   # core + memory + agents + director + experiment + writer + jobs + scheduler + self-improve + plugin 全绿（69/69）
 ```
 
 dsh 真实运行树内的冒烟测试：

@@ -23,6 +23,9 @@ import { runCampaign, type CampaignReport } from './experiment/runner.ts';
 import { createWriter, type ResearchWriter } from './writer/index.ts';
 import { PolicyService, type PolicyOptions } from './policy/index.ts';
 import { runAutonomousResearch, type AutonomousInput, type AutonomousReport } from './autonomous/index.ts';
+import { JobRunner, type Job } from './jobs/index.ts';
+import { ResearchScheduler, type ScheduleSpec, type ScheduledRun } from './scheduler/index.ts';
+import { SelfImprover, type ReflectionReport } from './self-improve/index.ts';
 
 export const name = 'dsh-research';
 
@@ -69,6 +72,9 @@ export interface ResearchRuntimeService {
   autonomous: {
     run(input: AutonomousInput): AutonomousReport;
   };
+  jobs: JobRunner;
+  scheduler: ResearchScheduler;
+  selfImprove: SelfImprover;
 }
 
 export interface PluginConfig {
@@ -122,7 +128,14 @@ export function apply(ctx: Context, config: PluginConfig = {}): void {
     run: (input: AutonomousInput): AutonomousReport =>
       runAutonomousResearch(input, { memory, agents, writer }),
   };
-  const runtime: ResearchRuntimeService = { memory, agents, director, experiment, writer, policy, autonomous };
+  // —— 阶段 4b：Jobs（长任务队列）+ Scheduler（周期调度）+ SelfImprove（自省）——
+  const jobs = new JobRunner(memory);
+  const scheduler = new ResearchScheduler({
+    memory,
+    runner: (input: AutonomousInput): AutonomousReport => autonomous.run(input),
+  });
+  const selfImprove = new SelfImprover(memory);
+  const runtime: ResearchRuntimeService = { memory, agents, director, experiment, writer, policy, autonomous, jobs, scheduler, selfImprove };
 
   if (config.memory?.dir) loadMemoryInto(memory, config.memory.dir);
 
@@ -135,7 +148,10 @@ export function apply(ctx: Context, config: PluginConfig = {}): void {
   ctx.provide('researchWriter', writer);
   ctx.provide('researchPolicy', policy);
   ctx.provide('researchAutonomous', autonomous);
-  ctx.logger?.(name).info('%s: researchCore + memory + agents + director + experiment + writer + policy + autonomous mounted', name);
+  ctx.provide('researchJobs', jobs);
+  ctx.provide('researchScheduler', scheduler);
+  ctx.provide('researchSelfImprove', selfImprove);
+  ctx.logger?.(name).info('%s: researchCore + memory + agents + director + experiment + writer + policy + autonomous + jobs + scheduler + selfImprove mounted', name);
 
   if (config.tools?.enabled === false) {
     ctx.logger?.(name).info('%s: config.tools.enabled=false，跳过工具注册（服务仍挂载）', name);
@@ -564,6 +580,121 @@ function registerTools(
       return { enabled: view.enabled, rules: view.rules, prompt: view.prompt };
     },
   }));
+
+  // —— 阶段 4b：Jobs / Schedule / Reflect 三工具 ————————————————————————————————
+  disposers.push(tools.register({
+    name: 'research_job',
+    description: '长任务队列：submit 提交科研任务（research=一键流水线 / campaign=自动实验）异步入队并执行，list/get 轮询状态，cancel 取消未开始任务。',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['submit', 'list', 'get', 'cancel'], description: '操作' },
+        jobId: { type: 'string', description: 'get/cancel 用' },
+        kind: { type: 'string', enum: ['research', 'campaign'], description: '任务类别（submit 用）' },
+        title: { type: 'string', description: '任务标题' },
+        topic: { type: 'string', description: 'research 任务的研究主题' },
+        hypothesis: { type: 'string', description: 'research 任务的可选中心假设' },
+        claim: { type: 'string', description: 'campaign 任务的 claim' },
+        validator: { type: 'string', enum: ['none', 'rov', 'bgpsec', 'rov+bgpsec'] },
+        supportThreshold: { type: 'number' },
+        repetitions: { type: 'number' },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: { type: 'object', properties: { action: { type: 'string' }, jobs: { type: 'array', items: { type: 'object' } }, job: { type: 'object' }, cancelled: { type: 'boolean' }, message: { type: 'string' } }, required: ['action'], additionalProperties: true },
+      render: (_a, v) => [{ type: 'text', text: JSON.stringify(v, null, 2) }],
+    },
+    async execute(args) {
+      const input = args as { action: 'submit' | 'list' | 'get' | 'cancel'; jobId?: string; kind?: 'research' | 'campaign'; title?: string; topic?: string; hypothesis?: string; claim?: string; validator?: 'none' | 'rov' | 'bgpsec' | 'rov+bgpsec'; supportThreshold?: number; repetitions?: number };
+      if (input.action === 'submit') {
+        const kind = input.kind ?? 'research';
+        if (kind === 'campaign') {
+          if (!input.claim) return { action: input.action, message: 'campaign 任务缺少 claim' };
+          const job = runtime.jobs.submit({ kind: 'campaign', title: input.title ?? `campaign: ${input.claim.slice(0, 30)}`, run: () => runtime.experiment.runAutomatic({ claim: input.claim!, validator: input.validator, supportThreshold: input.supportThreshold, repetitions: input.repetitions }) });
+          return { action: input.action, job: jobView(job) };
+        }
+        if (!input.topic) return { action: input.action, message: 'research 任务缺少 topic' };
+        const job = runtime.jobs.submit({ kind: 'research', title: input.title ?? `research: ${input.topic.slice(0, 30)}`, run: () => runtime.autonomous.run({ topic: input.topic!, hypothesis: input.hypothesis, validator: input.validator, supportThreshold: input.supportThreshold, repetitions: input.repetitions }) });
+        return { action: input.action, job: jobView(job) };
+      }
+      if (input.action === 'list') {
+        return { action: input.action, jobs: runtime.jobs.list().map(jobView) };
+      }
+      if (input.action === 'get') {
+        const job = input.jobId ? runtime.jobs.get(input.jobId) : undefined;
+        return { action: input.action, job: job ? jobView(job) : undefined, message: job ? '' : `未找到 job ${input.jobId ?? ''}` };
+      }
+      const cancelled = input.jobId ? runtime.jobs.cancel(input.jobId) : false;
+      return { action: input.action, cancelled, message: cancelled ? `已取消 ${input.jobId}` : `无法取消 ${input.jobId ?? ''}（未开始的任务才可取消）` };
+    },
+  }));
+
+  disposers.push(tools.register({
+    name: 'research_schedule',
+    description: '周期/每日/一次性科研调度：register 注册（at ISO / daily HH:MM / everyMs），due 查到期项，tick 触发到期调度跑自动流水线，unregister 移除。',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['register', 'unregister', 'due', 'tick'], description: '操作' },
+        scheduleId: { type: 'string', description: '调度 id' },
+        topic: { type: 'string', description: '研究主题（register 必需）' },
+        hypothesis: { type: 'string' },
+        daily: { type: 'string', description: "'HH:MM' 每日时刻" },
+        everyMs: { type: 'number', description: '周期毫秒' },
+        at: { type: 'string', description: 'ISO 一次性时刻' },
+        validator: { type: 'string', enum: ['none', 'rov', 'bgpsec', 'rov+bgpsec'] },
+        supportThreshold: { type: 'number' },
+        enabled: { type: 'boolean' },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: { type: 'object', properties: { action: { type: 'string' }, schedule: { type: 'object' }, schedules: { type: 'array', items: { type: 'object' } }, runs: { type: 'array', items: { type: 'object' } }, removed: { type: 'boolean' }, message: { type: 'string' } }, required: ['action'], additionalProperties: true },
+      render: (_a, v) => [{ type: 'text', text: JSON.stringify(v, null, 2) }],
+    },
+    async execute(args) {
+      const input = args as { action: 'register' | 'unregister' | 'due' | 'tick'; scheduleId?: string; topic?: string; hypothesis?: string; daily?: string; everyMs?: number; at?: string; validator?: 'none' | 'rov' | 'bgpsec' | 'rov+bgpsec'; supportThreshold?: number; enabled?: boolean };
+      if (input.action === 'register') {
+        if (!input.scheduleId || !input.topic) return { action: input.action, message: 'register 需要 scheduleId 与 topic' };
+        const schedule = runtime.scheduler.register({ id: input.scheduleId, topic: input.topic, hypothesis: input.hypothesis, daily: input.daily, everyMs: input.everyMs, at: input.at, validator: input.validator, supportThreshold: input.supportThreshold, enabled: input.enabled });
+        return { action: input.action, schedule: scheduleView(schedule) };
+      }
+      if (input.action === 'unregister') {
+        const removed = input.scheduleId ? runtime.scheduler.unregister(input.scheduleId) : false;
+        return { action: input.action, removed, message: removed ? `已移除 ${input.scheduleId}` : `未找到 ${input.scheduleId ?? ''}` };
+      }
+      if (input.action === 'due') {
+        return { action: input.action, schedules: runtime.scheduler.due().map(scheduleView) };
+      }
+      const runs = runtime.scheduler.tick();
+      return { action: input.action, runs: runs.map((r) => ({ scheduleId: r.scheduleId, at: r.at, verdict: r.report.campaign?.verdict ?? 'n/a', nextRunAt: r.nextRunAt })) };
+    },
+  }));
+
+  disposers.push(tools.register({
+    name: 'research_reflect',
+    description: '基于情景记忆自省：统计核验/实验/长任务/调度状况，输出观察与改进建议（self-improvement），并归档反思。',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    output: {
+      schema: { type: 'object', properties: { at: { type: 'string' }, summary: { type: 'string' }, snapshot: { type: 'object' }, observations: { type: 'array', items: { type: 'object' } }, recommendations: { type: 'array', items: { type: 'object' } } }, required: ['at', 'summary'], additionalProperties: true },
+      render: (_a, v) => [{ type: 'text', text: JSON.stringify({ summary: v.summary, snapshot: v.snapshot, recommendations: v.recommendations }, null, 2) }],
+    },
+    async execute() {
+      const report: ReflectionReport = runtime.selfImprove.reflect();
+      return { at: report.at, summary: report.summary, snapshot: report.snapshot, observations: report.observations, recommendations: report.recommendations };
+    },
+  }));
+
+function jobView(job: Job): { id: string; kind: string; title: string; status: string; progress: number; error?: string; createdAt: string } {
+  return { id: job.id, kind: job.kind, title: job.title, status: job.status, progress: job.progress, error: job.error, createdAt: job.createdAt };
+}
+
+function scheduleView(schedule: ScheduleSpec): { id: string; topic: string; enabled: boolean; daily?: string; everyMs?: number; at?: string; lastRunAt?: string; nextRunAt?: string } {
+  return { id: schedule.id, topic: schedule.topic, enabled: schedule.enabled === true, daily: schedule.daily, everyMs: schedule.everyMs, at: schedule.at, lastRunAt: schedule.lastRunAt, nextRunAt: schedule.nextRunAt };
+}
 
   // PaperInput 形状（与 src/writer/paper.ts 对齐的插件侧宽类型）。
   interface PaperInputLike {

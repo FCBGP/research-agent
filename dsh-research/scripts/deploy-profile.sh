@@ -6,7 +6,7 @@
 #   DSH_HOME="$HOME/.dsh" ./scripts/deploy-profile.sh   # 真实机器
 #
 # 部署内容（不复制代码，链接到仓库，改 dsh-research 立即生效）:
-#   $DSH_HOME/profiles/research/package.json         (bundle 清单: base + headless 前端 + @basil/dsh-research)
+#   $DSH_HOME/profiles/research/package.json         (bundle 清单: base + web 前端 + @basil/dsh-research)
 #   $DSH_HOME/profiles/research/cordis.patch.yml     (profile overlay)
 #   $DSH_HOME/profiles/research/node_modules/@basil/dsh-research -> 仓库 dsh-research
 set -euo pipefail
@@ -22,4 +22,4 @@ cp "$REPO_ROOT/profiles/research/cordis.patch.yml" "$PROFILE_DIR/cordis.patch.ym
 ln -sfn "$REPO_ROOT/dsh-research" "$PROFILE_DIR/node_modules/@basil/dsh-research"
 
 echo "deployed: $PROFILE_DIR"
-echo "verify -> DSH_HOME=$DSH_HOME dsh --profile $NAME --dump-config | grep dsh-research"
+echo "verify -> DSH_HOME=$DSH_HOME dsh --profile $NAME --dump-config | grep -E 'web|dsh-research'"

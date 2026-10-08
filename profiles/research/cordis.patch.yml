@@ -1,12 +1,17 @@
-# research profile — 领域 overlay。
+# research profile — 领域 overlay（在 web 基础上叠加，行为与 web profile 一致）。
 # base bundle 在上，本 overlay 追加 research 语义（按行 id 整行覆盖/插入）。
 # 顶层必须是一个 loader patch 数组。
 #
-# 模型层：与 web profile 一致，走本地 interval DSV4 网关（OpenAI 兼容）。
-# - llm-pi-ai 提供 provider local-interval-dsv4；key 通过 credential-ref
-#   LOCAL_INTERVAL_DSV4_API_KEY 从 $DSH_HOME/.credentials.yaml 解析
-# - agent-default-model 把默认模型切到 dsv4flash，headless/CLI 一次性任务
-#   不再走 base 默认的 deepseek-official（其 DEEPSEEK_API_KEY 常为占位值）
+# 与 web profile 一致：
+# - ui-settings-general：欢迎语版本（与 web 同款，避免旧缓存差异）
+# - llm-pi-ai 提供 provider local-interval-dsv4（OpenAI 兼容，baseURL 本机内网网关），
+#   key 通过 credential-ref LOCAL_INTERVAL_DSV4_API_KEY 从 $DSH_HOME/.credentials.yaml 解析
+# - agent-default-model 把默认模型切到 dsv4flash；web 会话/agent-loop 不再走 base 默认
+#   deepseek-official（其 DEEPSEEK_API_KEY 常为占位值「0731」会 401）
+- id: ui-settings-general
+  name: "@deepseek-ai/dsh-client-ui-settings-general"
+  config:
+    welcomeNoticeVersion: 2026-09-28.1
 - id: llm-pi-ai
   name: "@deepseek-ai/dsh-llm-pi-ai"
   config:

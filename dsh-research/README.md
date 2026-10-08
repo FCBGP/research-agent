@@ -55,16 +55,22 @@
 - **一键科研流水线**（`src/autonomous/`）：`buildGoal`（5 任务 DAG）+
   `runAutonomousResearch`（Director → 实验战役 → 验证折入 → Writer 论文+幻灯片 → 归档）；
   攻击语义正确：ROV 对 prefix-hijack verified（≈0.79）、对 path-manipulation rejected（≈0.33）
+- **长任务队列**（`src/jobs/`）：JobRunner 状态机（pending→running→done/failed，可 cancel），
+  同步/异步执行体 + 归档；**周期调度**（`src/scheduler/`）：at/daily/everyMs 纯函数
+  nextOccurrence + ResearchScheduler（可注入时钟）；**自省改进**（`src/self-improve/`）：
+  基于 episodic+artifact 统计 → 观察 + 优先级改进建议 + 反思归档
 
 ### 运行时插件（`src/plugin.ts`，Cordis 形态）— ✅ 已端到端挂载实测
 
 
 - `export const name = 'dsh-research'` + `export const inject = ['tools']` + `export function apply(ctx, config)`
-- `ctx.provide()`（8 服务）：`researchCore`、`researchMemory`、`researchAgents`、
-  `researchDirector`、`researchExperiment`、`researchWriter`、`researchPolicy`、`researchAutonomous`
-- `ctx.tools.register()`：10 个工具 —— `research_verify` / `research_record` /
+- `ctx.provide()`（11 服务）：`researchCore`、`researchMemory`、`researchAgents`、
+  `researchDirector`、`researchExperiment`、`researchWriter`、`researchPolicy`、`researchAutonomous`、
+  `researchJobs`、`researchScheduler`、`researchSelfImprove`
+- `ctx.tools.register()`：13 个工具 —— `research_verify` / `research_record` /
   `research_search` / `research_review` / `research_experiment` / `research_campaign` /
-  `research_paper` / `research_slides` / `research_autonomous` / `research_policy`
+  `research_paper` / `research_slides` / `research_autonomous` / `research_policy` /
+  `research_job` / `research_schedule` / `research_reflect`
 - 依赖生命周期挂在 fiber effect 上：profile 卸载即回收
 - bundle patch（`patches/research-agent.yml`）以行 `dsh-research-core` 插入 profile 组合树；
   插件的行 `config` 由此进入（`tools.enabled` 开关、`memory.dir` 持久化等）
@@ -78,7 +84,7 @@ DSH_HOME=/tmp/dsh-home ./scripts/deploy-profile.sh
 # 2) 组合树含本 bundle 行
 DSH_HOME=/tmp/dsh-home dsh --profile research --dump-config | grep -A3 dsh-research
 
-# 3) 运行时冒烟：8 服务 / 10 工具 / BGP claim→verify / 文献检索 / campaign / policy / autonomous
+# 3) 运行时冒烟：11 服务 / 13 工具 / BGP claim→verify / campaign / policy / autonomous / job / schedule / reflect
 DSH_HOME=/tmp/dsh-home node scripts/runtime-smoke.mjs   # → SMOKE PASS
 ```
 
@@ -98,6 +104,7 @@ node --test "src/**/*.test.ts"   # core + memory + agents + director + plugin �
 - `src/writer/` — 阶段 3.6 论文/幻灯片生成（`paper.ts`/`slides.ts`）
 - `src/roles/` `src/model-router/` `src/policy/` — 阶段 4 多角色 / 模型路由 / 纪律策略
 - `src/autonomous/` — 阶段 4 一键科研流水线
+- `src/jobs/` `src/scheduler/` `src/self-improve/` — 阶段 4 长任务 / 周期调度 / 自省改进
 - `src/plugin.ts` / `src/plugin.test.ts` — dsh 运行时插件入口与自检（内存假 ctx）
 - `scripts/deploy-profile.sh` — 把 research profile 部署到 `$DSH_HOME`
 - `scripts/runtime-smoke.mjs` — in-dsh 运行时冒烟

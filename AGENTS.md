@@ -325,3 +325,33 @@ dsh research "分析 RPKI+BGPsec 的安全能力边界"     # == dsh --profile r
   dsv4flash 正确作答并输出 final（`reason.kind: completed`）。
 - 注意：`baseURL` 是本机内网地址（配置在 profile 层，改这里即可）；若用 `dsh headless` 同样
   报 401，把这两层 overlay 同样加到 `~/.dsh/profiles/headless/cordis.patch.yml`。
+
+---
+
+## 阶段 4.5 · Profile 前端切换：headless → 基于 web（2026-10-09）
+
+需求：research profile 应"在 web 基础上实现"，`dsh research` 跑在 web（Web UI）之上，
+而非 headless 一次性 CLI。
+
+改动：
+- `profiles/research/package.json`：`dsh.profile.bundles` 由
+  `base + @deepseek-ai/dsh-headless + @basil/dsh-research`
+  改为 `base + @deepseek-ai/dsh-web-app + @basil/dsh-research`。
+- `profiles/research/cordis.patch.yml`：合并 web 同款三层 overlay——`ui-settings-general`
+  （welcomeNoticeVersion）+ `llm-pi-ai`（`local-interval-dsv4`）+ `agent-default-model`
+  （dsv4flash）；模型层与 web profile 完全对齐。
+- `dsh-research/scripts/runtime-smoke.mjs`：web 基座**不接受位置参数**（`too many
+  arguments`），改为只传 flag（默认 `--no-open`，可选 `--port`）；headless 的一次性
+  CLI 任务不再存在。
+- `scripts/deploy-profile.sh` / 各 README：headless → web 措辞同步。
+
+实测（沙箱，`DSH_HOME=/tmp/dsh-home`）：
+- `--dump-config` 组合树含 `web-startup` / `webserver`(127.0.0.1:3080) / `web-runtime` +
+  `dsh-research-core`（无 headless-startup/headless-runner）。
+- runtime-smoke → **SMOKE PASS**（services 11 + tools 13/13；`dsh web: http://127.0.0.1:3080/`）。
+- `dsh --profile research --no-open --port 3099` 真实 boot 出 Web UI URL。
+
+用法变化：`dsh research` 启动 Web UI（浏览器会话），科研任务（research_autonomous /
+research_campaign 等 13 个 research_* 工具）在 web 会话内交互，**不再支持
+`dsh research "<task>"` 位置参数一次任务**。真机端到端浏览器实测留待用户在
+`$HOME/.dsh` 部署后确认（沙箱无法开浏览器）。

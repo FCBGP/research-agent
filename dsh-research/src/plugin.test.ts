@@ -44,7 +44,7 @@ function makeCtx(): FakeCtx {
   return ctx as unknown as FakeCtx;
 }
 
-const TOOL_NAMES = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy'];
+const TOOL_NAMES = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy', 'research_job', 'research_schedule', 'research_reflect'];
 
 test('plugin: 挂载 researchCore 并跑通 BGP claim→verify→artifact', () => {
   const ctx = makeCtx();
@@ -193,6 +193,44 @@ test('plugin: 阶段 3.6/4a 服务挂载（writer/policy/autonomous）+ 新工�
   assert.equal(auto.campaign?.verdict, 'verified');
   assert.ok((auto.artifacts ?? []).length > 0);
   assert.ok(auto.summary.includes('已核验'));
+
+  dispose();
+});
+
+test('plugin: 阶段 4b 服务挂载（jobs/scheduler/selfImprove）+ 三工具端到端', async () => {
+  const ctx = makeCtx();
+  const dispose = apply(ctx as never);
+  assert.ok(ctx.provided.has('researchJobs'), 'researchJobs provided');
+  assert.ok(ctx.provided.has('researchScheduler'), 'researchScheduler provided');
+  assert.ok(ctx.provided.has('researchSelfImprove'), 'researchSelfImprove provided');
+
+  const names = ctx.registeredTools.map((t: { name: string }) => t.name);
+  for (const n of ['research_job', 'research_schedule', 'research_reflect']) {
+    assert.ok(names.includes(n), `工具 ${n} 缺失`);
+  }
+
+  // research_reflect：冷启动自省 → 观察/建议
+  const reflDef = ctx.registeredTools.find((t: { name: string }) => t.name === 'research_reflect') as { execute(a: unknown): Promise<unknown> };
+  const refl = await reflDef.execute({}) as { summary: string; snapshot: { episodes: number; artifacts: number } };
+  assert.ok(refl.summary.includes('改进建议'));
+  assert.equal(refl.snapshot.episodes, 0);
+
+  // research_job：submit 一个 campaign 任务（异步队列立即执行）→ get 轮询状态
+  const jobDef = ctx.registeredTools.find((t: { name: string }) => t.name === 'research_job') as { execute(a: unknown): Promise<unknown> };
+  const sub = await jobDef.execute({ action: 'submit', kind: 'campaign', claim: 'ROV 提升劫持检测', validator: 'rov', supportThreshold: 0.6, repetitions: 2 }) as { job?: { id: string; status: string } };
+  assert.ok(sub.job?.id);
+  assert.ok(['done', 'failed'].includes(sub.job?.status ?? ''), '同步执行体跑完即终态');
+  const got = await jobDef.execute({ action: 'get', jobId: sub.job!.id }) as { job?: { status: string } };
+  assert.ok(['done', 'failed'].includes(got.job?.status ?? ''), 'job 有终态');
+  const list = await jobDef.execute({ action: 'list' }) as { jobs: unknown[] };
+  assert.ok(list.jobs.length >= 1);
+
+  // research_schedule：注册一次性到期调度 → tick 触发一次
+  const schedDef = ctx.registeredTools.find((t: { name: string }) => t.name === 'research_schedule') as { execute(a: unknown): Promise<unknown> };
+  const past = new Date(Date.now() - 1000).toISOString();
+  await schedDef.execute({ action: 'register', scheduleId: 's1', topic: 'RPKI 演进', at: past });
+  const ticks = await schedDef.execute({ action: 'tick' }) as { runs: Array<{ scheduleId: string }> };
+  assert.ok(ticks.runs.some((r) => r.scheduleId === 's1'), '一次性调度触发');
 
   dispose();
 });

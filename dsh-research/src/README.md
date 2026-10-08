@@ -11,6 +11,8 @@ bundle 运行时代码入口（TypeScript/Cordis 插件）。零外部运行时�
 - `experiment-loop/` — 实验循环：plan → run → analyze，结果折入证据记忆
 - `experiment/` — 阶段 3 实验层：stats 四口径 / topology（RouteEngineSim + FRR·VPP 适配器）/
   executors（TopologyExecutor）/ runner（自动实验 deploy→run→collect→analyze→verify→archive）
+- `jobs/` — 阶段 4b 长任务队列：JobRunner（submit/get/list/cancel，同步/异步执行体，完成与失败归档 episodic + artifact）
+- `scheduler/` — 阶段 4b 周期科研调度：`nextOccurrence` 纯函数（at ISO / daily HH:MM / everyMs）+ `ResearchScheduler`（可注入时钟；register/unregister/due/tick；一次性 at 到期自动停用；每次触发归档 episodic + artifact）
 - `artifact-store/` — 报告 / PPT / 数据产物读写
 
 约定：只消费公开 seam（`ctx.*`、`tools/*`、`@deepseek-ai/dsh-*` 发布包），

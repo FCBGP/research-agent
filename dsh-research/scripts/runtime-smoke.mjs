@@ -2,8 +2,9 @@
 //   researchCore / researchMemory / researchAgents / researchDirector 服务、
 //   research_* 工具集、BGP claim→verify 冒烟闭环。
 //
-//   复刻 CLI 的 provideCmdline（cmdlineArgs/appExit），使含 @deepseek-ai/dsh-headless
-//   前端的组合也能完整 boot；headless 的一次性任务以异步方式启动并被 dispose 取消。
+//   复刻 CLI 的 provideCmdline（cmdlineArgs/appExit），使含 @deepseek-ai/dsh-web-app
+//   前端的组合也能完整 boot；web 基座不接受位置参数，故只给 --no-open 等 flag，
+//   不驱动任何一次性 CLI 任务（web 会话走浏览器 Web UI）。
 //
 // 用法（先部署 profile）:
 //   DSH_HOME=/tmp/dsh-home ./dsh-research/scripts/deploy-profile.sh
@@ -31,7 +32,7 @@ if (!existsSync(NODE_ROOT)) {
 const INSTALL_ANCHOR = join(NODE_ROOT, 'package.json');
 const { loadProfile, readProfilePatches, boot, PluginPackages, createRuntimeResolution } =
   await import('file://' + join(NODE_ROOT, 'node_modules/@deepseek-ai/dsh-app-boot/lib/index.js'));
-// 与 profile-boot.js 一致：headless 前端需要 cmdlineArgs/appExit 才能挂载。
+// 与 profile-boot.js 一致：前端（headless/web）都需要 cmdlineArgs/appExit 才能挂载。
 const { provideCmdline } =
   await import('file://' + join(NODE_ROOT, 'node_modules/@deepseek-ai/dsh-cmdline/lib/index.js'));
 
@@ -60,9 +61,10 @@ try {
     hostCtx.provide('profileContext', profileContext);
     await hostCtx.plugin(PluginPackages, { resolution });
     provideCmdline(hostCtx, {
-      // 只验证“能 boot”，不真的驱动 LLM：给一个平凡任务让 headless 前端挂载，
-      // 其异步 run 会在下方 fiber.dispose() 时被取消。
-      args: process.env.SMOKE_TASK ? [process.env.SMOKE_TASK] : ['smoke: research layer boot check'],
+      // 只验证“能 boot”，不真的驱动 LLM：web 基座拒绝位置参数，仅给 --no-open
+      // 避免沙箱尝试打开浏览器；可选 SMOKE_PORT 避免端口冲突。
+      args: (process.env.SMOKE_ARGS ? process.env.SMOKE_ARGS.split(' ') : ['--no-open'])
+        .concat(process.env.SMOKE_PORT ? [`--port`, process.env.SMOKE_PORT] : []),
       exit: (code) => { exitCode = code; },
       ready: { onReady() { return () => {}; } },
     });
@@ -82,7 +84,7 @@ const tools = ctx.get('tools');
 const researchTools = tools?.schemas?.().map((t) => t.name).filter((n) => n.startsWith('research_')) ?? [];
 console.log('research tools mounted:', researchTools.length ? researchTools.join(', ') : '(none)');
 
-const EXPECTED = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy'];
+const EXPECTED = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy', 'research_job', 'research_schedule', 'research_reflect'];
 const toolOk = EXPECTED.every((n) => researchTools.includes(n));
 
 const core = ctx.get('researchCore');
@@ -141,10 +143,36 @@ if (autoSvc?.run) {
   console.log('autonomous verdict:', report?.campaign?.verdict, '| slides pages:', report?.slides?.split(/\n---\n/).length, '| artifacts:', report?.artifacts?.length);
 }
 
-const servicesOk = ['researchCore', 'researchMemory', 'researchAgents', 'researchDirector', 'researchExperiment', 'researchWriter', 'researchPolicy', 'researchAutonomous'].every((s) => ctx.get(s) !== undefined);
-const ok = servicesOk && toolOk && verdict === 'verified' && searchOk && campaignOk && policyOk && autoOk;
+// 阶段 4b 冒烟：长任务队列（job）+ 一次性调度（schedule）+ 自省（reflect）。
+const jobSvc = ctx.get('researchJobs');
+let jobOk = false;
+if (jobSvc?.submit) {
+  const job = jobSvc.submit({ kind: 'campaign', title: 'smoke job', run: () => expSvc.runAutomatic({ claim: 'ROV 提升劫持检测率', repetitions: 2, validator: 'rov', supportThreshold: 0.6 }) });
+  jobOk = ['done', 'failed'].includes(job.status) && jobSvc.get(job.id)?.status === job.status && jobSvc.list().length >= 1;
+  console.log('job status:', job.status, '| kind:', job.kind);
+}
+
+const schedSvc = ctx.get('researchScheduler');
+let schedOk = false;
+if (schedSvc?.register && schedSvc?.tick) {
+  schedSvc.register({ id: 'smoke-once', topic: 'RPKI 演进', at: new Date(Date.now() - 1000).toISOString() });
+  const runs = schedSvc.tick();
+  schedOk = runs.some((r) => r.scheduleId === 'smoke-once') && schedSvc.get('smoke-once')?.enabled === false;
+  console.log('schedule runs:', runs.length, '| once disabled:', schedSvc.get('smoke-once')?.enabled === false);
+}
+
+const reflectSvc = ctx.get('researchSelfImprove');
+let reflectOk = false;
+if (reflectSvc?.reflect) {
+  const ref = reflectSvc.reflect();
+  reflectOk = ref.snapshot.episodes > 0 && ref.summary.includes('改进建议');
+  console.log('reflect episodes:', ref.snapshot.episodes, '| recommendations:', ref.recommendations.length);
+}
+
+const servicesOk = ['researchCore', 'researchMemory', 'researchAgents', 'researchDirector', 'researchExperiment', 'researchWriter', 'researchPolicy', 'researchAutonomous', 'researchJobs', 'researchScheduler', 'researchSelfImprove'].every((s) => ctx.get(s) !== undefined);
+const ok = servicesOk && toolOk && verdict === 'verified' && searchOk && campaignOk && policyOk && autoOk && jobOk && schedOk && reflectOk;
 await ctx.fiber.dispose();
 console.log('disposed OK');
 console.log(ok ? 'SMOKE PASS' : 'SMOKE FAIL');
-console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} verdict=${verdict} search=${searchOk} campaign=${campaignOk} policy=${policyOk} autonomous=${autoOk}`);
+console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} verdict=${verdict} search=${searchOk} campaign=${campaignOk} policy=${policyOk} autonomous=${autoOk} job=${jobOk} schedule=${schedOk} reflect=${reflectOk}`);
 process.exit(ok ? 0 : 2);

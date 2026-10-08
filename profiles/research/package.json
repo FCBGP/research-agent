@@ -1,13 +1,13 @@
 {
   "name": "dsh-profile-research",
-  "version": "0.1.0",
-  "description": "Deployable research profile: base + headless front-end + @basil/dsh-research.",
+  "version": "0.2.0",
+  "description": "Deployable research profile: base + web front-end (Web UI) + @basil/dsh-research.",
   "type": "module",
   "dsh": {
     "profile": {
       "bundles": [
         "@deepseek-ai/dsh-base",
-        "@deepseek-ai/dsh-headless",
+        "@deepseek-ai/dsh-web-app",
         "@basil/dsh-research"
       ]
     }
