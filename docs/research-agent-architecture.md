@@ -159,3 +159,27 @@ dsh --profile routing-research --dump-config-schema
 - **Phase 2–4**：Memory、Literature/Reviewer/Experiment 角色、FRR/VPP executor、自动实验与论文/PPT 产出、多 agent 与自治循环——全部按 §3 表逐项以插件/工具/skill 形式叠入，仍不碰上游。
 
 **一句话架构定位**：`deepseek-harness` 是只读运行时，`dsh-research` 是以组合包形式安装的外部扩展，`$DSH_HOME` 是两者之外的组合层——三层互不写文件，因此上游更新与你的 Agent 永远互不干扰。
+
+---
+
+## 附录 · 端到端挂载已实测（2026-10-08）
+
+用真实 `dsh` CLI + dsh 自身 `boot()` 验证了「bundle → patch 行 → 运行时插件」整条链路：
+
+1. **bundle 形态**：`dsh-research/package.json` 声明 `dsh.bundle.patch = ./patches/research-agent.yml`，
+   `main`/`exports` 指向 `src/plugin.ts`（Node 24 类型剥离，零外部运行时依赖；
+   `@deepseek-ai/cordis` / `@deepseek-ai/dsh-tools` 只 `import type`，产物中不出现）。
+2. **patch 行**：`patches/research-agent.yml` 用 `- insert:` 插 `dsh-research-core` 行，
+   `name: '@basil/dsh-research'`。行寻址语义 = 高层 patch 可整行覆盖/禁用，不侵入 base。
+3. **profile 部署**：模板在 `profiles/research/`；部署脚本复制模板并把仓库 `dsh-research`
+   symlink 到 `$DSH_HOME/profiles/research/node_modules/@basil/`。two-anchor 解析
+   （安装包优先、profile 目录其次）→ symlink 即生效，改代码免重装。
+4. **运行时契约**（踩过的一个坑，已成文）：Cordis 里读 `ctx.tools` 必须先声明
+   `export const inject = ['tools']`，否则 `cannot get property "tools" without inject`。
+   声明后插件在 tools 就绪时激活：`ctx.provide('researchCore', …)` + `ctx.tools.register(research_*)`。
+5. **验证产物**：
+   - `dsh --profile research --dump-config` → 组合树末尾出现 `# == @basil/dsh-research` 行
+   - `scripts/runtime-smoke.mjs`（复用 dsh `boot()`）→ `researchCore provided? YES`、
+     `research tools mounted: research_verify, research_record`、BGP 冒烟 `verdict: verified`、
+     `SMOKE PASS`
+   - 仓库内 `node --test`（core 2 + plugin 1）全绿，不依赖 dsh

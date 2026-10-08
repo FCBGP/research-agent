@@ -195,4 +195,20 @@ dsh routing-research                     # 更明确的领域命名
   升级：`git -C deepseek-harness fetch origin && git -C deepseek-harness checkout origin/v0.2.1-alpha.1 && git add deepseek-harness && git commit`（或用 `git submodule update --remote`）。
 - **运行时 dsh**：npm 全局 `dsh v0.2.0-rc.2`，走 `$DSH_HOME/profiles`（沙箱内用 `DSH_HOME=/tmp/dsh-home`）。
 - 阶段 0 基线：`docs/baseline/web-dump-config.txt`（45KB 插件树）+ `web-dump-config-schema.json`（822KB）。
+- **阶段 1 + 运行时挂载已完成并实测**（2026-10-08）：
+  - `dsh-research/src/core/` 六件（goal/dag/claim/evidence/verification/artifact）纯 TS，`node --test` 全绿；
+  - `dsh-research/src/plugin.ts` 为 Cordis 插件：`ctx.provide('researchCore', …)` + `ctx.tools.register(research_verify / research_record)`；
+  - `patches/research-agent.yml` 插入 `dsh-research-core` 行；`profiles/research/` 为可部署模板；
+  - 一键部署：`./dsh-research/scripts/deploy-profile.sh`；in-dsh 实测：`node dsh-research/scripts/runtime-smoke.mjs` → **SMOKE PASS**。
 - 黄金规则不变：代码不进 `deepseek-harness/`；配置只走 profiles/patch 层；只消费公开 seam。
+
+### Cordis 插件挂载要点（已踩坑复盘）
+
+- 插件 = `export const name` + `export function apply(ctx, config)`；bundle 的 `dsh.bundle.patch`
+  用 `- insert:` 把 `name: '包名'` 行插入组合树；包 `main` 指向插件入口即可被 dsh 运行时加载。
+- **读 `ctx.tools` 必须先 `export const inject = ['tools']`**，否则 Cordis 报
+  `cannot get property "tools" without inject`，插件整行不激活。
+- 服务/工具生命周期挂在 fiber effect 上：`ctx.provide(...)`、`tools.register(...)` 随插件卸载自动回收；
+  显式返回 disposer 更稳（`registry.plugin()` 会在卸载时调用）。
+- 运行时解析 two-anchor（安装包优先、profile 目录其次）→ 本地 bundle 只需 symlink 进
+  `$DSH_HOME/profiles/<name>/node_modules/<scope>/`，改代码免重装。

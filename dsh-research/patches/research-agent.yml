@@ -1,8 +1,15 @@
-# research-agent.yml — 声明 research 领域服务（阶段 1）。
-# 覆盖/新增 base 已注入的行要在更高层 patch（profile cordis.patch.yml）
-# 复述整行 config。此处仅为 bundle 骨架说明，真正挂载在 profile overlay。
-# 计划挂载（ctx.research.*）：
-#   - research-goal    : @basil/dsh-research/src/core/goal
-#   - research-dag     : @basil/dsh-research/src/core/dag
-#   - research-verifier: @basil/dsh-research/src/core/verification
-#   - artifact-store   : @basil/dsh-research/src/core/artifact-store
+# research-agent.yml — @basil/dsh-research 的 bundle insert 层。
+#
+# 组合语义（见 dsh-app-boot/profile）：profile 的 dsh.profile.bundles 按序叠加
+# 每个 bundle 的 patch 文件（本文件），最后再叠加 profile 自己的 cordis.patch.yml。
+# 行 id 是寻址键：更高层 patch（profile overlay）可对本行做整行覆盖/禁用。
+#
+# 本行把 dsh-research 插件挂到运行树：插件 main export 是 Cordis 形态
+# (name + apply)，加载后会在 ctx 提供 researchCore 服务并注册 research_* 工具。
+- insert:
+    - id: dsh-research-core
+      name: '@basil/dsh-research'
+      config:
+        # 插件未来要读取的配置从这进（模型路由/归档目录等），阶段 2 展开。
+        tools:
+          enabled: true

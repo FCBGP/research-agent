@@ -4,16 +4,22 @@
   "description": "Research agent bundle for dsh: research/verification/experiment loops, artifact store, BGP-RPKI domain skills.",
   "type": "module",
   "scripts": {
-    "test": "node --test src/core/"
+    "test": "node --test \"src/**/*.test.ts\"",
+    "smoke:runtime": "DSH_HOME=${DSH_HOME:?run ./scripts/deploy-profile.sh first} node scripts/runtime-smoke.mjs",
+    "deploy:profile": "./scripts/deploy-profile.sh"
   },
   "dsh": {
     "bundle": {
-      "patch": [
-        "./patches/research-agent.yml",
-        "./patches/research-tools.yml",
-        "./patches/research-policy.yml",
-        "./patches/research-memory.yml"
-      ]
+      "patch": "./patches/research-agent.yml"
     }
+  },
+  "main": "./src/plugin.ts",
+  "exports": {
+    ".": {
+      "types": "./src/plugin.ts",
+      "default": "./src/plugin.ts"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
   }
 }

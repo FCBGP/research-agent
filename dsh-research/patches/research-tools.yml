@@ -1,2 +1,4 @@
-# research-tools.yml — 占位（bundle patch）
-# 目标内容见 docs/research-agent-architecture.md 与 TODO.md 阶段 1。
+# 占位 bundle patch（当前未接入 dsh.bundle.patch 列表；如需启用，在
+# package.json 的 dsh.bundle.patch 数组中加入本文件即可）。
+# 保留合法空数组，避免组合器把注释-only 文件解析为 null。
+[]
