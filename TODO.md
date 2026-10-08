@@ -6,7 +6,7 @@
 
 用 DSV4 Agent 先完成一次架构迁移分析，产出 3 份文档作为后续改造的唯一依据：
 
-- [ ] 在 vendored `deepseek-harness` 运行 `dsh --profile web --dump-config` 与 `dsh --profile web --dump-config-schema`，保存"机器实际启动的完整插件树"
+- [x] 在 vendored `deepseek-harness` 运行 `dsh --profile web --dump-config` 与 `dsh --profile web --dump-config-schema`，保存"机器实际启动的完整插件树"
 - [ ] 产出 `docs/research-agent-architecture.md`，覆盖：
   - [ ] Harness capability map（能力地图）
   - [ ] Existing capability reuse map（现有能力复用地图）

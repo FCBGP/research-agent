@@ -188,3 +188,11 @@ dsh routing-research                     # 更明确的领域命名
 - 运行：`uv run research-agent ...`；本地 LLM 走 OpenAI 兼容接口（环境变量见 `README.md`）。
 - **禁止修改 `deepseek-harness/` 下 `packages/` 的基础设施代码**；新能力放独立 bundle / plugin / 本仓库上层代码。
 - 设计文档放 `docs/`；研究产出与实验 artifact 必须可追溯、可归档。
+
+## 仓库状态（2026-10-08 快照）
+
+- `deepseek-harness/`：官方上游 **git submodule**（pin `5badb15009`, dsh-v0.2.1-alpha.1），只读参考。
+  升级：`git -C deepseek-harness fetch origin && git -C deepseek-harness checkout origin/v0.2.1-alpha.1 && git add deepseek-harness && git commit`（或用 `git submodule update --remote`）。
+- **运行时 dsh**：npm 全局 `dsh v0.2.0-rc.2`，走 `$DSH_HOME/profiles`（沙箱内用 `DSH_HOME=/tmp/dsh-home`）。
+- 阶段 0 基线：`docs/baseline/web-dump-config.txt`（45KB 插件树）+ `web-dump-config-schema.json`（822KB）。
+- 黄金规则不变：代码不进 `deepseek-harness/`；配置只走 profiles/patch 层；只消费公开 seam。
