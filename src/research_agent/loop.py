@@ -459,6 +459,7 @@ def _research_report_segmented(
             f"- 至少 {config.REPORT_SECTION_MIN} 汉字;若本章是该章节,应把它写完整、写深。\n"
             f"- 每章配图:用 {{fig|chart:标题|名,值|名,值}} 或 {{fig|flow:标题|A→B→C}} 或 {{fig|box:标题|要点}} 等指令,生成 1-3 张图。\n"
             f"- 必要时用 Markdown 表格。\n"
+            f"- 只输出本章正文,禁止任何思考/规划/复述/'需要…'类句子;禁止任何英文碎句。\n"
             f"直接输出本章 Markdown,不要解释。"
         )
         msgs = [
@@ -476,6 +477,14 @@ def _research_report_segmented(
                 ]).strip()
                 if text:
                     break
+        # 疑似"规划/思考/要求复述"(而非正文):严格指令重写,最多 2 次,再重写一次兜底。
+        for _r in range(3):
+            if not _is_meta(text):
+                break
+            text = _chat_plain(client, [
+                {"role": "system", "content": "你是资深技术写手,只输出报告正文。任何'需要/应该/建议/我想/我回忆/我核对/我思考'或英文碎句都是违规,必须杜绝。"},
+                {"role": "user", "content": f"请直接写出【{target_chapter}】一章的正文(可含子小节),配 {{fig|...}} 图。主题: {topic}。参考: {refs_block[:1000]}。只输出正文,不要任何前言/规划/复述/解释。"},
+            ]).strip()
         if not text:
             text = f"\n## {target_chapter}\n\n(该章生成失败,后续章节继续;见参考文献与结论获取要点)\n"
         # 去重:若整章与已写高度重复,强制换角度
@@ -484,7 +493,8 @@ def _research_report_segmented(
                 {"role": "system", "content": "你是资深技术写手,生成结构清晰、嵌套小节、图文并茂的长报告章节。"},
                 {"role": "user", "content": f"刚才章节与已写内容重复。请换一个全新角度写【{target_chapter}】一章(可含子小节),讲新的技术细节。主题: {topic}。参考: {refs_block[:1000]}。配 {{fig|...}} 图。直接输出。"},
             ]).strip() or text
-        # 图指令 → PNG 引用
+        # 图指令 → PNG 引用;最后再清洗残留规划/思考杂音
+        text = _clean_chapter(text)
         text = _figs_to_md(text, md_path)
         with open(md_path, "a", encoding="utf-8") as f:
             f.write("\n" + text + "\n")
@@ -498,6 +508,43 @@ def _research_report_segmented(
     with open(md_path, "a", encoding="utf-8") as f:
         f.write("\n## 结论\n" + conclusion + "\n")
     return {"chars": total, "sections": chapter_no, "filename": str(md_path)}
+
+
+# 报告正文清洗:识别/剔除"模型把写作要求当正文输出"的规划性/思考性杂音。
+_META_PREFIXES = (
+    "need ", "need maybe", "need mention", "need be", "need ensure",
+    "need include", "need careful", "i recall", "let me", "good.",
+    "需要", "可以写", "为了推进", "需要避免", "需要图表", "需要结构",
+    "需要技术细节", "需要深入", "潜在问题", "不要为了", "不用于",
+)
+_META_MARKERS = (
+    "need maybe", "need mention", "need be", "need ensure",
+    "i recall", "let me verify", "let me think", "need include",
+    "good.", "需要包含", "需要深入", "需要避免", "需要图表",
+    "需要结构", "需要技术细节", "可以写约", "为了推进",
+)
+
+
+def _is_meta(text: str) -> bool:
+    """粗略判断输出是否为"写作规划/思考/要求复述"而非正文。"""
+    low = text.lower()
+    count = sum(m in low for m in _META_MARKERS)
+    lines = [l for l in text.splitlines() if l.strip()]
+    if not lines:
+        return False
+    ratio = sum(1 for l in lines if l.lower().startswith(_META_PREFIXES)) / len(lines)
+    return count >= 3 or ratio >= 0.5
+
+
+def _clean_chapter(text: str) -> str:
+    """剔除明显的规划/思考杂音行,保留正文。只在高疑似场景调用,避免误删正常句子。"""
+    out_lines = []
+    for line in text.splitlines():
+        ls = line.strip().lower()
+        if ls.startswith(_META_PREFIXES) and not line.startswith(("#", "```")):
+            continue
+        out_lines.append(line)
+    return "\n".join(out_lines).strip()
 
 
 def _dup_similar(a: str, b: str) -> bool:
