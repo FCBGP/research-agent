@@ -1,5 +1,8 @@
-# research-agent.yml — agent 层 patch（bundle 内 dip）
-# 当前为空占位。目标内容（阶段 1）：
-#  - research-director agent 定义
-#  - research-loop / verification-loop / experiment-loop agent 配置
-#  - artifact-store 行为
+# research-agent.yml — 声明 research 领域服务（阶段 1）。
+# 覆盖/新增 base 已注入的行要在更高层 patch（profile cordis.patch.yml）
+# 复述整行 config。此处仅为 bundle 骨架说明，真正挂载在 profile overlay。
+# 计划挂载（ctx.research.*）：
+#   - research-goal    : @basil/dsh-research/src/core/goal
+#   - research-dag     : @basil/dsh-research/src/core/dag
+#   - research-verifier: @basil/dsh-research/src/core/verification
+#   - artifact-store   : @basil/dsh-research/src/core/artifact-store
