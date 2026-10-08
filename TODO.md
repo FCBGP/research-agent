@@ -52,7 +52,8 @@
 
 ## 并行 · Profile / 打包（依托 Harness 原生机制）
 
-- [x] `research` Profile：模板 `profiles/research/`（`dsh.profile.bundles` = base + `@basil/dsh-research`）+ `cordis.patch.yml`
+- [x] `research` Profile：模板 `profiles/research/` + `cordis.patch.yml`；`dsh.profile.bundles` =
+      `base + @deepseek-ai/dsh-headless + @basil/dsh-research`（headless 一次性 CLI 前端，2026-10-08 修复）
 - [x] `dsh-research` bundle：`package.json` 声明 `dsh.bundle.patch`；`main` 指向 `src/plugin.ts`（Node 24 类型剥离，零外部运行时依赖）
   - [x] `src/`: core 六件 + 运行时插件 `plugin.ts`
   - [x] `patches/research-agent.yml`：`- insert:` 插入 `dsh-research-core` 行（已实测进入组合树）
@@ -60,14 +61,16 @@
   - [x] `src/research-director|loop|verification-loop|experiment-loop/`：阶段 2 的 agent 化封装（Director + 三循环，自测 pass）
   - [x] `skills/`: bgp / rpki / bgpsec / fcbgp / paper-review / experiment（各 SKILL.md 已填充，阶段 3）
 - [x] **端到端挂载实测**（2026-10-08）：`dsh --profile research --dump-config` 组合树含
-      `@basil/dsh-research`；`scripts/runtime-smoke.mjs` 在 dsh 真实运行树内验证
-      `researchCore provided YES` + 2 个 `research_*` 工具 + BGP 冒烟 `verified` → `SMOKE PASS`
+      headless-startup/headless-runner + `@basil/dsh-research`；`scripts/runtime-smoke.mjs` 在 dsh 真实
+      运行树内验证 `researchCore provided YES` + 6 个 `research_*` 工具 + 自动实验战役 → `SMOKE PASS`
 - [x] 一键部署脚本：`dsh-research/scripts/deploy-profile.sh`（模板 + symlink，改代码免重装）
 - [ ] 多 Profile：`research` / `paper` / `experiment` / `engineering` / `reviewer`，共享 `dsh-research-core`
 - [ ] **Research Agent Policy（10 条）固化为 profile 固有行为**
 - [ ] `--patch` 组合：base → research policy → bgp research → experiment-specific patch
 - [ ] 命名定型为 **`dsh-routing-research`**，内置领域词汇
 - [ ] 一键部署：打包 `@basil/dsh-research` → `dsh plugin --profile research add @basil/dsh-research`
+- [ ] **真机可运行**：修好 `~/.dsh/.credentials.yaml` 里失效的 `DEEPSEEK_API_KEY`（当前 401），
+      或改配本地 DSV4 模型，`dsh research "…"` 端到端可用
 - [ ] Model Router：planner / researcher / coder / reviewer 按角色配模型
 
 ## 里程碑定义
@@ -89,3 +92,8 @@
 - 2026-10-08（阶段 3）：`src/experiment/` 另起实验层 —— stats 四口径 / RouteEngineSim +
   FRR·VPP 适配器 / TopologyExecutor / 自动实验流水线；`src/plugin.ts` 新增 `researchExperiment`
   服务 + `research_campaign` 工具（6 个）。单测 **27/27** 绿 + runtime-smoke **SMOKE PASS**。
+- 2026-10-08（阶段 3.5，Profile 前端）：`dsh research` 报 profile 不存在的根因是 profile 未部署
+  到 `$DSH_HOME` + bundle 缺前端。`profiles/research/package.json` 改为
+  base + `@deepseek-ai/dsh-headless` + `@basil/dsh-research`；runtime-smoke 复刻 `provideCmdline`
+  使含 headless 的组合完整 boot（SMOKE PASS）。真机 CLI 端到端 boot→session→turn 已验证，
+  仅剩 `~/.dsh/.credentials.yaml` 的 `DEEPSEEK_API_KEY` 401 需更换。

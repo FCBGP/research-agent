@@ -178,6 +178,14 @@ dsh research --patch profiles/fcbgp-experiment.yml "验证恶意 ASPP 情形"
 dsh routing-research                     # 更明确的领域命名
 ```
 
+开发态（本仓库，不用 npm 发布）——先把 profile 部署进 `$DSH_HOME`（默认 `~/.dsh`，
+symlink 指向仓库，改 `dsh-research/` 立即生效，免重装），再直接调用：
+
+```bash
+DSH_HOME="$HOME/.dsh" ./dsh-research/scripts/deploy-profile.sh
+dsh research "分析 RPKI+BGPsec 的安全能力边界"     # == dsh --profile research "<task>"
+```
+
 一键部署：`npm install -g @basil/dsh-research` → `dsh plugin --profile research add @basil/dsh-research` → `dsh research "…"`。
 
 现状资产（本仓库 `src/research_agent/` 已有，可复用为 Executor / Knowledge Plane）：
@@ -276,3 +284,37 @@ dsh routing-research                     # 更明确的领域命名
   增量（见 TODO 阶段 3.5）。
 - 旧工具 `research_experiment`（plan+run 单轮）保留兼容；新 `research_campaign` 为完整
   自动战役入口。
+
+---
+
+## 阶段 3.5 · Profile 前端修复（headless one-shot，2026-10-08）
+
+现象：`dsh research "…"` 报 `profile "research" does not exist`；且旧 `profiles/research/package.json`
+只含 `base + @basil/dsh-research`，缺能启动 agentic loop 的前端 bundle。
+
+修复：`profiles/research/package.json` 的 `dsh.profile.bundles` 改为
+
+```json
+["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-headless", "@basil/dsh-research"]
+```
+
+- bundle 顺序 = 内置 headless 模板（base + headless）+ 我们的 research 层；headless 提供
+  一次性 CLI 前端（`cmdlineArgs`/`appExit` → headless-startup/headless-runner → 直连 core Agent）。
+- `@deepseek-ai/dsh-headless` 位于全局 dsh 的 node_modules（非顶层全局包），profile 部署后由
+  运行时 two-anchor 解析。agent-loop 由 `dsh-base` patch 自带挂载（组合树含 `- id: agent-loop`）。
+- **部署 + 运行（用户自己的终端，沙箱无法写 `~/.dsh`）**：
+
+  ```bash
+  cd /Users/basil/2500/agents/research-agents
+  DSH_HOME="$HOME/.dsh" ./dsh-research/scripts/deploy-profile.sh
+  DSH_HOME="$HOME/.dsh" dsh --profile research --dump-config | grep -E "headless|dsh-research-core"
+  dsh research "研究 RPKI+BGPsec 的安全缺口"       # == dsh --profile research "<task>"
+  ```
+
+- `scripts/runtime-smoke.mjs` 复刻 CLI 的 `provideCmdline`（注入 `cmdlineArgs`/`appExit`），
+  使含 headless 前端的组合能完整 boot；headless 的一次性任务异步启动并在 `fiber.dispose()`
+  取消。沙箱实测：dump-config 组合树含 headless-startup/headless-runner + dsh-research-core；
+  runtime-smoke → **SMOKE PASS**（services 5 + tools 6/6）。
+- 真机端到端（CLI）：`dsh --profile research --json "回答：OK"` 成功 boot → 建 session →
+  起 turn → 调模型；当前 `~/.dsh/.credentials.yaml` 的 `DEEPSEEK_API_KEY` 返回 **401 无效**
+  （`AUTH: api key is invalid`），需更换有效 key（或改配本地 DSV4），非 profile 问题。

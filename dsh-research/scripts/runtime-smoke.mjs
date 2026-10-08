@@ -2,6 +2,9 @@
 //   researchCore / researchMemory / researchAgents / researchDirector 服务、
 //   research_* 工具集、BGP claim→verify 冒烟闭环。
 //
+//   复刻 CLI 的 provideCmdline（cmdlineArgs/appExit），使含 @deepseek-ai/dsh-headless
+//   前端的组合也能完整 boot；headless 的一次性任务以异步方式启动并被 dispose 取消。
+//
 // 用法（先部署 profile）:
 //   DSH_HOME=/tmp/dsh-home ./dsh-research/scripts/deploy-profile.sh
 //   DSH_HOME=/tmp/dsh-home node dsh-research/scripts/runtime-smoke.mjs
@@ -28,6 +31,9 @@ if (!existsSync(NODE_ROOT)) {
 const INSTALL_ANCHOR = join(NODE_ROOT, 'package.json');
 const { loadProfile, readProfilePatches, boot, PluginPackages, createRuntimeResolution } =
   await import('file://' + join(NODE_ROOT, 'node_modules/@deepseek-ai/dsh-app-boot/lib/index.js'));
+// 与 profile-boot.js 一致：headless 前端需要 cmdlineArgs/appExit 才能挂载。
+const { provideCmdline } =
+  await import('file://' + join(NODE_ROOT, 'node_modules/@deepseek-ai/dsh-cmdline/lib/index.js'));
 
 const profile = loadProfile('dsh', 'research', INSTALL_ANCHOR, home, { userLayer: true });
 const resolution = await createRuntimeResolution({ installAnchor: INSTALL_ANCHOR, profile });
@@ -48,10 +54,18 @@ const rootConfig = join(profile.dir, 'cordis.yml');
 if (!existsSync(rootConfig)) writeFileSync(rootConfig, '[]\n', 'utf8');
 
 let ctx;
+let exitCode;
 try {
   ctx = await boot('dsh', rootConfig, patches, async (hostCtx) => {
     hostCtx.provide('profileContext', profileContext);
     await hostCtx.plugin(PluginPackages, { resolution });
+    provideCmdline(hostCtx, {
+      // 只验证“能 boot”，不真的驱动 LLM：给一个平凡任务让 headless 前端挂载，
+      // 其异步 run 会在下方 fiber.dispose() 时被取消。
+      args: process.env.SMOKE_TASK ? [process.env.SMOKE_TASK] : ['smoke: research layer boot check'],
+      exit: (code) => { exitCode = code; },
+      ready: { onReady() { return () => {}; } },
+    });
   });
 } catch (err) {
   console.error('BOOT FAILED:', err?.stack ?? err);
