@@ -1,41 +1,12 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
+# Node / dsh research
+node_modules/
 dist/
-wheels/
-*.egg-info
-
-# Virtual environments
-.venv
-
-# 中间产物(不纳入 git):生成的临时报告/测试文件/外部记忆 DB/临时图
-# 注:交付类 .docx(如 bgp-*.docx)保留;中间 md/报告/DB/临时图忽略
-# 所有 agent 输出(报告/文档/笔记/图/DB)集中放 output/,整体不纳入 git
-output/
-
-# pandoc 中间产物 md(生成 docx 前的临时 md;真正交付是 .docx)
-bgp-route-*.md
-bgp-*.md
-routing_intro.md
-*_intro.md
-research_report.md
-bgp_intro.md
-test_long.md
-long_report.md
-long_report.docx
-rag_definition.md
-*_report.md
-*_report.docx
-memory/
-fig_*.png
-
-# 用户自有的研究 prompt / Word 模板库(不随仓库上传)
-prompts/
-templates/
-test_long.docx
-out.docx
 /tmp/
 *.output
-node_modules/
+
+# 用户自有的研究 prompt / Word 模板库（不随仓库上传）
+prompts/
+templates/
+
+# 系统与编辑器
 .DS_Store

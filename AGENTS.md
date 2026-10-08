@@ -188,12 +188,11 @@ dsh research "分析 RPKI+BGPsec 的安全能力边界"     # == dsh --profile r
 
 一键部署：`npm install -g @basil/dsh-research` → `dsh plugin --profile research add @basil/dsh-research` → `dsh research "…"`。
 
-现状资产（本仓库 `src/research_agent/` 已有，可复用为 Executor / Knowledge Plane）：
-- 本地科研智能体：`loop / context / tools / memory / skills / mcp / server / cli`
-- 科研规划 `planning.py`、进化环 `evolve.py`（LEARN→DESIGN→EXPERIMENT→ANALYZE）、`harness.py`（hooks/settings/events/permissions）、`debate.py`、`longdoc / worddoc / md2docx / figures`
+历史：旧 Python 本地智能体栈（`src/research_agent/`、`pyproject.toml`、`config.yaml`、`requirements/` 等）已于 2026-10-08 移除，
+本仓库只保留 dsh research 上层叠加（dsh-research / profiles）。
 
 工作规范：
-- 运行：`uv run research-agent ...`；本地 LLM 走 OpenAI 兼容接口（环境变量见 `README.md`）。
+- 运行：`dsh research "<任务>"`（== `dsh --profile research "<任务>"`）；部署与模型路由见 `README.md`。
 - **禁止修改 `deepseek-harness/` 下 `packages/` 的基础设施代码**；新能力放独立 bundle / plugin / 本仓库上层代码。
 - 设计文档放 `docs/`；研究产出与实验 artifact 必须可追溯、可归档。
 
@@ -202,7 +201,7 @@ dsh research "分析 RPKI+BGPsec 的安全能力边界"     # == dsh --profile r
 - `deepseek-harness/`：官方上游 **git submodule**（pin `5badb15009`, dsh-v0.2.1-alpha.1），只读参考。
   升级：`git -C deepseek-harness fetch origin && git -C deepseek-harness checkout origin/v0.2.1-alpha.1 && git add deepseek-harness && git commit`（或用 `git submodule update --remote`）。
 - **运行时 dsh**：npm 全局 `dsh v0.2.0-rc.2`，走 `$DSH_HOME/profiles`（沙箱内用 `DSH_HOME=/tmp/dsh-home`）。
-- 阶段 0 基线：`docs/baseline/web-dump-config.txt`（45KB 插件树）+ `web-dump-config-schema.json`（822KB）。
+- 阶段 0 基线（`docs/baseline/` 的 web-profile 插件树 dump）已随 2026-10-08 瘦身删除；阶段 0 分析结论保留在 `docs/research-agent-architecture.md`。
 - **阶段 1 + 运行时挂载已完成并实测**（2026-10-08）：
   - `dsh-research/src/core/` 六件（goal/dag/claim/evidence/verification/artifact）纯 TS，`node --test` 全绿；
   - `dsh-research/src/plugin.ts` 为 Cordis 插件：`ctx.provide('researchCore', …)` + `ctx.tools.register(research_verify / research_record)`；

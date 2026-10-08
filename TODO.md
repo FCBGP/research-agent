@@ -4,7 +4,7 @@
 
 ## 阶段 0 · 架构迁移分析（先做，不改代码）
 
-- [x] 在 vendored `deepseek-harness` 运行 `dsh --profile web --dump-config` 与 `dsh --profile web --dump-config-schema`，保存"机器实际启动的完整插件树"（`docs/baseline/`）
+- [x] 在 vendored `deepseek-harness` 运行 `dsh --profile web --dump-config` 与 `dsh --profile web --dump-config-schema`，保存"机器实际启动的完整插件树"（`docs/baseline/`；2026-10-08 瘦身时已删除，结论在 `docs/research-agent-architecture.md`）
 - [x] 产出 `docs/research-agent-architecture.md`（TL;DR 三黄金规则 + 结构保证 + 已验证挂载路径附录）
   - [x] Harness capability map / Existing capability reuse map / Required extension points
   - [x] Components that must NOT be modified（禁止改动清单，见 AGENTS.md §2）
@@ -13,7 +13,7 @@
   - [~] Memory / Artifact 架构、Migration plan、MVI、上游风险 —— 顶层已覆盖，细分待补
 - [ ] 产出 `docs/research-agent-data-model.md`
 - [ ] 产出 `docs/research-agent-migration-plan.md`
-- [ ] 现状盘点：现有 Python agent（`planning / evolve / memory / tools / debate / harness`）哪些可复用作 Executor / Knowledge Plane
+- [x] 现状盘点：~~现有 Python agent（`planning / evolve / memory / tools / debate / harness`）可复用性~~ —— 旧 Python 栈已于 2026-10-08 移除，不再复用；Executor / Knowledge Plane 全部走 dsh bundle / skills 层
 
 ## 阶段 1 · 核心六件（MVP，✅ 已完成并实测）
 
