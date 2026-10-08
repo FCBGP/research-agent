@@ -309,12 +309,20 @@ dsh research "分析 RPKI+BGPsec 的安全能力边界"     # == dsh --profile r
   DSH_HOME="$HOME/.dsh" ./dsh-research/scripts/deploy-profile.sh
   DSH_HOME="$HOME/.dsh" dsh --profile research --dump-config | grep -E "headless|dsh-research-core"
   dsh research "研究 RPKI+BGPsec 的安全缺口"       # == dsh --profile research "<task>"
+  # 注：重跑 deploy 会刷新 package.json 与 cordis.patch.yml（含模型层 overlay）
   ```
 
 - `scripts/runtime-smoke.mjs` 复刻 CLI 的 `provideCmdline`（注入 `cmdlineArgs`/`appExit`），
   使含 headless 前端的组合能完整 boot；headless 的一次性任务异步启动并在 `fiber.dispose()`
   取消。沙箱实测：dump-config 组合树含 headless-startup/headless-runner + dsh-research-core；
   runtime-smoke → **SMOKE PASS**（services 5 + tools 6/6）。
-- 真机端到端（CLI）：`dsh --profile research --json "回答：OK"` 成功 boot → 建 session →
-  起 turn → 调模型；当前 `~/.dsh/.credentials.yaml` 的 `DEEPSEEK_API_KEY` 返回 **401 无效**
-  （`AUTH: api key is invalid`），需更换有效 key（或改配本地 DSV4），非 profile 问题。
+- **模型层（2026-10-08 追加）**：web profile 实际用的是本地 interval DSV4 网关
+  （`llm-pi-ai` + provider `local-interval-dsv4`，key 取 credential-ref `LOCAL_INTERVAL_DSV4_API_KEY`），
+  并非 `DEEPSEEK_API_KEY`（`.credentials.yaml` 里该 ref 只是占位值 「0731」，base 默认模型
+  `deepseek-official` 会因它 401）。把 web 同款两层 overlay 加入 `profiles/research/cordis.patch.yml`：
+  `llm-pi-ai.providers.local-interval-dsv4`（openai-completions，baseURL `http://10.2.165.201:8232/v1`）
+  + `agent-default-model` 默认切到 `local-interval-dsv4 / dsv4flash`。
+  **真机端到端实测通过**：`dsh --profile research --json "RPKI 的作用?"` → boot → turn →
+  dsv4flash 正确作答并输出 final（`reason.kind: completed`）。
+- 注意：`baseURL` 是本机内网地址（配置在 profile 层，改这里即可）；若用 `dsh headless` 同样
+  报 401，把这两层 overlay 同样加到 `~/.dsh/profiles/headless/cordis.patch.yml`。

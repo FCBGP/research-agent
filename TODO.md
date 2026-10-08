@@ -69,8 +69,9 @@
 - [ ] `--patch` 组合：base → research policy → bgp research → experiment-specific patch
 - [ ] 命名定型为 **`dsh-routing-research`**，内置领域词汇
 - [ ] 一键部署：打包 `@basil/dsh-research` → `dsh plugin --profile research add @basil/dsh-research`
-- [ ] **真机可运行**：修好 `~/.dsh/.credentials.yaml` 里失效的 `DEEPSEEK_API_KEY`（当前 401），
-      或改配本地 DSV4 模型，`dsh research "…"` 端到端可用
+- [x] **真机可运行**：`profiles/research/cordis.patch.yml` 加入 web 同款 `llm-pi-ai`
+      （`local-interval-dsv4`，credential-ref `LOCAL_INTERVAL_DSV4_API_KEY`）+ `agent-default-model`
+      → dsv4flash；`dsh research "…"` 真机端到端实测通过（2026-10-08）
 - [ ] Model Router：planner / researcher / coder / reviewer 按角色配模型
 
 ## 里程碑定义
@@ -97,3 +98,8 @@
   base + `@deepseek-ai/dsh-headless` + `@basil/dsh-research`；runtime-smoke 复刻 `provideCmdline`
   使含 headless 的组合完整 boot（SMOKE PASS）。真机 CLI 端到端 boot→session→turn 已验证，
   仅剩 `~/.dsh/.credentials.yaml` 的 `DEEPSEEK_API_KEY` 401 需更换。
+- 2026-10-08（阶段 3.5-b，模型层）：定位「仅剩 401」的真根因 —— web 走的是本地
+  interval DSV4（`llm-pi-ai` + `local-interval-dsv4`，key 取 `LOCAL_INTERVAL_DSV4_API_KEY`），
+  而 base 默认 `deepseek-official` 用占位 `DEEPSEEK_API_KEY="0731"` → 401。`profiles/research/
+  cordis.patch.yml` 加 web 同款 overlay（provider + agent-default-model→dsv4flash），
+  `dsh --profile research --json "RPKI 的作用?"` 真机端到端回答正确（completed）。

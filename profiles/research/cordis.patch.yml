@@ -1,4 +1,26 @@
 # research profile — 领域 overlay。
 # base bundle 在上，本 overlay 追加 research 语义（按行 id 整行覆盖/插入）。
-# 顶层必须是一个 loader patch 数组；`[]` 表示暂无额外覆盖。
-[]
+# 顶层必须是一个 loader patch 数组。
+#
+# 模型层：与 web profile 一致，走本地 interval DSV4 网关（OpenAI 兼容）。
+# - llm-pi-ai 提供 provider local-interval-dsv4；key 通过 credential-ref
+#   LOCAL_INTERVAL_DSV4_API_KEY 从 $DSH_HOME/.credentials.yaml 解析
+# - agent-default-model 把默认模型切到 dsv4flash，headless/CLI 一次性任务
+#   不再走 base 默认的 deepseek-official（其 DEEPSEEK_API_KEY 常为占位值）
+- id: llm-pi-ai
+  name: "@deepseek-ai/dsh-llm-pi-ai"
+  config:
+    providers:
+      local-interval-dsv4:
+        displayName: local-interval-dsv4
+        apiKeyEnv: LOCAL_INTERVAL_DSV4_API_KEY
+        api: openai-completions
+        baseURL: http://10.2.165.201:8232/v1
+        models:
+          - id: dsv4flash
+            name: dsv4flash
+- id: agent-default-model
+  name: "@deepseek-ai/dsh-agent-default-model"
+  config:
+    provider: local-interval-dsv4
+    model: dsv4flash
