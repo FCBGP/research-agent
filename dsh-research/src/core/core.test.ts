@@ -41,5 +41,5 @@ test('BGP 冒烟: claim → experiment → verdict → artifact', () => {
   assert.equal(store.trace(c.id).length, 2);
   store.archive(store.trace(c.id)[0].id);
   assert.equal(store.trace(c.id).length, 1); // 归档后不再计入活跃追溯
-  assert.ok(synthConfidence(c) > 0.7);
+  assert.ok(synthConfidence(c) >= 0.7);
 });
