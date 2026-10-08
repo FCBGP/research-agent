@@ -1,0 +1,18 @@
+node:fs:2482
+    return binding.writeFileUtf8(
+                   ^
+
+Error: EPERM: operation not permitted, open '/Users/basil/.dsh/profiles/web/cordis.yml'
+    at writeFileSync (node:fs:2482:20)
+    at prepareProfile (file:///Users/basil/.nvm/versions/node/v24.21.0/lib/node_modules/@deepseek-ai/dsh/lib/profile-boot-BZ2ZjNWi.js:189:2)
+    at runDumpConfig (file:///Users/basil/.nvm/versions/node/v24.21.0/lib/node_modules/@deepseek-ai/dsh/lib/dump-config-BEDI-dNY.js:25:17)
+    at runCli (file:///Users/basil/.nvm/versions/node/v24.21.0/lib/node_modules/@deepseek-ai/dsh/lib/bin.js:241:4)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async file:///Users/basil/.nvm/versions/node/v24.21.0/lib/node_modules/@deepseek-ai/dsh/lib/bin.js:252:23 {
+  errno: -1,
+  code: 'EPERM',
+  syscall: 'open',
+  path: '/Users/basil/.dsh/profiles/web/cordis.yml'
+}
+
+Node.js v24.21.0

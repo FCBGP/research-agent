@@ -1,0 +1,10 @@
+# research profile — 领域 overlay（初稿）
+# base bundle 在上，本 overlay 追加 research 语义。字段名以 dsh --dump-config-schema 校验后为准。
+meta:
+  profile: research
+  bundles: ["@deepseek-ai/dsh-base", "@basil/dsh-research"]
+
+# TODO(阶段1): 此处加入
+#  - model 路由：planner / researcher / coder / reviewer 按角色预设模型
+#  - BGP / RPKI 领域词汇入参 ~/.dsh/profiles/research/cordis.patch.yml
+#  - research policy 10 条（来自 TODO.md 阶段1）

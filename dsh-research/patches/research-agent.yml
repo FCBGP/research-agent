@@ -1,0 +1,5 @@
+# research-agent.yml — agent 层 patch（bundle 内 dip）
+# 当前为空占位。目标内容（阶段 1）：
+#  - research-director agent 定义
+#  - research-loop / verification-loop / experiment-loop agent 配置
+#  - artifact-store 行为
