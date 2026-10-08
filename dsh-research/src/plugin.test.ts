@@ -44,7 +44,7 @@ function makeCtx(): FakeCtx {
   return ctx as unknown as FakeCtx;
 }
 
-const TOOL_NAMES = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign'];
+const TOOL_NAMES = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy'];
 
 test('plugin: 挂载 researchCore 并跑通 BGP claim→verify→artifact', () => {
   const ctx = makeCtx();
@@ -80,7 +80,7 @@ test('plugin: 挂载 researchCore 并跑通 BGP claim→verify→artifact', () =
   // dispose 后工具卸载
   dispose();
   assert.equal(ctx.registeredTools.length, 0);
-  assert.equal(ctx.unregisteredTools.length, 6);
+  assert.equal(ctx.unregisteredTools.length, TOOL_NAMES.length);
 });
 
 test('plugin: 阶段 2 服务挂载（memory + agents + director）', () => {
@@ -155,5 +155,44 @@ test('plugin: 阶段 3 research_campaign 自动实验服务全链路', () => {
 
   const toolNames = ctx.registeredTools.map((t: { name: string }) => t.name);
   assert.ok(toolNames.includes('research_campaign'), 'research_campaign 工具已注册');
+  dispose();
+});
+
+test('plugin: 阶段 3.6/4a 服务挂载（writer/policy/autonomous）+ 新工具端到端', async () => {
+  const ctx = makeCtx();
+  const dispose = apply(ctx as never);
+
+  assert.ok(ctx.provided.has('researchWriter'), 'researchWriter provided');
+  assert.ok(ctx.provided.has('researchPolicy'), 'researchPolicy provided');
+  assert.ok(ctx.provided.has('researchAutonomous'), 'researchAutonomous provided');
+
+  const policy = ctx.provided.get('researchPolicy') as { view(): { enabled: boolean; rules: unknown[]; prompt: string } };
+  const view = policy.view();
+  assert.equal(view.enabled, true);
+  assert.equal(view.rules.length, 10, '默认 10 条纪律');
+  assert.ok(view.prompt.includes('Research Agent Policy'));
+
+  const names = ctx.registeredTools.map((t: { name: string }) => t.name);
+  for (const n of ['research_paper', 'research_slides', 'research_autonomous', 'research_policy']) {
+    assert.ok(names.includes(n), `工具 ${n} 缺失`);
+  }
+
+  // research_policy 工具可执行
+  const policyDef = ctx.registeredTools.find((t: { name: string }) => t.name === 'research_policy') as { execute(a: unknown): Promise<unknown> };
+  const policyOut = await policyDef.execute({});
+  assert.ok((policyOut as { enabled: boolean }).enabled === true);
+  assert.equal((policyOut as { rules: unknown[] }).rules.length, 10);
+
+  // research_autonomous 工具可执行（确定性流水线 → 论文/幻灯片/verdict）
+  const autoDef = ctx.registeredTools.find((t: { name: string }) => t.name === 'research_autonomous') as { execute(a: unknown): Promise<unknown> };
+  const autoOut = await autoDef.execute({ topic: 'RPKI+BGPsec 安全缺口', hypothesis: 'ROV 提升 prefix 劫持检测率（hijack）', validator: 'rov', supportThreshold: 0.6, repetitions: 2, seed: 1 });
+  const auto = autoOut as { goalId: string; paper: string; slides: string; claimVerdicts: Record<string, string>; campaign?: { verdict: string }; summary: string; artifacts?: string[] };
+  assert.ok(auto.goalId);
+  assert.ok(auto.paper.includes('## 1. 背景与研究问题'));
+  assert.ok(auto.slides.split(/\n---\n/).length >= 8);
+  assert.equal(auto.campaign?.verdict, 'verified');
+  assert.ok((auto.artifacts ?? []).length > 0);
+  assert.ok(auto.summary.includes('已核验'));
+
   dispose();
 });

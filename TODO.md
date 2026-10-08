@@ -39,13 +39,13 @@
 - [x] 11. **FRR/VPP executor**（`src/experiment/topology.ts`：RouteEngineSim 确定性模拟 + Frr/VppTopology 真实守护进程适配器/回退；`executors.ts` TopologyExecutor 实现 Executor 契约，自测 8 pass）
 - [x] 12. **automatic experiment**：`runner.ts` runAutomaticExperiment/runCampaign 实现 deploy → run(×repetitions) → collect → analyze → verify → archive，写回 episodic+artifact，插件 `research_campaign` 工具 + `researchExperiment` 服务
 - [x] 13. **statistical analysis**：`experiment/stats.ts` 四口径均值/样本标准差/95%CI + summarizeDetection（effectiveScore），`metricsFor` 收敛四口径，多次重复统计（自测 + plugin + runtime-smoke 实测）
-- [ ] 14. **paper generation**
-- [ ] 15. **PPT generation**
+- [x] 14. **paper generation**：`src/writer/paper.ts` 六章节 + 摘要 + 附录 A 证据追溯（自测 2 pass）+ 插件 `research_paper` 工具
+- [x] 15. **PPT generation**：`src/writer/slides.ts` 8 页 Marp 科研汇报（自测 2 pass）+ 插件 `research_slides` 工具
 
 ## 阶段 4 · 自治化
 
-- [ ] 16. **multi-agent**：角色化 subagent + 结构化 artifact 传递
-- [ ] 17. **autonomous research loop**
+- [~] 16. **multi-agent**：五角色注册表 + 任务分派表（`src/roles/`，`ROLE_REGISTRY`/`TASK_ROLE` 自测 2 pass）+ 角色级模型路由（`src/model-router/`，自测 3 pass）；「真实 subagent 实挂 dsh 模型层」待接 headless seam ← 模型路由已就绪，仅差把 role→agent 接到 LLM 回合
+- [x] 17. **autonomous research loop**：`src/autonomous/` buildGoal(5 任务 DAG) + runAutonomousResearch 一键流水线（Director→实验战役→验证折入→Writer→归档），插件 `research_autonomous` 工具；ROV 对 prefix-hijack verified / path-manipulation rejected 两项语义自测
 - [ ] 18. **long-running jobs**
 - [ ] 19. **scheduled research**
 - [ ] 20. **self-improvement**
@@ -65,14 +65,14 @@
       运行树内验证 `researchCore provided YES` + 6 个 `research_*` 工具 + 自动实验战役 → `SMOKE PASS`
 - [x] 一键部署脚本：`dsh-research/scripts/deploy-profile.sh`（模板 + symlink，改代码免重装）
 - [ ] 多 Profile：`research` / `paper` / `experiment` / `engineering` / `reviewer`，共享 `dsh-research-core`
-- [ ] **Research Agent Policy（10 条）固化为 profile 固有行为**
+- [x] **Research Agent Policy（10 条）固化为 profile 固有行为**：`src/policy/` `RESEARCH_POLICY` + `PolicyService`（omit/extra/enabled），`PluginConfig.policy` 可配，`research_policy` 工具供模型读取；profile patch 注入待接（prompt seam 就绪）
 - [ ] `--patch` 组合：base → research policy → bgp research → experiment-specific patch
 - [ ] 命名定型为 **`dsh-routing-research`**，内置领域词汇
 - [ ] 一键部署：打包 `@basil/dsh-research` → `dsh plugin --profile research add @basil/dsh-research`
 - [x] **真机可运行**：`profiles/research/cordis.patch.yml` 加入 web 同款 `llm-pi-ai`
       （`local-interval-dsv4`，credential-ref `LOCAL_INTERVAL_DSV4_API_KEY`）+ `agent-default-model`
       → dsv4flash；`dsh research "…"` 真机端到端实测通过（2026-10-08）
-- [ ] Model Router：planner / researcher / coder / reviewer 按角色配模型
+- [x] Model Router：五角色（director/literature/reviewer/experimenter/writer）默认走 `local-interval-dsv4/dsv4flash`，可角色级覆盖（`src/model-router/`）；与 profile 两层 overlay 对齐
 
 ## 里程碑定义
 
@@ -103,3 +103,13 @@
   而 base 默认 `deepseek-official` 用占位 `DEEPSEEK_API_KEY="0731"` → 401。`profiles/research/
   cordis.patch.yml` 加 web 同款 overlay（provider + agent-default-model→dsv4flash），
   `dsh --profile research --json "RPKI 的作用?"` 真机端到端回答正确（completed）。
+- 2026-10-08（阶段 3.6/4a）：`src/writer/`（论文 6 章节 + 8 页 Marp 幻灯片）
+  + `src/policy/`（10 条纪律固化）+ `src/roles/`（五角色注册表 + 分派表）
+  + `src/model-router/`（角色级模型路由）+ `src/autonomous/`（一键科研流水线）完成；
+  `src/plugin.ts` 扩展为 8 个服务 + 10 个工具（新增 research_paper / research_slides /
+  research_autonomous / research_policy）；单测 **44/44** 绿 + runtime-smoke **SMOKE PASS**
+  （services 8 + tools 10/10 + policy + autonomous）。ROV 语义正确性：对 prefix-hijack
+  verified（det≈0.79）、对 path-manipulation rejected（≈0.33）—— 攻击类别由
+  `inferAttack(plan.scenario)` 自动判定。
+- 2026-10-08（阶段 4b，进行中）：TODO 阶段 4 之 18 long-running jobs / 19 scheduled
+  research / 20 self-improvement 尚未完成。

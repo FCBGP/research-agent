@@ -82,7 +82,7 @@ const tools = ctx.get('tools');
 const researchTools = tools?.schemas?.().map((t) => t.name).filter((n) => n.startsWith('research_')) ?? [];
 console.log('research tools mounted:', researchTools.length ? researchTools.join(', ') : '(none)');
 
-const EXPECTED = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign'];
+const EXPECTED = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy'];
 const toolOk = EXPECTED.every((n) => researchTools.includes(n));
 
 const core = ctx.get('researchCore');
@@ -116,10 +116,35 @@ if (expSvc?.runAutomatic) {
   console.log('campaign verdict:', campaign?.verdict, '| detection mean:', campaign?.detection?.mean?.toFixed(3), '| artifacts:', campaign?.artifacts?.length);
 }
 
-const servicesOk = ['researchCore', 'researchMemory', 'researchAgents', 'researchDirector', 'researchExperiment'].every((s) => ctx.get(s) !== undefined);
-const ok = servicesOk && toolOk && verdict === 'verified' && searchOk && campaignOk;
+// 阶段 3.6/4a 冒烟：Policy（10 条纪律）+ 一键科研流水线（论文 + 幻灯片 + campaign verdict）。
+const policy = ctx.get('researchPolicy');
+let policyOk = false;
+if (policy?.view) {
+  const v = policy.view();
+  policyOk = v.enabled && v.rules.length === 10 && v.prompt.includes('Research Agent Policy');
+  console.log('policy rules:', v?.rules?.length, '| enabled:', v?.enabled);
+}
+
+const autoSvc = ctx.get('researchAutonomous');
+let autoOk = false;
+if (autoSvc?.run) {
+  const report = autoSvc.run({
+    topic: 'RPKI+BGPsec 安全缺口',
+    hypothesis: 'ROV 提升 prefix 劫持检测率（hijack）',
+    validator: 'rov', supportThreshold: 0.6, repetitions: 3, seed: 1,
+  });
+  autoOk = report?.campaign?.verdict === 'verified'
+    && report?.paper?.includes('## 1. 背景与研究问题')
+    && report?.slides?.split(/\n---\n/).length >= 8
+    && (report?.artifacts?.length ?? 0) > 0
+    && report?.summary?.includes('已核验');
+  console.log('autonomous verdict:', report?.campaign?.verdict, '| slides pages:', report?.slides?.split(/\n---\n/).length, '| artifacts:', report?.artifacts?.length);
+}
+
+const servicesOk = ['researchCore', 'researchMemory', 'researchAgents', 'researchDirector', 'researchExperiment', 'researchWriter', 'researchPolicy', 'researchAutonomous'].every((s) => ctx.get(s) !== undefined);
+const ok = servicesOk && toolOk && verdict === 'verified' && searchOk && campaignOk && policyOk && autoOk;
 await ctx.fiber.dispose();
 console.log('disposed OK');
 console.log(ok ? 'SMOKE PASS' : 'SMOKE FAIL');
-console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} verdict=${verdict} search=${searchOk} campaign=${campaignOk}`);
+console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} verdict=${verdict} search=${searchOk} campaign=${campaignOk} policy=${policyOk} autonomous=${autoOk}`);
 process.exit(ok ? 0 : 2);

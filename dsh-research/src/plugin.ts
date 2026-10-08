@@ -20,6 +20,9 @@ import { createMemory, loadMemoryInto, type ResearchMemory } from './memory/inde
 import { createAgents, type ResearchAgents } from './agents/index.ts';
 import { ResearchDirector } from './research-director/director.ts';
 import { runCampaign, type CampaignReport } from './experiment/runner.ts';
+import { createWriter, type ResearchWriter } from './writer/index.ts';
+import { PolicyService, type PolicyOptions } from './policy/index.ts';
+import { runAutonomousResearch, type AutonomousInput, type AutonomousReport } from './autonomous/index.ts';
 
 export const name = 'dsh-research';
 
@@ -61,12 +64,18 @@ export interface ResearchRuntimeService {
       supportThreshold?: number;
     }): CampaignReport;
   };
+  writer: ResearchWriter;
+  policy: PolicyService;
+  autonomous: {
+    run(input: AutonomousInput): AutonomousReport;
+  };
 }
 
 export interface PluginConfig {
   tools?: { enabled?: boolean };
   memory?: { dir?: string };
   agents?: { enabled?: boolean };
+  policy?: PolicyOptions;
 }
 
 export function apply(ctx: Context, config: PluginConfig = {}): void {
@@ -106,7 +115,14 @@ export function apply(ctx: Context, config: PluginConfig = {}): void {
       });
     },
   };
-  const runtime: ResearchRuntimeService = { memory, agents, director, experiment };
+  // —— 阶段 3.6/4a：Writer（论文/幻灯片）+ Policy（10 条纪律）+ Autonomous（一键流水线）——
+  const writer = createWriter();
+  const policy = new PolicyService(config.policy);
+  const autonomous = {
+    run: (input: AutonomousInput): AutonomousReport =>
+      runAutonomousResearch(input, { memory, agents, writer }),
+  };
+  const runtime: ResearchRuntimeService = { memory, agents, director, experiment, writer, policy, autonomous };
 
   if (config.memory?.dir) loadMemoryInto(memory, config.memory.dir);
 
@@ -116,7 +132,10 @@ export function apply(ctx: Context, config: PluginConfig = {}): void {
   ctx.provide('researchAgents', agents);
   ctx.provide('researchDirector', director);
   ctx.provide('researchExperiment', experiment);
-  ctx.logger?.(name).info('%s: researchCore + memory + agents + director + experiment mounted', name);
+  ctx.provide('researchWriter', writer);
+  ctx.provide('researchPolicy', policy);
+  ctx.provide('researchAutonomous', autonomous);
+  ctx.logger?.(name).info('%s: researchCore + memory + agents + director + experiment + writer + policy + autonomous mounted', name);
 
   if (config.tools?.enabled === false) {
     ctx.logger?.(name).info('%s: config.tools.enabled=false，跳过工具注册（服务仍挂载）', name);
@@ -374,6 +393,193 @@ function registerTools(
       };
     },
   }));
+
+  // —— 阶段 3.6/4a：Writer / Policy / Autonomous 四工具 ————————————————————————
+  disposers.push(tools.register({
+    name: 'research_paper',
+    description: '把研究项目（问题/假设/claims/证据/实验）渲染成结构化 Markdown 论文（摘要 + 6 章节 + 证据追溯附录），全部内容来自可追溯研究对象。',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: '论文标题' },
+        researchQuestion: { type: 'string', description: '研究问题' },
+        hypothesis: { type: 'string', description: '中心假设' },
+        contextNotes: { type: 'array', items: { type: 'string' }, description: '文献/背景要点' },
+        claims: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string' }, statement: { type: 'string' }, type: { type: 'string' },
+              confidence: { type: 'number' }, verificationStatus: { type: 'string' }, source: { type: 'string' },
+              evidence: { type: 'array', items: { type: 'object' } },
+              counterEvidence: { type: 'array', items: { type: 'object' } },
+            },
+            required: ['id', 'statement', 'type'],
+            additionalProperties: true,
+          },
+          description: '研究 claim 列表（含证据/反证）',
+        },
+        experiments: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              claimId: { type: 'string' }, configFingerprint: { type: 'string' }, scenario: { type: 'string' },
+              outcome: { type: 'string' }, verdict: { type: 'string' }, engine: { type: 'string' },
+              stats: { type: 'object' },
+            },
+            required: ['claimId', 'configFingerprint', 'scenario', 'outcome'],
+            additionalProperties: true,
+          },
+        },
+        limitations: { type: 'array', items: { type: 'string' } },
+        artifacts: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['title', 'researchQuestion', 'hypothesis'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: { title: { type: 'string' }, abstract: { type: 'string' }, stats: { type: 'object' }, sections: { type: 'array', items: { type: 'object' } }, markdown: { type: 'string' } },
+        required: ['title', 'markdown'],
+        additionalProperties: true,
+      },
+      render: (_a, v) => [{ type: 'text', text: v.markdown }],
+    },
+    async execute(args) {
+      const input = args as PaperInputLike;
+      const report = runtime.writer.paper({
+        title: input.title,
+        researchQuestion: input.researchQuestion,
+        hypothesis: input.hypothesis,
+        contextNotes: input.contextNotes,
+        claims: input.claims ?? [],
+        experiments: input.experiments,
+        limitations: input.limitations,
+        artifacts: input.artifacts,
+      });
+      runtime.memory.artifact.put({ kind: 'report', title: input.title, body: report.markdown, meta: { kind: 'paper', claims: report.stats.claims } });
+      return { title: report.title, abstract: report.abstract, stats: report.stats, sections: report.sections, markdown: report.markdown };
+    },
+  }));
+
+  disposers.push(tools.register({
+    name: 'research_slides',
+    description: '从研究项目渲染 8 页 Marp 科研汇报幻灯片（标题/动机/方法/实验/结果/结论/局限/下一步），与 research_paper 共享同一 PaperInput。',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: '论文标题' },
+        researchQuestion: { type: 'string', description: '研究问题' },
+        hypothesis: { type: 'string', description: '中心假设' },
+        contextNotes: { type: 'array', items: { type: 'string' } },
+        claims: { type: 'array', items: { type: 'object' } },
+        experiments: { type: 'array', items: { type: 'object' } },
+        limitations: { type: 'array', items: { type: 'string' } },
+      },
+      required: ['title', 'researchQuestion', 'hypothesis'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: { type: 'object', properties: { title: { type: 'string' }, pages: { type: 'number' }, markdown: { type: 'string' } }, required: ['title', 'markdown'], additionalProperties: true },
+      render: (_a, v) => [{ type: 'text', text: v.markdown }],
+    },
+    async execute(args) {
+      const input = args as PaperInputLike;
+      const deck = runtime.writer.slides({
+        title: input.title,
+        researchQuestion: input.researchQuestion,
+        hypothesis: input.hypothesis,
+        contextNotes: input.contextNotes,
+        claims: input.claims ?? [],
+        experiments: input.experiments,
+        limitations: input.limitations,
+      });
+      runtime.memory.artifact.put({ kind: 'report', title: `${input.title} · slides`, body: deck.markdown, meta: { kind: 'slides', pages: deck.slides.length } });
+      return { title: deck.title, pages: deck.slides.length, markdown: deck.markdown };
+    },
+  }));
+
+  disposers.push(tools.register({
+    name: 'research_autonomous',
+    description: '一键科研流水线：topic → 任务 DAG → Director（检索/假设）→ 确定性实验战役 → 验证折入 claim → Writer 出论文+幻灯片 → 归档；返回结构化 AutonomousReport。',
+    parameters: {
+      type: 'object',
+      properties: {
+        topic: { type: 'string', description: '研究主题' },
+        hypothesis: { type: 'string', description: '可选中心假设（缺省自动生成）' },
+        paperTitle: { type: 'string', description: '论文标题（缺省自动）' },
+        env: { type: 'string', enum: ['frr', 'vpp', 'sim'], description: '实验环境（默认 sim）' },
+        repetitions: { type: 'number', description: '实验重复轮数（默认 3）' },
+        validator: { type: 'string', enum: ['none', 'rov', 'bgpsec', 'rov+bgpsec'], description: '验证策略（默认 none）' },
+        supportThreshold: { type: 'number', description: '判定 support 的检测率阈值（默认 0.8）' },
+        seed: { type: 'number', description: '确定性模拟种子' },
+      },
+      required: ['topic'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          goalId: { type: 'string' }, topic: { type: 'string' },
+          claimVerdicts: { type: 'object' }, artifacts: { type: 'array', items: { type: 'string' } },
+          paper: { type: 'string' }, slides: { type: 'string' }, campaign: { type: 'object' },
+          episodes: { type: 'number' }, summary: { type: 'string' },
+        },
+        required: ['goalId', 'summary'],
+        additionalProperties: true,
+      },
+      render: (_a, v) => [{ type: 'text', text: JSON.stringify({ summary: v.summary, campaign: v.campaign ? { verdict: v.campaign.verdict, outcome: v.campaign.outcome, detection: v.campaign.detection?.mean } : null, claimVerdicts: v.claimVerdicts, artifacts: v.artifacts?.length }, null, 2) }],
+    },
+    async execute(args) {
+      const input = args as { topic: string; hypothesis?: string; paperTitle?: string; env?: 'frr' | 'vpp' | 'sim'; repetitions?: number; validator?: 'none' | 'rov' | 'bgpsec' | 'rov+bgpsec'; supportThreshold?: number; seed?: number };
+      const report = runtime.autonomous.run(input);
+      return {
+        goalId: report.goalId,
+        topic: report.topic,
+        claimVerdicts: report.claimVerdicts,
+        artifacts: report.artifacts,
+        paper: report.paper,
+        slides: report.slides,
+        campaign: report.campaign ? { verdict: report.campaign.verdict, outcome: report.campaign.outcome, detection: { mean: report.campaign.detection.mean, falsePositive: report.campaign.detection.falsePositive.mean }, results: report.campaign.results.length } : undefined,
+        episodes: report.episodes,
+        summary: report.summary,
+      };
+    },
+  }));
+
+  disposers.push(tools.register({
+    name: 'research_policy',
+    description: '读取研究纪律策略（默认 10 条，profile 可通过 omit/extra 增删），返回 enabled/rules/prompt，供模型遵守或拼进系统提示。',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    output: {
+      schema: { type: 'object', properties: { enabled: { type: 'boolean' }, rules: { type: 'array', items: { type: 'object' } }, prompt: { type: 'string' } }, required: ['enabled', 'rules', 'prompt'], additionalProperties: true },
+      render: (_a, v) => [{ type: 'text', text: v.prompt || JSON.stringify(v.rules, null, 2) }],
+    },
+    async execute() {
+      const view = runtime.policy.view();
+      return { enabled: view.enabled, rules: view.rules, prompt: view.prompt };
+    },
+  }));
+
+  // PaperInput 形状（与 src/writer/paper.ts 对齐的插件侧宽类型）。
+  interface PaperInputLike {
+    title: string;
+    researchQuestion: string;
+    hypothesis: string;
+    contextNotes?: string[];
+    claims?: Array<{
+      id: string; statement: string; type: string; confidence?: number; verificationStatus?: string;
+      source?: string; evidence?: Array<{ source: string; evidence: string; confidence: number; verified?: boolean }>;
+      counterEvidence?: Array<{ evidence: string; source: string }>;
+    }>;
+    experiments?: Array<{ claimId: string; configFingerprint: string; scenario: string; outcome: 'support' | 'refute' | 'inconclusive'; verdict?: string; stats?: Record<string, number>; engine?: string }>;
+    limitations?: string[];
+    artifacts?: string[];
+  }
 
   ctx.logger?.(name).info('%s: registered %d tools', name, disposers.length);
   // 显式返回 disposer：cordis registry.plugin() 在卸载本插件时统一调用。
