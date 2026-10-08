@@ -56,8 +56,8 @@ export class ResearchDirector {
         claimOf.set(c.id, c);
         if (!goal.claims.some((x) => x.id === c.id)) goal.claims.push(c);
       }
-      // 写回终态 + 解锁
-      goal.tasks = unlock(goal.tasks, [{ ...task, status: produced.length ? 'done' : 'failed' }]);
+      // 写回终态 + 解锁（调度执行成功即 done；实验/验证/写作任务按设计不返回 claim）
+      goal.tasks = unlock(goal.tasks, [{ ...task, status: 'done' }]);
     }
 
     // 独立验证扫描：对未决 claim 跑一次验证闭环，产出 verbose 记录。

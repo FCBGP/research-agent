@@ -31,7 +31,7 @@ export interface ReviewRequest {
 
 export interface ReviewStepResult extends ReviewStepInput {
   label: string;
-  robust: boolean;          // 该步是否达到通过线（≥0.6）
+  robust: boolean;          // 该步是否达到通过线（≥0.65）
 }
 
 export type ReviewVerdict = 'accept' | 'minor-revision' | 'major-revision' | 'reject';
@@ -61,7 +61,7 @@ export class ReviewerAgent {
         strengths: input?.strengths ?? (input ? [] : ['未提供点评']),
         concerns: input?.concerns ?? (input ? [] : ['缺少该步评估']),
         suggestion: input?.suggestion,
-        robust: (input?.score ?? 0) >= 0.6,
+        robust: (input?.score ?? 0) >= 0.65,
       };
     });
 

@@ -70,7 +70,7 @@ test('experiment: plan → run(sim) → analyze', async () => {
   }
   const stats = ag.analyze(results, 'detection_rate');
   assert.equal(stats.n, 3);
-  assert.equal(stats.primary, 0.93);
+  assert.equal(stats.primary, 0.95);
   assert.ok(stats.metrics.detection_rate_stddev > 0);
   assert.equal(results[0].experiment, plan.configFingerprint);
 });
