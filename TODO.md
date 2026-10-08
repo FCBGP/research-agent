@@ -36,9 +36,9 @@
 
 ## 阶段 3 · Executors 与产出
 
-- [ ] 11. **FRR/VPP executor**
-- [ ] 12. **automatic experiment**：deploy → run → collect → analyze → verify → archive
-- [ ] 13. **statistical analysis**：detection_rate / false_positive_rate / convergence_time / verification_latency，多次重复统计
+- [x] 11. **FRR/VPP executor**（`src/experiment/topology.ts`：RouteEngineSim 确定性模拟 + Frr/VppTopology 真实守护进程适配器/回退；`executors.ts` TopologyExecutor 实现 Executor 契约，自测 8 pass）
+- [x] 12. **automatic experiment**：`runner.ts` runAutomaticExperiment/runCampaign 实现 deploy → run(×repetitions) → collect → analyze → verify → archive，写回 episodic+artifact，插件 `research_campaign` 工具 + `researchExperiment` 服务
+- [x] 13. **statistical analysis**：`experiment/stats.ts` 四口径均值/样本标准差/95%CI + summarizeDetection（effectiveScore），`metricsFor` 收敛四口径，多次重复统计（自测 + plugin + runtime-smoke 实测）
 - [ ] 14. **paper generation**
 - [ ] 15. **PPT generation**
 
@@ -58,7 +58,7 @@
   - [x] `patches/research-agent.yml`：`- insert:` 插入 `dsh-research-core` 行（已实测进入组合树）
   - [~] `patches/research-tools|policy|memory.yml`：占位（合法空数组），阶段 2 接入
   - [x] `src/research-director|loop|verification-loop|experiment-loop/`：阶段 2 的 agent 化封装（Director + 三循环，自测 pass）
-  - [~] `skills/`: bgp / rpki / bgpsec / fcbgp / paper-review / experiment（目录已建，内容阶段 3 填充）
+  - [x] `skills/`: bgp / rpki / bgpsec / fcbgp / paper-review / experiment（各 SKILL.md 已填充，阶段 3）
 - [x] **端到端挂载实测**（2026-10-08）：`dsh --profile research --dump-config` 组合树含
       `@basil/dsh-research`；`scripts/runtime-smoke.mjs` 在 dsh 真实运行树内验证
       `researchCore provided YES` + 2 个 `research_*` 工具 + BGP 冒烟 `verified` → `SMOKE PASS`
@@ -84,3 +84,8 @@
   `SMOKE PASS`。踩坑：Cordis 读 `ctx.tools` 需 `inject: ['tools']`（已成文于 AGENTS.md/arch 附录）。
 - 2026-10-08（阶段 2）：五类记忆 + Literature/Reviewer/Experiment 三角色 + ResearchDirector/三循环完成；
   `src/plugin.ts` 扩展为 4 个服务 + 5 个工具；本地自测 core+memory+agents+director+plugin 全绿。
+- 2026-10-08（阶段 2 修复）：director 调度终态改「执行成功即 done」（实验/验证/写作按设计不返回
+  claim）；reviewer robust 通过线 ≥0.65；agents 统计期望修正 0.93→0.95。全套 **18/18** 绿。
+- 2026-10-08（阶段 3）：`src/experiment/` 另起实验层 —— stats 四口径 / RouteEngineSim +
+  FRR·VPP 适配器 / TopologyExecutor / 自动实验流水线；`src/plugin.ts` 新增 `researchExperiment`
+  服务 + `research_campaign` 工具（6 个）。单测 **27/27** 绿 + runtime-smoke **SMOKE PASS**。

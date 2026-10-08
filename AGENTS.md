@@ -237,3 +237,42 @@ dsh routing-research                     # 更明确的领域命名
 - **不支持 `import { type X }` 内联类型修饰** → 拆成 `import type { X }`
 - Cordis 读 `ctx.tools` 必须先 `export const inject = ['tools']`
 - 测试 glob 用 `node --test "src/**/*.test.ts"`（`node --test src/` 报 directory not found）
+
+---
+
+## 阶段 3 状态快照（2026-10-08）
+
+仓库状态：分支 `dsh-dev`；`deepseek-harness/` 只读 submodule（零改动）。上一提交 `f9532e3`：阶段 2 测试全绿。
+
+### 阶段 3 已实现（Executors + 自动实验 + 统计口径）
+
+- `dsh-research/src/experiment/` — 实验层四件
+  - `stats.ts` — 四口径统一统计：detection_rate / false_positive_rate / convergence_time /
+    verification_latency，均值/样本标准差/95%CI（analyzeSeries / metricsFromResults /
+    summarizeDetection → effectiveScore = det.mean − fp.mean）
+  - `topology.ts` — 可控拓扑抽象 `Topology`：`RouteEngineSim`（确定性路由引擎模拟器，
+    ROV/BGPsec 状态模型，mulberry32 同 seed 可复现）、`FrrTopology` / `VppTopology`
+    （真实守护进程适配器：探测二进制、渲染 frr.conf / startup.conf、可用时管进程；
+    缺失时 fallbackToSim 回退确定性模拟并如实标记 engine）
+  - `executors.ts` — `TopologyExecutor`：部署 → 注入攻击 → 采集四口径 → detection 阈值
+    判定 outcome（support/refute/inconclusive）；实现既有 Executor 契约
+  - `runner.ts` — `runAutomaticExperiment` / `runCampaign`：自动实验
+    deploy → run(×repetitions) → collect → analyze → verify → archive，写回
+    episodic + artifact，返回 `CampaignReport`（stats + detection + verdict + artifacts）
+- `src/agents/experiment.ts` — `metricsFor` 收敛为四口径；`ExperimentAgent(executor?)`
+  默认仍 StubExecutor（显式最小占位），阶段 3 实验走 TopologyExecutor
+- `src/plugin.ts` — 新增服务 `researchExperiment.runAutomatic` + 第 6 个工具
+  `research_campaign`（工具 6 个：…/research_experiment/research_campaign）
+- 实测：`node --test "src/**/*.test.ts"` **27/27 全绿**；in-dsh runtime-smoke
+  **SMOKE PASS**（services 5 + tools 6/6 + campaign verdict verified）
+
+### 关键约定
+
+- 沙箱无 FRR/VPP/docker 二进制 → 默认实验执行源 = `RouteEngineSim`（确定性、可复现），
+  `data.engine` / `data.simulated` 如实标记；FRR/VPP 适配器在目标机安装二进制后自动接管
+  （`available` 探测），未安装且 fallbackToSim 关闭时抛 `TopologyUnavailableError`。
+- 实验与统计分层：`ExperimentAgent`（计划/统计）→ `Executor`（契约）→ `Topology`
+  （执行源）→ `runner`（流水线编排）。FRR/VPP 实时指标采集（vtysh/vppctl 解析）为后续
+  增量（见 TODO 阶段 3.5）。
+- 旧工具 `research_experiment`（plan+run 单轮）保留兼容；新 `research_campaign` 为完整
+  自动战役入口。

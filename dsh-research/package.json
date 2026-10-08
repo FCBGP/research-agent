@@ -1,6 +1,6 @@
 {
   "name": "@basil/dsh-research",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Research agent bundle for dsh: research/verification/experiment loops, artifact store, BGP-RPKI domain skills.",
   "type": "module",
   "scripts": {

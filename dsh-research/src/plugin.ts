@@ -19,6 +19,7 @@ import type { ExperimentResult, ResearchClaim, ResearchTask } from './core/types
 import { createMemory, loadMemoryInto, type ResearchMemory } from './memory/index.ts';
 import { createAgents, type ResearchAgents } from './agents/index.ts';
 import { ResearchDirector } from './research-director/director.ts';
+import { runCampaign, type CampaignReport } from './experiment/runner.ts';
 
 export const name = 'dsh-research';
 
@@ -48,6 +49,18 @@ export interface ResearchRuntimeService {
   memory: ResearchMemory;
   agents: ResearchAgents;
   director: ResearchDirector;
+  experiment: {
+    runAutomatic(input: {
+      claim: string;
+      claimId?: string;
+      env?: 'frr' | 'vpp' | 'sim';
+      repetitions?: number;
+      validator?: 'none' | 'rov' | 'bgpsec' | 'rov+bgpsec';
+      attackClass?: 'prefix-hijack' | 'subprefix-hijack' | 'as-set-injection' | 'path-manipulation';
+      asCount?: number;
+      supportThreshold?: number;
+    }): CampaignReport;
+  };
 }
 
 export interface PluginConfig {
@@ -79,7 +92,21 @@ export function apply(ctx: Context, config: PluginConfig = {}): void {
   const memory = createMemory();
   const agents = createAgents({ memory });
   const director = new ResearchDirector(memory, agents);
-  const runtime: ResearchRuntimeService = { memory, agents, director };
+  const experiment = {
+    runAutomatic: (input: Parameters<ResearchRuntimeService['experiment']['runAutomatic']>[0]): CampaignReport => {
+      const claimId = input.claimId ?? `claim-${Date.now().toString(36)}`;
+      return runCampaign(memory, agents.experiment, {
+        claim: { id: claimId, statement: input.claim },
+        env: input.env,
+        repetitions: input.repetitions,
+        validator: input.validator,
+        attackClass: input.attackClass,
+        asCount: input.asCount,
+        supportThreshold: input.supportThreshold,
+      });
+    },
+  };
+  const runtime: ResearchRuntimeService = { memory, agents, director, experiment };
 
   if (config.memory?.dir) loadMemoryInto(memory, config.memory.dir);
 
@@ -88,7 +115,8 @@ export function apply(ctx: Context, config: PluginConfig = {}): void {
   ctx.provide('researchMemory', memory);
   ctx.provide('researchAgents', agents);
   ctx.provide('researchDirector', director);
-  ctx.logger?.(name).info('%s: researchCore + memory + agents + director mounted', name);
+  ctx.provide('researchExperiment', experiment);
+  ctx.logger?.(name).info('%s: researchCore + memory + agents + director + experiment mounted', name);
 
   if (config.tools?.enabled === false) {
     ctx.logger?.(name).info('%s: config.tools.enabled=false，跳过工具注册（服务仍挂载）', name);
@@ -291,6 +319,59 @@ function registerTools(
       const plan = runtime.agents.experiment.plan({ claimId, claimStatement: input.claim, env: input.env, repetitions: input.repetitions });
       const result = runtime.agents.experiment.run(plan);
       return { plan: { id: plan.id, env: plan.env, scenario: plan.scenario, configFingerprint: plan.configFingerprint, metrics: plan.metrics, steps: plan.steps }, result };
+    },
+  }));
+
+  disposers.push(tools.register({
+    name: 'research_campaign',
+    description: '运行一次自动实验流水线（deploy → run×repetitions → collect → analyze → verify → archive），返回四口径统计与 verdict。默认确定性模拟拓扑（RouteEngineSim）；FRR/VPP 守护进程可用时由适配器接管。',
+    parameters: {
+      type: 'object',
+      properties: {
+        claim: { type: 'string', description: '待验证 claim 文本' },
+        claimId: { type: 'string', description: 'claim id（可选）' },
+        env: { type: 'string', enum: ['frr', 'vpp', 'sim'], description: '实验环境' },
+        repetitions: { type: 'number', description: '重复轮数（默认 3）' },
+        validator: { type: 'string', enum: ['none', 'rov', 'bgpsec', 'rov+bgpsec'], description: '验证策略' },
+        attackClass: { type: 'string', enum: ['prefix-hijack', 'subprefix-hijack', 'as-set-injection', 'path-manipulation'], description: '攻击类别' },
+        asCount: { type: 'number', description: '参与者 AS 数（默认 40）' },
+        supportThreshold: { type: 'number', description: 'detection_rate 达到该值判定 support（默认 0.8）' },
+      },
+      required: ['claim'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          claimId: { type: 'string' }, env: { type: 'string' }, scenario: { type: 'string' },
+          configFingerprint: { type: 'string' }, outcome: { type: 'string' }, verdict: { type: 'string' },
+          rationale: { type: 'string' }, artifacts: { type: 'array', items: { type: 'string' } }, stats: { type: 'object' },
+        },
+        required: ['claimId', 'verdict'],
+        additionalProperties: false,
+      },
+      render: (_a, v) => [{ type: 'text', text: JSON.stringify(v, null, 2) }],
+    },
+    async execute(args) {
+      const input = args as { claim: string; claimId?: string; env?: 'frr' | 'vpp' | 'sim'; repetitions?: number; validator?: 'none' | 'rov' | 'bgpsec' | 'rov+bgpsec'; attackClass?: 'prefix-hijack' | 'subprefix-hijack' | 'as-set-injection' | 'path-manipulation'; asCount?: number; supportThreshold?: number };
+      const report = runtime.experiment.runAutomatic(input);
+      return {
+        claimId: report.plan.claimId,
+        env: report.plan.env,
+        scenario: report.plan.scenario,
+        configFingerprint: report.plan.configFingerprint,
+        outcome: report.outcome,
+        verdict: report.verdict,
+        rationale: report.rationale,
+        artifacts: report.artifacts,
+        stats: {
+          detection_rate: report.detection.mean,
+          false_positive_rate: report.detection.falsePositive.mean,
+          convergence_time: report.stats.convergence_time?.mean,
+          verification_latency: report.stats.verification_latency?.mean,
+        },
+      };
     },
   }));
 

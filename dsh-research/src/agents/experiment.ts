@@ -104,11 +104,10 @@ export interface Statistics {
 }
 
 function metricsFor(env: Env): string[] {
-  return env === 'vpp'
-    ? ['verification_latency', 'drop_rate']
-    : env === 'frr'
-      ? ['detection_rate', 'convergence_time']
-      : ['simulated_ok'];
+  // 阶段 3 统计口径：frr/vpp 统一收敛到四口径（见 src/experiment/stats.ts）。
+  return env === 'sim'
+    ? ['simulated_ok']
+    : ['detection_rate', 'false_positive_rate', 'convergence_time', 'verification_latency'];
 }
 
 function inferScenario(claim: string): string {

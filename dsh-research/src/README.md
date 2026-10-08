@@ -9,6 +9,8 @@ bundle 运行时代码入口（TypeScript/Cordis 插件）。零外部运行时�
 - `research-loop/` — 主科研循环驱动（创件 createResearchLoop）
 - `verification-loop/` — Claim/Evidence 批量验证循环（写回记忆 + 归档 verdict）
 - `experiment-loop/` — 实验循环：plan → run → analyze，结果折入证据记忆
+- `experiment/` — 阶段 3 实验层：stats 四口径 / topology（RouteEngineSim + FRR·VPP 适配器）/
+  executors（TopologyExecutor）/ runner（自动实验 deploy→run→collect→analyze→verify→archive）
 - `artifact-store/` — 报告 / PPT / 数据产物读写
 
 约定：只消费公开 seam（`ctx.*`、`tools/*`、`@deepseek-ai/dsh-*` 发布包），

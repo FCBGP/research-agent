@@ -68,7 +68,7 @@ const tools = ctx.get('tools');
 const researchTools = tools?.schemas?.().map((t) => t.name).filter((n) => n.startsWith('research_')) ?? [];
 console.log('research tools mounted:', researchTools.length ? researchTools.join(', ') : '(none)');
 
-const EXPECTED = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment'];
+const EXPECTED = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign'];
 const toolOk = EXPECTED.every((n) => researchTools.includes(n));
 
 const core = ctx.get('researchCore');
@@ -90,10 +90,22 @@ if (agents?.literature) {
   console.log('literature search hits:', hits.length);
 }
 
-const servicesOk = ['researchCore', 'researchMemory', 'researchAgents', 'researchDirector'].every((s) => ctx.get(s) !== undefined);
-const ok = servicesOk && toolOk && verdict === 'verified' && searchOk;
+// 阶段 3 冒烟：自动实验战役（确定性模拟拓扑）产出统计与 verdict。
+const expSvc = ctx.get('researchExperiment');
+let campaignOk = false;
+let campaign = null;
+if (expSvc?.runAutomatic) {
+  campaign = expSvc.runAutomatic({
+    claim: 'ROV 显著提升劫持检测率', repetitions: 3, validator: 'rov', supportThreshold: 0.6,
+  });
+  campaignOk = campaign?.verdict === 'verified' && campaign?.artifacts?.length >= 2 && campaign?.detection?.mean > 0.6;
+  console.log('campaign verdict:', campaign?.verdict, '| detection mean:', campaign?.detection?.mean?.toFixed(3), '| artifacts:', campaign?.artifacts?.length);
+}
+
+const servicesOk = ['researchCore', 'researchMemory', 'researchAgents', 'researchDirector', 'researchExperiment'].every((s) => ctx.get(s) !== undefined);
+const ok = servicesOk && toolOk && verdict === 'verified' && searchOk && campaignOk;
 await ctx.fiber.dispose();
 console.log('disposed OK');
 console.log(ok ? 'SMOKE PASS' : 'SMOKE FAIL');
-console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} verdict=${verdict} search=${searchOk}`);
+console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} verdict=${verdict} search=${searchOk} campaign=${campaignOk}`);
 process.exit(ok ? 0 : 2);

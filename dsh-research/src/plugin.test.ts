@@ -44,7 +44,7 @@ function makeCtx(): FakeCtx {
   return ctx as unknown as FakeCtx;
 }
 
-const TOOL_NAMES = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment'];
+const TOOL_NAMES = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign'];
 
 test('plugin: 挂载 researchCore 并跑通 BGP claim→verify→artifact', () => {
   const ctx = makeCtx();
@@ -80,7 +80,7 @@ test('plugin: 挂载 researchCore 并跑通 BGP claim→verify→artifact', () =
   // dispose 后工具卸载
   dispose();
   assert.equal(ctx.registeredTools.length, 0);
-  assert.equal(ctx.unregisteredTools.length, 5);
+  assert.equal(ctx.unregisteredTools.length, 6);
 });
 
 test('plugin: 阶段 2 服务挂载（memory + agents + director）', () => {
@@ -91,6 +91,7 @@ test('plugin: 阶段 2 服务挂载（memory + agents + director）', () => {
   assert.ok(ctx.provided.has('researchMemory'), 'researchMemory provided');
   assert.ok(ctx.provided.has('researchAgents'), 'researchAgents provided');
   assert.ok(runtime, 'researchDirector provided');
+  assert.ok(ctx.provided.has('researchExperiment'), 'researchExperiment provided');
 
   // director 能跑 BGP DAG 冒烟
   const goal = {
@@ -124,3 +125,35 @@ function apiChecks(ctx: FakeCtx): void {
 
 interface ResearchMemoryLike { semantic: unknown; episodic: { recent(n: number): Array<{ summary: string }> }; artifact: unknown; hypothesis: unknown; evidence: unknown }
 interface ResearchAgentsLike { literature: { search(q: string, k?: number): Array<unknown> }; reviewer: unknown; experiment: unknown }
+
+test('plugin: 阶段 3 research_campaign 自动实验服务全链路', () => {
+  const ctx = makeCtx();
+  const dispose = apply(ctx as never);
+
+  const exp = ctx.provided.get('researchExperiment') as {
+    runAutomatic(input: { claim: string; repetitions?: number; validator?: string; supportThreshold?: number }): {
+      plan: { claimId: string; env: string; scenario: string };
+      outcome: string;
+      verdict: string;
+      artifacts: string[];
+      detection: { mean: number; falsePositive: { mean: number } };
+    };
+  };
+  assert.ok(exp, 'researchExperiment provided');
+
+  const report = exp.runAutomatic({ claim: 'ROV 显著提升劫持检测', repetitions: 2, validator: 'rov', supportThreshold: 0.6 });
+  assert.ok(report.plan.claimId, 'campaign 生成 claim id');
+  assert.equal(report.outcome, 'support');
+  assert.equal(report.verdict, 'verified', '证据核验 + 实验支持 → verified');
+  assert.equal(report.artifacts.length, 2, '实验档案 + verdict 归档');
+  assert.ok(report.detection.mean > 0.6);
+  assert.ok(report.detection.falsePositive.mean < 0.1);
+
+  const mem = ctx.provided.get('researchMemory') as ResearchMemoryLike & { episodic: { ofKind(k: string): unknown[] }; artifact: { forClaim(c: string): unknown[] } };
+  assert.equal(mem.episodic.ofKind('experiment').length, 1, 'campaign 记入情景记忆');
+  assert.ok(mem.artifact.forClaim(report.plan.claimId).length >= 2, '按 claim 可追溯归档');
+
+  const toolNames = ctx.registeredTools.map((t: { name: string }) => t.name);
+  assert.ok(toolNames.includes('research_campaign'), 'research_campaign 工具已注册');
+  dispose();
+});

@@ -205,3 +205,32 @@ dsh --profile routing-research --dump-config-schema
 
 **Strip-only 约束（Node 24 类型剥离）**：不能用类构造器参数属性、不能用 `import { type X }` 内联
 类型修饰；一律显式字段 + 整段 `import type`。此约束适用于整个 bundle。
+
+---
+
+## 附录 · 阶段 3 已实现（2026-10-08）：Executor + 自动实验 + 统计口径
+
+在阶段 2 的 Agent 之上落地「真实执行 → 自动战役 → 四口径统计」三层，**仍不碰上游**：
+
+- **统计口径**（`src/experiment/stats.ts`）：统一收敛
+  `detection_rate / false_positive_rate / convergence_time / verification_latency`
+  四口径；`analyzeSeries`（均值/样本标准差/95%CI）、`metricsFromResults`（批量抽取）、
+  `summarizeDetection`（检测均值 − 误报均值 → effectiveScore）。
+- **执行源**（`src/experiment/topology.ts`）：`Topology` 抽象，默认 `RouteEngineSim` 确定性
+  路由引擎模拟器（ROV/BGPsec 状态模型、mulberry32 同 seed 可复现、注入产生方差）；
+  `FrrTopology` / `VppTopology` 为真实守护进程适配器（探测二进制、渲染 frr.conf / startup.conf、
+  可用时管理进程生命周期；缺失时可 `fallbackToSim`，engine 如实标记 `frr-adapter-sim`）。
+- **执行器**（`src/experiment/executors.ts`）：`TopologyExecutor` 实现既有 `Executor` 契约，
+  部署 → 注入攻击 → 采集四口径 → detection 阈值判定 outcome（support/refute/inconclusive）。
+- **自动流水线**（`src/experiment/runner.ts`）：`runAutomaticExperiment` / `runCampaign` 编排
+  deploy → run(×repetitions) → collect → analyze → verify → archive，写回 episodic + artifact，
+  返回 `CampaignReport`（stats + detection + verdict + artifacts）。
+- **运行时面**：`src/plugin.ts` 新增 `ctx.provide('researchExperiment', …)`（`runAutomatic`）
+  与第 6 个工具 `research_campaign`；`research_experiment`（单轮 plan+run）保留兼容。
+- **本地自测**：`node --test "src/**/*.test.ts"` **27/27** 全绿（新增 experiment 8 项 +
+  plugin 阶段 3 战役）；in-dsh `runtime-smoke.mjs` → **SMOKE PASS**（services 5 + tools 6/6 +
+  BGP 冒烟 + campaign verdict verified + 文献检索）。
+
+**沙箱约束**：本环境无 FRR/VPP/docker 二进制，默认执行源为 `RouteEngineSim`（指标
+`data.simulated=true` 如实标记）。FRR/VPP 适配器在目标机安装二进制后自动接管（`available` 探测）；
+实时指标采集（vtysh/vppctl 解析）留作后续增量。
