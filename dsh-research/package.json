@@ -1,0 +1,16 @@
+{
+  "name": "@basil/dsh-research",
+  "version": "0.1.0",
+  "description": "Research agent bundle for dsh: research/verification/experiment loops, artifact store, BGP-RPKI domain skills.",
+  "type": "module",
+  "dsh": {
+    "bundle": {
+      "patch": [
+        "./patches/research-agent.yml",
+        "./patches/research-tools.yml",
+        "./patches/research-policy.yml",
+        "./patches/research-memory.yml"
+      ]
+    }
+  }
+}

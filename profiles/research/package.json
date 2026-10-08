@@ -1,0 +1,14 @@
+{
+  "name": "dsh-profile-research",
+  "version": "0.1.0",
+  "description": "Deployable research profile: base + @basil/dsh-research.",
+  "type": "module",
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@basil/dsh-research"
+      ]
+    }
+  }
+}
