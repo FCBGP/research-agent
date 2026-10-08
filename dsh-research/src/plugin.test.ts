@@ -1,6 +1,6 @@
 // 运行时插件自测：用内存假 ctx 驱动 apply()，验证
-//   (1) researchCore 服务挂载（claim → verify → artifact 闭环）
-//   (2) research_verify / research_record 工具注册
+//   (1) researchCore / researchMemory / researchAgents / researchDirector 服务挂载
+//   (2) research_verify / research_record / research_search / research_review / research_experiment 工具注册
 //   (3) 返回的 disposer 能正确卸载工具
 // 本测试不依赖 dsh 运行时，Node 24 直接跑：node --test src/plugin.test.ts
 import assert from 'node:assert/strict';
@@ -44,12 +44,13 @@ function makeCtx(): FakeCtx {
   return ctx as unknown as FakeCtx;
 }
 
+const TOOL_NAMES = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment'];
+
 test('plugin: 挂载 researchCore 并跑通 BGP claim→verify→artifact', () => {
   const ctx = makeCtx();
   const dispose = apply(ctx as never);
   assert.equal(name, 'dsh-research');
 
-  // service 已提供
   const core = ctx.provided.get('researchCore') as ResearchCoreService;
   assert.ok(core, 'researchCore should be provided');
   assert.ok(core.artifacts instanceof ArtifactStore);
@@ -68,17 +69,58 @@ test('plugin: 挂载 researchCore 并跑通 BGP claim→verify→artifact', () =
   assert.ok(report.checks.some((c) => c.startsWith('counter:')));
   assert.ok(report.checks.some((c) => c.startsWith('experiment:')));
 
-  // 归档可追溯
   const art = core.artifacts.put({ kind: 'result', title: 'BGP 冒烟', body: report.rationale, claimId: claim.id, meta: {} });
   assert.equal(core.artifacts.trace(claim.id).length, 1);
   assert.equal(core.artifacts.get(art.id)?.kind, 'result');
 
-  // 工具已注册
+  // 工具已注册（阶段 2 共 5 个）
   const toolNames = ctx.registeredTools.map((t: { name: string }) => t.name);
-  assert.deepEqual(toolNames.sort(), ['research_record', 'research_verify']);
+  assert.deepEqual(toolNames.sort(), [...TOOL_NAMES].sort());
 
   // dispose 后工具卸载
   dispose();
   assert.equal(ctx.registeredTools.length, 0);
-  assert.equal(ctx.unregisteredTools.length, 2);
+  assert.equal(ctx.unregisteredTools.length, 5);
 });
+
+test('plugin: 阶段 2 服务挂载（memory + agents + director）', () => {
+  const ctx = makeCtx();
+  const dispose = apply(ctx as never);
+
+  const runtime = ctx.provided.get('researchDirector') as DirectorLike | undefined;
+  assert.ok(ctx.provided.has('researchMemory'), 'researchMemory provided');
+  assert.ok(ctx.provided.has('researchAgents'), 'researchAgents provided');
+  assert.ok(runtime, 'researchDirector provided');
+
+  // director 能跑 BGP DAG 冒烟
+  const goal = {
+    id: 'g1',
+    hypothesis: 'ROV 提升劫持检测',
+    tasks: [
+      { id: 't-read', goal: 'g1', title: 'RPKI 文献', kind: 'read', produceClaims: ['c-1'], consumesClaims: [], gain: 0.6, status: 'ready' as const },
+      { id: 't-verify', goal: 'g1', title: '验证', kind: 'verify', produceClaims: [], consumesClaims: ['c-1'], gain: 0.3, status: 'blocked' as const },
+    ],
+    claims: [], experiments: [], results: [], verification: [], counterexamples: [], status: 'active' as const,
+  };
+  const rep = runtime!.run(goal, {});
+  assert.equal(rep.iterations, 2, '两个任务都执行');
+  apiChecks(ctx);
+  dispose();
+});
+
+interface DirectorLike {
+  run(goal: { id: string; hypothesis: string; tasks: Array<{ id: string; status: string }> }, opts: Record<string, never>): { iterations: number };
+}
+
+function apiChecks(ctx: FakeCtx): void {
+  const mem = ctx.provided.get('researchMemory') as ResearchMemoryLike;
+  const agents = ctx.provided.get('researchAgents') as ResearchAgentsLike;
+  assert.ok(mem?.semantic && mem?.episodic && mem?.artifact && mem?.hypothesis && mem?.evidence, '五类记忆齐全');
+  assert.ok(agents?.literature && agents?.reviewer && agents?.experiment, '三个角色 agent 齐全');
+  const hits = agents.literature.search('RPKI origin validation', 2);
+  assert.ok(hits.length > 0, '本地语料可检索');
+  assert.equal(mem.episodic.recent(1)[0].summary.startsWith('检索'), true, '检索已记入情景记忆');
+}
+
+interface ResearchMemoryLike { semantic: unknown; episodic: { recent(n: number): Array<{ summary: string }> }; artifact: unknown; hypothesis: unknown; evidence: unknown }
+interface ResearchAgentsLike { literature: { search(q: string, k?: number): Array<unknown> }; reviewer: unknown; experiment: unknown }

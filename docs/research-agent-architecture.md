@@ -183,3 +183,25 @@ dsh --profile routing-research --dump-config-schema
      `research tools mounted: research_verify, research_record`、BGP 冒烟 `verdict: verified`、
      `SMOKE PASS`
    - 仓库内 `node --test`（core 2 + plugin 1）全绿，不依赖 dsh
+
+---
+
+## 附录 · 阶段 2 已实现（2026-10-08）
+
+在阶段 1 的挂载链路上增殖 Memory + Agents + Director，**仍不碰上游**：
+
+- **五类记忆**（`dsh-research/src/memory/`）：semantic（事实三元组+溯源）/ episodic（事件时间线）/
+  artifact（产出回忆）/ hypothesis（假设生命周期）/ evidence（证据台账）；门面 `createMemory()`
+  + 可选 JSON 持久化（`persistMemory`/`loadMemoryInto`，`memory.dir` 配置）。
+- **三角色 Agent**（`src/agents/`）：Literature（`LiteratureSource` 可插拔，默认本地 9 篇种子语料）、
+  Reviewer（research-paper-review 8 步清单 → 判定 + 建议）、Experiment（plan → Executor →
+  `analyze` 重复统计；`StubExecutor` 显式 `simulated`，阶段 3 换 FRR/VPP 真实执行器）。
+- **调度与三循环**（`research-director|research-loop|verification-loop|experiment-loop/`）：
+  Goal → 任务 DAG 按角色分派 → 记忆写入 → 产出归档；独立验证/实验循环可复用。
+- **运行时面**：`ctx.provide` 4 个服务（researchCore / researchMemory / researchAgents /
+  researchDirector），`ctx.tools.register` 5 个工具（+research_search/research_review/research_experiment）。
+- **本地自测**（不依赖 dsh）：`node --test "src/**/*.test.ts"` core + memory + agents + director + plugin 全绿；
+  in-dsh `scripts/runtime-smoke.mjs` 扩为「4 服务 + 5 工具 + BGP 冒烟 + 文献检索」。
+
+**Strip-only 约束（Node 24 类型剥离）**：不能用类构造器参数属性、不能用 `import { type X }` 内联
+类型修饰；一律显式字段 + 整段 `import type`。此约束适用于整个 bundle。

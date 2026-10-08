@@ -1,4 +1,4 @@
-# 占位 bundle patch（当前未接入 dsh.bundle.patch 列表；如需启用，在
-# package.json 的 dsh.bundle.patch 数组中加入本文件即可）。
-# 保留合法空数组，避免组合器把注释-only 文件解析为 null。
+# research-policy.yml — 研究策略覆盖层（示例，未接入 bundle 列表）。
+# 阶段 3 起把 10 条 Research Agent Policy 固化为 profile 固有行为（写入行 config）。
+# 当前保留合法空数组占位。
 []

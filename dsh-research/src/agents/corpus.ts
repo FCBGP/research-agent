@@ -1,0 +1,88 @@
+// 种子语料 — RPKI/BGPsec 领域经典文献（局部检索的冷启动知识）。
+// 文献元数据（标题/作者/年份/出处）为公开事实；abstract 为编辑性一句话要点，非原文摘要。
+// 真实联网检索时请用实现 LiteratureSource 的外部源替换/补齐本语料。
+import type { PaperRef } from './literature.ts';
+
+export const SEED_CORPUS: PaperRef[] = [
+  {
+    id: 'kent-sbgp-2000',
+    title: 'Secure Border Gateway Protocol (S-BGP)',
+    authors: ['S. Kent', 'C. Lynn', 'K. Seo'],
+    year: 2000,
+    venue: 'IEEE Journal on Selected Areas in Communications',
+    abstract: '在 BGP 之上叠加公钥认证与路径签名，是 BGP 安全的最早系统提案。',
+    keywords: ['bgp', 'sbgp', 'path', 'authentication', 'signature'],
+  },
+  {
+    id: 'butler-survey-2010',
+    title: 'A Survey of BGP Security Issues and Solutions',
+    authors: ['K. Butler', 'T. Farley', 'P. McDaniel', 'J. Rexford'],
+    year: 2010,
+    venue: 'Proceedings of the IEEE',
+    abstract: '系统梳理 BGP 面临的劫持/中间人/路由泄露等威胁及 S-BGP、soBGP、RPKI 等对策。',
+    keywords: ['bgp', 'survey', 'hijack', 'rpki', 'security'],
+  },
+  {
+    id: 'rfc6480',
+    title: 'An Infrastructure to Support Secure Internet Routing (RFC 6480)',
+    authors: ['M. Lepinski', 'S. Kent'],
+    year: 2012,
+    venue: 'IETF RFC 6480',
+    abstract: '定义 RPKI 基础设施的整体架构与组成部分（证书、ROA、仓库）。',
+    keywords: ['rpki', 'roa', 'infrastructure', 'rfc'],
+  },
+  {
+    id: 'rfc6811',
+    title: 'BGP Prefix Origin Validation (RFC 6811)',
+    authors: ['P. Mohapatra', 'J. Scudder', 'D. Ward', 'R. Bush', 'R. Austein'],
+    year: 2013,
+    venue: 'IETF RFC 6811',
+    abstract: '规定利用 RPKI ROA 对 BGP 前缀来源 AS 进行 Origin Validation（ROV）的处理规则。',
+    keywords: ['rfc', 'rov', 'roa', 'origin', 'validation', 'rpki'],
+  },
+  {
+    id: 'rfc8205',
+    title: 'BGPsec Protocol Specification (RFC 8205)',
+    authors: ['M. Lepinski'],
+    year: 2017,
+    venue: 'IETF RFC 8205',
+    abstract: '定义 BGPsec 对 AS_PATH 逐跳签名的协议：路由器证书、签名格式与校验流程。',
+    keywords: ['bgpsec', 'path', 'signature', 'aspath', 'rfc'],
+  },
+  {
+    id: 'lychev-2013',
+    title: 'BGP Security in Partial Deployment: Is the Juice Worth the Squeeze?',
+    authors: ['R. Lychev', 'S. Goldberg', 'M. Schapira'],
+    year: 2013,
+    venue: 'ACM SIGCOMM',
+    abstract: '分析部分部署场景下 BGP 安全机制（S-BGP/BGPsec 类）的收益与部署激励问题。',
+    keywords: ['bgp', 'partial', 'deployment', 'bgpsec', 'incentive'],
+  },
+  {
+    id: 'goldberg-cacm-2014',
+    title: 'Why Is It Taking So Long to Secure Internet Routing?',
+    authors: ['S. Goldberg'],
+    year: 2014,
+    venue: 'Communications of the ACM',
+    abstract: '从部署激励与经济角度解释为何路由安全（RPKI/BGPsec）落地缓慢。',
+    keywords: ['rpki', 'bgp', 'deployment', 'incentive', 'adoption'],
+  },
+  {
+    id: 'chung-imc-2019',
+    title: 'RPKI is Coming of Age: A Longitudinal Study of RPKI Deployment and Robustness',
+    authors: ['T. Chung', 'E. Aben', 'T. Bruijnzeels', 'B. Chandrasekaran', 'D. Choffnes', 'D. Dagon', 'N. Feamster', 'M. D. Luckie'],
+    year: 2019,
+    venue: 'ACM Internet Measurement Conference (IMC)',
+    abstract: '长期观测 RPKI 部署率与稳健性，指出 ROA 覆盖与验证器健壮性问题。',
+    keywords: ['rpki', 'deployment', 'robustness', 'measurement', 'roa'],
+  },
+  {
+    id: 'testart-imc-2019',
+    title: 'Profiling BGP Serial Hijackers',
+    authors: ['C. Testart', 'P. Richter', 'A. Wood', 'D. Clark', 'P. Barford', 'R. Bush'],
+    year: 2019,
+    venue: 'ACM Internet Measurement Conference (IMC)',
+    abstract: '刻画反复发起劫持的 AS 行为画像，为检测与归因提供数据基础。',
+    keywords: ['bgp', 'hijack', 'detection', 'measurement', 'as'],
+  },
+];

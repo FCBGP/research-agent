@@ -5,11 +5,14 @@
 # 行 id 是寻址键：更高层 patch（profile overlay）可对本行做整行覆盖/禁用。
 #
 # 本行把 dsh-research 插件挂到运行树：插件 main export 是 Cordis 形态
-# (name + apply)，加载后会在 ctx 提供 researchCore 服务并注册 research_* 工具。
+# (name + apply)，加载后会在 ctx 提供 researchCore / researchMemory /
+# researchAgents / researchDirector 服务并注册 research_* 工具（阶段 2 共 5 个）。
 - insert:
     - id: dsh-research-core
       name: '@basil/dsh-research'
       config:
-        # 插件未来要读取的配置从这进（模型路由/归档目录等），阶段 2 展开。
         tools:
           enabled: true
+        # 记忆默认全内存；需要落盘时由 profile overlay 整行覆盖本行并给出 dir：
+        # memory:
+        #   dir: '$DSH_HOME/profiles/research/memory'

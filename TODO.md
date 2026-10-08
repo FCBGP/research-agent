@@ -29,10 +29,10 @@
 
 ## 阶段 2 · Agent 与 Memory
 
-- [ ] 7. **Research Memory**：Semantic / Episodic / Artifact / Hypothesis / Evidence 五类
-- [ ] 8. **Literature Agent**（RPKI/BGPsec 文献检索）
-- [ ] 9. **Reviewer Agent**（research-paper-review 8 步）
-- [ ] 10. **Experiment Agent**（FRR / VPP 实验）
+- [x] 7. **Research Memory**：Semantic / Episodic / Artifact / Hypothesis / Evidence 五类（`src/memory/`，自测 6 pass）
+- [x] 8. **Literature Agent**（RPKI/BGPsec 文献检索）：`src/agents/literature.ts` + 种子语料 `corpus.ts`（9 篇）
+- [x] 9. **Reviewer Agent**（research-paper-review 8 步）：`src/agents/reviewer.ts`，8 步评分→判定+建议
+- [x] 10. **Experiment Agent**（FRR / VPP 实验）：`src/agents/experiment.ts` plan→executor→analyze（阶段 3 接真实 FRR/VPP）
 
 ## 阶段 3 · Executors 与产出
 
@@ -57,8 +57,8 @@
   - [x] `src/`: core 六件 + 运行时插件 `plugin.ts`
   - [x] `patches/research-agent.yml`：`- insert:` 插入 `dsh-research-core` 行（已实测进入组合树）
   - [~] `patches/research-tools|policy|memory.yml`：占位（合法空数组），阶段 2 接入
-  - [ ] `src/research-director|loop|verification-loop|experiment-loop/`：阶段 2 的 agent 化封装
-  - [ ] `skills/`: bgp / rpki / bgpsec / fcbgp / paper-review / experiment（空目录占位）
+  - [x] `src/research-director|loop|verification-loop|experiment-loop/`：阶段 2 的 agent 化封装（Director + 三循环，自测 pass）
+  - [~] `skills/`: bgp / rpki / bgpsec / fcbgp / paper-review / experiment（目录已建，内容阶段 3 填充）
 - [x] **端到端挂载实测**（2026-10-08）：`dsh --profile research --dump-config` 组合树含
       `@basil/dsh-research`；`scripts/runtime-smoke.mjs` 在 dsh 真实运行树内验证
       `researchCore provided YES` + 2 个 `research_*` 工具 + BGP 冒烟 `verified` → `SMOKE PASS`
@@ -82,3 +82,5 @@
 - 2026-10-08：阶段 1 六件完成（`src/core/`，纯 TS）。`src/plugin.ts` Cordis 插件 + bundle patch
   `patches/research-agent.yml` 完成；profile 部署脚本与 runtime-smoke 完成，dsh 真实运行时
   `SMOKE PASS`。踩坑：Cordis 读 `ctx.tools` 需 `inject: ['tools']`（已成文于 AGENTS.md/arch 附录）。
+- 2026-10-08（阶段 2）：五类记忆 + Literature/Reviewer/Experiment 三角色 + ResearchDirector/三循环完成；
+  `src/plugin.ts` 扩展为 4 个服务 + 5 个工具；本地自测 core+memory+agents+director+plugin 全绿。

@@ -212,3 +212,28 @@ dsh routing-research                     # 更明确的领域命名
   显式返回 disposer 更稳（`registry.plugin()` 会在卸载时调用）。
 - 运行时解析 two-anchor（安装包优先、profile 目录其次）→ 本地 bundle 只需 symlink 进
   `$DSH_HOME/profiles/<name>/node_modules/<scope>/`，改代码免重装。
+
+---
+
+## 阶段 2 状态快照（2026-10-08）
+
+仓库状态：分支 `dsh-dev`；`deepseek-harness/` 为只读 submodule（零改动，三条黄金规则不变）。
+上一提交 `5225704`：阶段 1 + 端到端挂载（runtime plugin + bundle patch + SMOKE PASS）。
+
+### 阶段 2 已实现（Memory + 三角色 Agent + 调度）
+
+- `dsh-research/src/memory/` — 五类记忆：semantic / episodic / artifact / hypothesis / evidence，
+  门面 `createMemory()` + 可选 JSON 持久化（`persistMemory`/`loadMemoryInto`）
+- `dsh-research/src/agents/` — Literature（本地种子语料 + 可注入 source）/ Reviewer（8 步清单判定）/
+  Experiment（plan → executor → analyze 统计）
+- `dsh-research/src/research-director|research-loop|verification-loop|experiment-loop/` —
+  Director 按任务 DAG 分派 + 三条循环驱动
+- `src/plugin.ts` 扩展：`ctx.provide` researchCore / researchMemory / researchAgents / researchDirector；
+  工具 5 个：research_verify / research_record / research_search / research_review / research_experiment
+
+### 踩坑速记（Node 24 类型剥离 strip-only）
+
+- **不支持类构造器参数属性**（`constructor(private x)`）→ 显式字段 + 赋值
+- **不支持 `import { type X }` 内联类型修饰** → 拆成 `import type { X }`
+- Cordis 读 `ctx.tools` 必须先 `export const inject = ['tools']`
+- 测试 glob 用 `node --test "src/**/*.test.ts"`（`node --test src/` 报 directory not found）

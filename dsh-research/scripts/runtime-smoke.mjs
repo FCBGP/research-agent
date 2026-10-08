@@ -1,5 +1,6 @@
 // runtime-smoke.mjs — 用 dsh 自己的 boot() 装载 research profile，验证端到端挂载：
-//   researchCore 是否提供、research_* 工具是否注册、BGP claim→verify 冒烟闭环。
+//   researchCore / researchMemory / researchAgents / researchDirector 服务、
+//   research_* 工具集、BGP claim→verify 冒烟闭环。
 //
 // 用法（先部署 profile）:
 //   DSH_HOME=/tmp/dsh-home ./dsh-research/scripts/deploy-profile.sh
@@ -59,10 +60,16 @@ try {
 
 console.log('boot ctx fiber state:', ctx.fiber.state);
 console.log('researchCore provided?', ctx.get('researchCore') !== undefined ? 'YES' : 'NO');
+console.log('researchMemory provided?', ctx.get('researchMemory') !== undefined ? 'YES' : 'NO');
+console.log('researchAgents provided?', ctx.get('researchAgents') !== undefined ? 'YES' : 'NO');
+console.log('researchDirector provided?', ctx.get('researchDirector') !== undefined ? 'YES' : 'NO');
 
 const tools = ctx.get('tools');
 const researchTools = tools?.schemas?.().map((t) => t.name).filter((n) => n.startsWith('research_')) ?? [];
 console.log('research tools mounted:', researchTools.length ? researchTools.join(', ') : '(none)');
+
+const EXPECTED = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment'];
+const toolOk = EXPECTED.every((n) => researchTools.includes(n));
 
 const core = ctx.get('researchCore');
 let verdict = '(researchCore missing)';
@@ -74,8 +81,19 @@ if (core) {
   console.log('smoke verdict:', verdict, '| rationale:', report.rationale);
 }
 
-const ok = core !== undefined && researchTools.length === 2 && verdict === 'verified';
+// 阶段 2 冒烟：本地语料检索应命中 RPKI 文献（走真实挂载的 researchAgents）。
+const agents = ctx.get('researchAgents');
+let searchOk = false;
+if (agents?.literature) {
+  const hits = agents.literature.search('RPKI origin validation', 2);
+  searchOk = hits.length > 0;
+  console.log('literature search hits:', hits.length);
+}
+
+const servicesOk = ['researchCore', 'researchMemory', 'researchAgents', 'researchDirector'].every((s) => ctx.get(s) !== undefined);
+const ok = servicesOk && toolOk && verdict === 'verified' && searchOk;
 await ctx.fiber.dispose();
 console.log('disposed OK');
 console.log(ok ? 'SMOKE PASS' : 'SMOKE FAIL');
+console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} verdict=${verdict} search=${searchOk}`);
 process.exit(ok ? 0 : 2);
