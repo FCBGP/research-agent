@@ -8,7 +8,7 @@
 
 ---
 
-## 2026-10-10 · FC-BGP 概念修正 + 领域知识分层 + WeKnora 对接（SHA 待本轮收尾提交后回填）
+## 2026-10-10 · FC-BGP 概念修正 + 领域知识分层 + WeKnora 对接（6e2307f）
 
 - **FC-BGP 概念修正**：确认 FC-BGP = **Forwarding Commitment BGP**（基于「转发承诺（Forwarding
   Commitment）」的 BGP 安全研究，IETF SIDR/IDR 工作项、草案阶段非 RFC；datatracker 多份
@@ -44,7 +44,7 @@
     排查 / 兼容性表照旧。真机建库 + 配 key + 验证 4 工具仍待用户（TODO「在研」）。
 - 验证：`node --test "src/**/*.test.ts"` = **137/137 全绿**（词汇表改动不破坏既有断言）。
 
-## 2026-10-09 · 命名定型 `dsh-routing-research` + 内置领域词汇（SHA 待本轮收尾提交后回填）
+## 2026-10-09 · 命名定型 `dsh-routing-research` + 内置领域词汇（6e2307f）
 
 - 命名定型：`dsh-research/src/domain/vocabulary.ts` 作唯一口径来源——`PRODUCT_NAME='dsh-routing-research'`、
   `COMMAND='dsh research'`、`PROFILE_FLAG='dsh --profile research'`、`PROFILE_NAME='research'`；
