@@ -160,6 +160,330 @@ dsh --profile routing-research --dump-config-schema
 
 **一句话架构定位**：`deepseek-harness` 是只读运行时，`dsh-research` 是以组合包形式安装的外部扩展，`$DSH_HOME` 是两者之外的组合层——三层互不写文件，因此上游更新与你的 Agent 永远互不干扰。
 
+（15 项产出中顶层已覆盖、本节做实现级细分的是 **11. Memory architecture / 12. Artifact architecture / 13. Migration plan / 14. Minimal viable implementation / 15. 上游风险**；独立文档 `data-model.md` / `migration-plan.md` 见 TODO。）
+
+---
+
+## 6. Memory / Artifact 架构（细分）
+
+> §3 表对 Memory 只有一行顶层映射；**11. Memory architecture** 与 **12. Artifact
+> architecture** 是原始 15 项产出（`prompts/dsh.md`）中要求展开的两项，本节落到实现级。
+> 代码事实来源：`dsh-research/src/memory/`、`dsh-research/src/core/artifact-store.ts`、
+> `dsh-research/src/plugin.ts`（`researchMemory` 服务 + `research_record` 等工具）。
+
+### 6.1 五类记忆的职责与落点
+
+五类记忆正好回答五个问题：**"我们知道什么 / 我们做过什么 / 我们产出过什么 /
+我们在验证什么 / 证据是什么"**，一一对应 AGENTS.md §6 的研究记忆五件套。
+
+| 记忆类 | 回答的问题 | 模块（`src/memory/`） | 关键操作 | 上游 seam 落点 |
+|---|---|---|---|---|
+| Semantic 语义 | 我们知道什么（已确认/高置信事实） | `semantic.ts` → `SemanticMemory` | `put` / `query`（关键词召回）/ `bySubject` / `digest`（从已核验 claim 归纳三元组） | skills / 领域知识文件 |
+| Episodic 情景 | 我们做过什么（事件时间线） | `episodic.ts` → `EpisodicMemory` | `record` / `recent` / `since` / `forClaim` / `ofKind` | 会话日志（`session-persistence-jsonl` 可回放研究轨迹） |
+| Artifact 产出 | 我们产出过什么（检索式回忆） | `artifact.ts` → `ArtifactMemory` | `put` / `recall` / `byKind` / `forClaim` / `archive`（ArtifactStore 之上的召回适配器） | `ctx.attachments` / 文件系统 |
+| Hypothesis 假设 | 我们在验证什么（假设生命周期） | `hypothesis.ts` → `HypothesisMemory` | `propose` / `activate` / `recordVerdict` / `update` / `active` / `byClaim` | research-core 存储 |
+| Evidence 证据 | 证据是什么（按 claim 台账 + 复核灯） | `evidence.ts` → `EvidenceMemory` | `add` / `forClaim` / `unverified` / `markVerified` | research-core 存储 |
+
+语义设计要点：
+
+- **HypothesisMemory 是验证状态机**：`propose → active → supported / refuted / abandoned`，
+  每次 verification 的 verdict（verified/disputed/rejected）经 `recordVerdict` 追加进
+  `history` 并自动推状态——假设不是"一句话"，而是一条带置信度历史的生命周期。
+- **EvidenceMemory 是 claim 证据的"台账时间线"**：与 `ResearchClaim.evidence[]` 互为镜像，
+  区别在按 `collectedAt` 排序、暴露 `unverified()`（复核灯未点亮）供验证循环优先处理。
+- **SemanticMemory 只收"已核验"事实**：`digest()` 的入参是已 verified 的 claim，
+  避免把模型生成的中间说辞污染知识库（铁律见 §6.5）。
+
+### 6.2 Artifact Store（统一产出 / 实验档案）
+
+所有研究产出——笔记、证据日志、实验、结果、报告、反例——进**同一个** `ArtifactStore`：
+
+```text
+ArtifactKind = 'note' | 'evidence-log' | 'experiment' | 'result' | 'report' | 'counterexample'
+
+Artifact {
+  id: 'art-<seq>';            // 单调递增，归档唯一标识
+  kind: ArtifactKind;
+  title: string;  body: string;
+  claimId?: string;           // ← 可追溯的关键外键
+  createdAt: string;          // ISO
+  meta: Record<string, unknown>;  // ← 机器可读数据（env/outcome/n/engine/verdict…）
+  archived: boolean;
+}
+put() / get() / trace(claimId, kind?) / archive(id) / list()
+```
+
+- **`trace(claimId)` 是按 claim 回放的证据链入口**：给定一条 claim，能取回与之绑定的
+  全部 experiment / result / counterexample，直接支撑论文附录 A 的"证据追溯"。
+- **`meta` 承载结构化数据**（如战役 artifact 记 `{env, outcome, n, engine}`、verdict
+  artifact 记 `{verdict, outcome}`），供统计/复盘/写作直接消费，不必解析 `body` 文本。
+- `ArtifactMemory`（§6.1）就是 ArtifactStore 的召回侧：`recall(query, topK)` /
+  `byKind` / `forClaim` 供写作与自省使用；`store_` 暴露给 `persistMemory` 一起落盘。
+
+### 6.3 记忆在三条核心循环中的流动
+
+五类记忆不是孤立表，而是被 Director + 三条核心循环 + 阶段 4 的
+autonomous / jobs / scheduler / self-improve 持续读写（代码事实如下）：
+
+```text
+Research Loop（ResearchDirector.run，src/research-director/director.ts）
+  task=read/search  → episodic(read) + claim(type=Fact, evidence=文献命中)
+       (语义沉淀能力 = `LiteratureAgent.absorb()` / `SemanticMemory.digest()`，
+        两者均已实现但当前无调用方；Director 尚未把文献命中
+        折入 semantic —— 见本节末"语义接线缺口")
+  task=hypothesis   → hypothesis.propose + episodic(hypothesis) + claim(type=Hypothesis)
+  task=experiment   → agents.experiment.plan/run + episodic(experiment) + artifact(experiment)
+  task=verify       → runVerification + episodic(verify) + artifact(result: verdict)
+  task=write        → artifact(report)
+
+Verification Loop（runVerificationLoop，src/verification-loop/verification-loop.ts）
+  claim 批量（证据/反证/实验三步）→ episodic(verify) + hypothesis.recordVerdict(状态机)
+  → artifact(result: verdict, meta.checks=checks)
+
+Experiment Loop（runAutomaticExperiment / runCampaign，src/experiment/runner.ts）
+  deploy→run(×repetitions)→collect→analyze→verify→archive
+  → episodic(experiment) + artifact(experiment: 原始 results + 统计) + artifact(result: verdict)
+```
+
+- **单一写入面**：所有写记忆都汇入**同一个 memory 实例 + ArtifactStore**
+  （`createMemory()` 单例，无旁路存储）。主路径是 Director / verification-loop /
+  runner / jobs / scheduler / self-improve 的领域层函数；模型触发的工具
+  （`research_record` / `research_verify` / `research_review` /
+  `research_experiment` / `research_campaign` / `research_autonomous` /
+  `research_job` / `research_schedule` / `research_reflect` / `research_paper` /
+  `research_slides` 等）也经由同一个 `runtime.memory` / `researchCore.artifacts`
+  服务写回——保证"谁产出谁落账"、审计可追。
+- **阶段 4a/4b 扩展写者（同一写入面，代码事实）**：三条核心循环之外，
+  autonomous / jobs / scheduler / self-improve 也读写**同一个** memory 实例，
+  不存在第二套存储：
+
+  | 模块 | 读 | 写 |
+  |---|---|---|
+  | Autonomous（`src/autonomous/index.ts` → `runAutonomousResearch`） | 驱动 5 任务 DAG（read → hypothesis → experiment → verify → write） | 经 Director + campaign + writer 内部分派写作（见上三条循环），本身不旁路 |
+  | JobRunner（`src/jobs/index.ts`） | 仅内部状态 | 完成/失败 → `episodic(note, meta.jobId)` + `artifact(result 成功 / evidence-log 失败, meta.jobId/kind/status)` |
+  | ResearchScheduler（`src/scheduler/index.ts`） | 调度状态表 | 注册 → `episodic(note)`；触发 → `episodic(decision)` + 跑 autonomous（内部再写）+ `artifact(report, meta.scheduleId/verdict)` + `episodic(note done)`；失败 → `episodic(note failed)` 并推进状态 |
+  | SelfImprover（`src/self-improve/index.ts`） | 五类快照：`episodic.all()` / `artifact.store_.list()` / `hypothesis.all()` / `evidence.all()`（并派生 jobs / scheduled 计数） | 反思 → `episodic(note, meta.kind=reflection)`（留痕在快照之后，冷启动 `snapshot` 不被污染） |
+
+  「写者 = 读者」闭环：所有复盘/解码（`research_reflect` / self-improve）只读这
+  一个 memory 实例再产出建议，§6.4 的持久化因此只需序列化 `persistMemory` 一个入口。
+
+- 实验 artifact 与 episodic 同时落：artifact 存"数据"，episodic 存"做了什么/为什么"，
+  两者用同一 `claimId` 关联，构成 `claim → experiment → artifact → verdict` 的完整证据链。
+- **语义接线缺口(现状如实标注)**：SemanticMemory 的写入能力(`digest`/`absorb`)已就绪，
+  但三条循环当前**都不写 semantic**——`grep -rn digest src/` 仅命中定义、无调用。
+  后续增量是把"已核验 claim → 三元组"的 absorb 折入检索/阅读任务(见 §6.1 表)，现在不写是
+  为了避免"未核验中间说辞"污染知识库(§6.5 铁律)。
+
+### 6.4 持久化与运行时接线
+
+- **默认全内存**（`createMemory()`），零外部依赖，便于单测与沙箱。
+- **可选 JSON 落盘**：`memory.dir` 配置存在时，插件 boot 期 `loadMemoryInto()` 载入，
+  `persistMemory()` 把五类 + ArtifactStore 快照进 `<dir>/research-memory.json`；
+  配置入口 = profile overlay 整行覆盖 `dsh-research-core` 行并给出 `dir`（见
+  `dsh-research/patches/research-agent.yml` 的示例注释）。
+- **持久化接线缺口(现状如实标注，同 §6.3 语义缺口同一风格)**：插件目前只接线了
+  启动侧 `loadMemoryInto()`；`persistMemory()` 尚无 shutdown/定时 flush 钩子，
+  落盘是**显式触发**（单测 / 后续可加工具或卸载钩子），非自动——"载入可开、落盘待接"。
+- **运行时面**：`ctx.provide('researchMemory', memory)` → web 会话可拿到整套记忆；
+  13 个 `research_*` 工具中的 `research_record` / `research_search` /
+  `research_review` / `research_campaign` / `research_reflect` 等直接读写五类记忆。
+
+### 6.5 一致性铁律与反模式
+
+- **铁律（对应 AGENTS.md §6 铁律 / Policy 1）**：不能把"模型曾经说过"当作事实；
+  每条 claim 必须带 `source / evidence / confidence / verified / last_verified`。
+  记忆层通过类型强制（`SemanticFact.verified`、`EvidenceLedgerEntry.verified`、
+  `ResearchClaim.verificationStatus`）把这条纪律固化进数据结构。
+- **镜像一致**：`ResearchClaim.evidence[]`（合成口径）↔ `EvidenceMemory`（时间线台账），
+  新增证据两边都要落；反例走 `counterEvidence` 且 `ResearchClaim` 结构内含
+  `CounterEvidence[]` 与 `verdictRationale`。
+- **实验结论必须绑定 artifact（Policy 5/6）**：无 artifact 的实验数据不得声称
+  "实验验证"；沙箱模拟必须 `simulated=true` 如实标记（RouteEngineSim），
+  报告 `research/RPKI-BGPsec-security-gaps.md` 已把"sim 数据的性质"列为方法学声明。
+- **反模式清单**：不绑 `claimId` 的 artifact（无法 `trace`）；把 Hypothesis 标成 Fact；
+  未跑验证就把 HypothesisMemory 置 supported；用 `meta` 存文件而不用 `body` 存正文。
+
+---
+
+## 7. Migration plan（迁移计划细分）
+
+> **13. Migration plan** 在 §5 只有阶段编号；本节把它展开成"起点 → 分阶段 → 工具链 →
+> 回滚"的迁移计划。独立文档（`docs/research-agent-migration-plan.md`）另行产出，
+> 本节是架构文档内的可执行摘要。
+
+### 7.1 起点与终点
+
+- **起点（2026-10-08 前）**：旧 Python 科研智能体栈（`src/research_agent/`、
+  `pyproject.toml`、`config.yaml`）承载 planning / evolve / memory / debate / harness；
+  已于 2026-10-08 移除。dsh 运行时为 `v0.2.0-rc.2`，上游 submodule pin
+  `5badb15009`（dsh-v0.2.1-alpha.1）。
+- **终点**：`dsh research`（= `dsh --profile research`）= **base + web-app +
+  `@basil/dsh-research`**；Web 会话内与 13 个 `research_*` 工具 + 11 个服务交互，
+  跑完整科研流水线（DAG → 检索 → 实验战役 → 验证 → 论文/幻灯片 → 归档）。
+
+### 7.2 分阶段迁移（状态 + 交付物 + 验收门禁）
+
+| 阶段 | 迁移内容 | 交付物 | 状态 | 验收门禁 |
+|---|---|---|---|---|
+| 0 | 架构迁移分析（"先分析后编码"，§8.1） | 三件套文档（architecture / data-model / migration-plan） | 架构文档 ✅；另两篇待补 | 三黄金规则 + seam 表 + 15 项产出覆盖 |
+| 1 | 核心六件 + 插件挂载 | `src/core/`（goal/dag/claim/evidence/verification/artifact）+ `src/plugin.ts` | ✅ 2026-10-08 | `node --test` 全绿 + runtime-smoke **SMOKE PASS**（2 工具） |
+| 2 | 五类记忆 + 三角色 + Director | `src/memory/ src/agents/ src/research-director/` + 三条循环 | ✅ 2026-10-08 | 单测全绿 + SMOKE PASS（5 工具） |
+| 3 | 执行器 + 自动战役 + 统计口径 | `src/experiment/`（stats / topology / executors / runner） | ✅ 2026-10-08 | 27/27 + SMOKE PASS（6 工具） |
+| 4a | 角色注册表 + 模型路由 + 一键流水线 + 写作 | `src/roles/ src/model-router/ src/autonomous/ src/writer/` | ✅ | 69/69（与 4b 合计）+ 语义自测（ROV verify / path-manipulation reject） |
+| 4b | 长任务 + 调度 + 自省 | `src/jobs/ src/scheduler/ src/self-improve/` | ✅ | **69/69 单测 + SMOKE PASS**（11 服务 + 13/13 工具） |
+| 4.5 | 前端 headless → web | `profiles/research/`（bundle = base + web-app + dsh-research） | ✅ 2026-10-09 | SMOKE PASS + `--dump-config` 含 web-startup/webserver 无 headless |
+| 收尾 | 16c real subagent / 多 Profile / `--patch` 链 / npm 一键部署 / 报告跟进 | — | ⏳（见 TODO.md） | TODO 相应条目关闭 |
+
+### 7.3 迁移工具链与工程纪律
+
+- **上游零改动**：submodule pin + `git pull --ff-only` + `pnpm install && pnpm run build`；
+  `git -C deepseek-harness status` 永远干净。
+- **profile 部署**：`./dsh-research/scripts/deploy-profile.sh` 把 `package.json` +
+  `cordis.patch.yml` 复制进 `$DSH_HOME/profiles/research/`，并把仓库 `dsh-research`
+  **symlink** 到 profile 的 `node_modules/@basil/`——two-anchor 解析（安装包优先、
+  profile 目录其次）⇒ 改 `dsh-research/` 立即生效，免重装。
+- **两步核对**：`dsh --profile research --dump-config`（插件树 diff）+
+  `--dump-config-schema`（schema diff）⇒ 任何 seam 变化一眼可见。
+- **版本兼容豁免**：`compatibility.json` / `dsh plugin version-exemptions` 记录临时不兼容，
+  不阻塞继续升级；升级过程记 `docs/upgrade-notes.md`。
+- **"小步 + 门禁"**：每个阶段在上一阶段全绿基础上叠加，各自带独立测试门禁；
+  不迁移的旧能力不进新树（旧 Python 栈整体移除而非并存）。
+
+### 7.4 回滚与隔离
+
+- **结构性回滚保障**：三黄金规则 ⇒ 任何时刻都可退回"只读上游 + 外部叠加"；
+  回滚 = 撤销 profile 层（重跑 deploy / 还原 bundle 顺序 / 临时 `--patch` 禁用
+  `dsh-research-core` 行），不动上游。
+- **数据可迁移**：`research-memory.json` 快照可在新旧 profile 间 `loadMemoryInto`；
+  实验 artifact 一律绑定 claimId + 落 `research/`，迁移不丢证据链。
+- **隔离边界**：代码（`dsh-research/`）、配置（`$DSH_HOME/profiles`）、上游（submodule）
+  三块互不写文件——回滚任意一块不影响另外两块。
+
+---
+
+## 8. MVI — Minimal viable implementation（最小可行实现）
+
+> **14. Minimal viable implementation** 是原始 15 项产出之一。MVI 的目标不是"最小
+> 代码量"，而是**最小的、可验证的、跑通整条科研证据链的实现**。
+
+### 8.1 为什么"先分析、后编码"
+
+`prompts/dsh.md` §十六明确建议：**"最应该做的不是开始改代码"**，而是先让 Agent 完成
+一次架构迁移分析（15 项产出 → 三篇文档），**然后**再据此编码。理由是 DeepSeek
+Harness 已是 developer preview、API 有兼容性变化，直接在巨物上硬改会陷入
+"追着上游改"的死循环。MVI 是这条纪律的产物：先明确"最小能跑的形态"，再逐阶段长大。
+
+### 8.2 纵切面：一条可追溯的证据链（walking skeleton）
+
+MVI 的纵切面 = **一条跨全栈的证据链**，`src/core/core.test.ts` 的 BGP 冒烟即此形态：
+
+```text
+ResearchClaim（Hypothesis）
+  → research_verify（证据核验 / 反证 / 实验判定）
+  → Campaign/Experiment（RouteEngineSim 四口径）
+  → Verdict（verified / disputed / rejected）
+  → Artifact（result，绑定 claimId）
+  → Episodic（verify 事件）+ Artifact 回收（论文附录 A 可追溯）
+```
+
+这一刀从**领域类型**（claim/evidence/verdict）切到**验证闭环**再到**归档**，
+虽不真实，但验证了：类型模型、验证判定、artifact 追溯、记忆写入、插件挂载
+五层全部真实可用。
+
+### 8.3 MVI 范围与验收标准
+
+- **范围内**：阶段 1 核心六件（goal / dag / claim / evidence / verification /
+  artifact）+ ArtifactStore；Cordis 插件（`researchCore` 服务 + `research_verify` /
+  `research_record` 工具）；`profiles/research/`（base + bundle 组合）能 boot；
+  BGP claim 冒烟 `verdict: verified`。
+- **验收命令**（沙箱可复现）：
+  - `cd dsh-research && node --test "src/**/*.test.ts"` → 全绿
+  - `DSH_HOME=/tmp/dsh-home ./dsh-research/scripts/deploy-profile.sh && DSH_HOME=/tmp/dsh-home node dsh-research/scripts/runtime-smoke.mjs` → **SMOKE PASS**
+  - `dsh --profile research --dump-config` → 组合树含 `dsh-research-core` 行
+- **非目标（明确不进 MVI）**：真实 FRR/VPP 网元执行（沙箱无二进制 → 回退 sim 并
+  如实标记）；多 agent 团队与真实 subagent 会话（16c）；前端 Web 会话内的自治交互
+  （阶段 4.5 才完成 web 化）——这些是 MVI 之后的增量，而不是 MVI 的一部分。
+
+### 8.4 从 MVI 到完整系统的增长路径
+
+每步都保持 MVI 精神（最小可用 + 可验证 + 不碰上游）：
+
+```text
+MVI（2 工具）──阶段2──▶ 五类记忆 + 三角色 + Director（5 工具）
+   ──阶段3──▶ 执行器 + 自动战役 + 统计（6 工具）
+   ──阶段4──▶ roles/model-router/autonomous/writer/jobs/scheduler/self-improve（13 工具）
+   ──4.5──▶ 前端切 web（Web 会话内交互）
+   ──收尾──▶ 16c real subagent / 多 Profile / --patch 链 / npm 一键部署
+```
+
+关键增量都是"同一领域层 + 同一插件 seam"上加法，不替换 MVI 已验证的任何接缝
+——这正是 §9 风险登记册的减压阀：MVI 的接缝即整套系统的接缝，升级时只需复核它。
+
+---
+
+## 9. 上游风险登记册（细分）
+
+> §4.3 是顶层概括（5 行）；本节把它展开为**可执行的登记册**：
+> 分类 → 检测 → 缓解 → 治理节奏，并把项目实际踩过的风险落成具体条目。
+
+### 9.1 风险分类
+
+| 域 | 风险 | 影响面 |
+|---|---|---|
+| R1 模型/API 层 | developer preview 破坏性变更（CLI/配置/schema） | 启动、工具调用、模型回合 |
+| R2 seam 契约 | `ctx.tools` / `ctx.llm` / `ctx.subagents` / 事件名签名变化 | 插件激活、工具注册、Subagent 委派 |
+| R3 组合机制 | bundle / patch 行寻址、组合顺序语义变化 | profile 组装、overlay 覆盖 |
+| R4 实验包撤出 | agent-team / workflow-ptc 等实验包不承诺稳定、或被撤回 | 团队协作/流程 DAG（可选路径） |
+| R5 分发解析 | `main`/`exports` 入口重命名、two-anchor 解析规则变化 | 本地 symlink 部署、包导入 |
+| R6 模型默认/凭据 | 默认 provider 的 key 占位、401；credential-ref 解析变化 | 真机端到端、无头/Web 会话 |
+| R7 前端基座 | headless → web →（未来）其他前端；位置参数/会话 seam 变 | `dsh research` 入口形态 |
+| R8 会话/存储 | JSONL schema、session-query 迁移链变化 | 研究轨迹回放、记忆持久化 |
+
+### 9.2 风险 → 检测 → 缓解矩阵
+
+| ID | 概率 | 检测手段 | 缓解（优先级排序） |
+|---|---|---|---|
+| R1 | 高 | `--dump-config` / `--dump-config-schema` diff + 回归冒烟 | 版本 pin + peerDependencies 声明范围 + 定期（非追更）升级；豁免机制记录 |
+| R2 | 中 | 升级后 `runtime-smoke.mjs`（工具注册数/服务提供数断言）；`inject` 声明检查 | **只消费公开 seam**；适配层集中在 `src/plugin.ts` 单点；签名变只改这层 |
+| R3 | 中 | `--dump-config` 对比插件树；`--patch` 链回归用例 | 自研 bundle "重述整行"，patch 覆盖语义不改上游交错 |
+| R4 | 低-中 | 上游 changelog / 依赖树检查 | 关键路径只用稳定 seam；实验包 = 可缺省 option（§4.1-5 双路径） |
+| R5 | 中 | `node --test` 导入断言 + deploy 后 resolve 检查 | 只 import 发布入口顶层导出；symlink 采用 two-anchor 官方语义 |
+| R6 | 中（本机实测踩过） | 真机 `dsh research` 启动第一回合 | 两层 overlay（provider + agent-default-model）固化在 profile；key 走 credential-ref |
+| R7 | 中（已踩过一次） | 升级后跑一遍 `dsh research`（无位置参数）；runtime-smoke 适配 | 前端形态封装在 `profiles/research/package.json` 的 bundles 一行，切换=改一行 |
+| R8 | 低-中 | 回放/load 冒烟；dump-config-schema 关注 session 域 | 记忆/artifact 落自有 JSON（`research-memory.json`），不绑定 dsh 会话格式 |
+
+### 9.3 已踩坑实录（风险具体化，全部已成文）
+
+1. **R2 · `inject` 缺失**：Cordis 读 `ctx.tools` 必须先 `export const inject = ['tools']`，
+   否则 `cannot get property "tools" without inject`，插件**整行不激活**（静默）。
+   教训：服务/工具激活要有显式断言（runtime-smoke 数服务、数工具）。
+2. **R7 · headless → web**：web 基座**不接受位置参数**（`too many arguments`），
+   一次性 CLI 任务形态消失；`dsh research "<task>"` 不再成立，改 Web 会话交互。
+   教训：前端接缝是"可替换层"，封装在 profile 一行，切换不动领域代码。
+3. **R6 · 401**：base 默认 `deepseek-official` 用 `DEEPSEEK_API_KEY`，本机
+   `.credentials.yaml` 该 ref 是占位值「0731」→ 401。修复 = web 同款两层 overlay：
+   `llm-pi-ai`（provider `local-interval-dsv4`，baseURL 内网网关）+
+   `agent-default-model`（默认 dsv4flash）。教训：不依赖任何"默认模型"，
+   模型路由显式化（`src/model-router/`，角色级覆盖）。
+4. **R3 · patch 整行替换不合并**：替换整段 config ≠ 合并且不报错——自研 bundle
+   必须"自己重述整行"，否则悄悄丢配置。
+5. **R5 · two-anchor**：本地 bundle 不装 npm，需 symlink 进
+   `$DSH_HOME/profiles/<name>/node_modules/<scope>/` 才被 two-anchor 解析到；
+   漏 symlink 表现为"工具没出现"而非报错。
+
+### 9.4 治理节奏与触发升级
+
+- **升级节奏**：developer preview ⇒ 定期（不追更）升级，每次走 §4.2 标准流程
+  （ff-only pull → dump-config/dump-config-schema diff → 回归冒烟 → seam 签名检查 →
+  必要时 version-exemptions → `docs/upgrade-notes.md`）。
+- **升级触发信号**：上游 release / changelog 提到 seam / 真机运行报错或行为漂移 /
+  `runtime-smoke.mjs` 断言失败。
+- **回归安全网**：`node --test "src/**/*.test.ts"`（不依赖 dsh **69/69**）+
+  `runtime-smoke.mjs`（依赖 dsh 组合树 **SMOKE PASS**）双网；前者锁领域层，
+  后者锁 seam——上游怎么变，先撞后者、再查前者。
+- **兜底**：任何一条风险被触发，只要满足三黄金规则，就可把"受影响接缝"收敛到
+  `src/plugin.ts` / profile 层单点修复，必要时用豁免机制临时放行，不阻塞主线。
+
 ---
 
 ## 附录 · 端到端挂载已实测（2026-10-08）

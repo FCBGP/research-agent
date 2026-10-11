@@ -4,15 +4,15 @@
 //
 // 收敛四口径统计（stats.ts）并把实验结果折入 claim 验证（support/refute → verdict），
 // 全部写入 ResearchMemory（episodic + artifact），返回结构化 CampaignReport。
-import type { ExperimentPlan, ExperimentResult } from '../core/types.ts';
+import type { ExperimentResult, Verdict } from '../core/types.ts';
+import type { ExperimentPlan } from '../agents/experiment.ts';
 import type { ResearchMemory } from '../memory/index.ts';
 import type { Executor } from '../agents/experiment.ts';
 import { newClaim, addEvidence } from '../core/claim.ts';
 import { runVerification } from '../core/verification.ts';
 import { TopologyExecutor } from './executors.ts';
-import { RouteEngineSim, type TopologyConfig, type ValidatorMode, type AttackClass } from './topology.ts';
+import { topologyForEnv, type TopologyConfig, type ValidatorMode, type AttackClass } from './topology.ts';
 import { summarizeDetection, metricsFromResults, type DetectionStats, type SeriesStats } from './stats.ts';
-import type { Verdict } from '../core/types.ts';
 
 export interface CampaignOptions {
   claim: { id: string; statement: string };
@@ -37,9 +37,16 @@ export interface CampaignReport {
 }
 
 export function runAutomaticExperiment(opts: CampaignOptions): CampaignReport {
+  // 无显式 executor 时，按 plan.env 选拓扑执行源（TODO「真实网元验证」）：
+  //   sim → RouteEngineSim；frr/vpp → 真实守护进程适配器（缺失回退 adapter-sim，
+  //   引擎如实标记 *-adapter-sim / simulated=true）。此前 env 只是计划元数据，
+  //   executor 恒用 RouteEngineSim，即使目标机装好 FRR 也不会接管 —— 已修复。
   const executor = opts.executor ?? new TopologyExecutor({
-    topology: opts.topologyConfig ? new RouteEngineSim(opts.topologyConfig) : new RouteEngineSim(),
+    topology: topologyForEnv(opts.plan.env ?? 'sim', opts.topologyConfig),
     validator: opts.validator,
+    // attackClass 必须显式透传：否则 TopologyExecutor 默认用 inferAttack(plan.scenario)
+    // 重算攻击类，会覆盖调用方显式指定的 attackClass（art-11 缺陷）。
+    attack: opts.topologyConfig?.attack,
     supportThreshold: opts.supportThreshold,
   });
 
@@ -69,6 +76,8 @@ export function runAutomaticExperiment(opts: CampaignOptions): CampaignReport {
     outcome,
     data: {
       engine: agg?.data.engine,
+      env: opts.plan.env,
+      simulated: agg?.data.simulated,
       det_mean: detection.mean,
       fp_mean: detection.falsePositive.mean,
       sample_size: results.length,

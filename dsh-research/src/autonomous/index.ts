@@ -2,7 +2,8 @@
 //
 //   topic → 任务 DAG → Director（检索/假设/实验/验证/写作）
 //         → 真实实验战役（runCampaign，确定性模拟拓扑）
-//         → 验证折入 claim → Writer 出论文 + 幻灯片 → 归档
+//         → 【实验矩阵】4 攻击 × 4 验证策略候选战役（runCampaign 逐格）
+//         → 验证折入 claim → Writer 出论文 + 幻灯片（含矩阵小结）→ 归档
 //
 // 复用全部既有层（core/ memory/ agents/ director/ experiment/ writer/ roles/ model-router），
 // 本文件只做「编排」，不引入新领域逻辑；纯函数、可测。
@@ -10,13 +11,34 @@ import type { ResearchGoal, ResearchTask, ResearchClaim, Verdict, ExperimentResu
 import { addEvidence, synthConfidence } from '../core/claim.ts';
 import { runVerification } from '../core/verification.ts';
 import { ResearchDirector } from '../research-director/director.ts';
-import { createMemory, type ResearchMemory } from '../memory/index.ts';
+import { createMemory, persistMemory, type ResearchMemory } from '../memory/index.ts';
 import { createAgents, type ResearchAgents } from '../agents/index.ts';
 import { runCampaign, type CampaignReport } from '../experiment/runner.ts';
 import { createWriter, type ResearchWriter } from '../writer/index.ts';
 import { TASK_ROLE } from '../roles/index.ts';
 import { ModelRouter } from '../model-router/index.ts';
-import type { ValidatorMode } from '../experiment/topology.ts';
+import type { ValidatorMode, AttackClass } from '../experiment/topology.ts';
+
+export interface MatrixOptions {
+  validators?: ValidatorMode[];   // 缺省 4 策略：none / rov / bgpsec / rov+bgpsec
+  attacks?: AttackClass[];        // 缺省 4 攻击：prefix/subprefix-hijack / as-set-injection / path-manipulation
+  repetitions?: number;           // 每格轮数（缺省 input.repetitions ?? 2）
+}
+
+export interface MatrixCell {
+  attack: AttackClass;
+  validator: ValidatorMode;
+  detection: number;              // 检测率均值
+  falsePositive: number;          // 误报率均值
+  outcome: ExperimentResult['outcome'];
+  verdict: Verdict;
+}
+
+export interface CampaignMatrix {
+  attacks: AttackClass[];
+  validators: ValidatorMode[];
+  cells: MatrixCell[];
+}
 
 export interface AutonomousInput {
   topic: string;
@@ -27,6 +49,10 @@ export interface AutonomousInput {
   validator?: ValidatorMode;
   supportThreshold?: number;
   seed?: number;
+  /** 实验矩阵：false 关闭；对象可裁剪攻击/验证策略集合与每格轮数（缺省 4×4）。 */
+  matrix?: MatrixOptions | false;
+  /** 可选：流水线结束后把五类记忆（含论文/幻灯片/矩阵 artifact）落盘到该目录。 */
+  memoryDir?: string;
 }
 
 export interface AutonomousReport {
@@ -37,9 +63,13 @@ export interface AutonomousReport {
   paper: string;                // markdown 论文
   slides: string;               // marp 幻灯片
   campaign?: CampaignReport;
+  matrix?: CampaignMatrix;      // 实验矩阵（每条战役各 attack×validator 的检测率/判定）
   episodes: number;
   summary: string;
 }
+
+const DEFAULT_MATRIX_VALIDATORS: ValidatorMode[] = ['none', 'rov', 'bgpsec', 'rov+bgpsec'];
+const DEFAULT_MATRIX_ATTACKS: AttackClass[] = ['prefix-hijack', 'subprefix-hijack', 'as-set-injection', 'path-manipulation'];
 
 /** 由 topic 构建研究目标与任务 DAG：read → hypothesis → experiment → verify → write。 */
 export function buildGoal(topic: string, hypothesis?: string): ResearchGoal {
@@ -112,6 +142,11 @@ export function runAutonomousResearch(
     memo(primary, v.verdict, v.rationale, memory);
   }
 
+  // 2.5) 实验矩阵：把「主假设 + 备选机制」在 4 攻击 × 4 验证策略网格上系统对照
+  //      （input.matrix === false 关闭；缺省跑全网格），逐格战役全部归档进 memory。
+  const matrixResult = runCampaignMatrix(memory, agents.experiment, primary, input);
+  const matrix = matrixResult?.matrix;
+
   // 3) 全量验证扫描（写入 hypothesis/artifact 记忆）
   directive('verify', TASK_ROLE['verify']);
   const claimVerdicts: Record<string, Verdict> = {};
@@ -121,7 +156,7 @@ export function runAutonomousResearch(
     if (c.verificationStatus === 'pending') c.verificationStatus = v.verdict;
   }
 
-  // 4) 写作：论文 + 幻灯片
+  // 4) 写作：论文 + 幻灯片（论文含实验矩阵小结）
   directive('write', TASK_ROLE['write']);
   const paperInput = {
     title: input.paperTitle ?? `研究：${input.topic}`,
@@ -134,6 +169,11 @@ export function runAutonomousResearch(
       evidence: c.evidence, counterEvidence: c.counterEvidence,
     })),
     experiments: experimentsFor(goal, campaign),
+    experimentMatrix: matrix ? {
+      attacks: matrix.attacks,
+      validators: matrix.validators,
+      cells: matrix.cells.map((c) => ({ attack: c.attack, validator: c.validator, detection: c.detection, falsePositive: c.falsePositive, outcome: c.outcome, verdict: c.verdict })),
+    } : undefined,
   };
   const paper = writer.paper(paperInput);
   const slides = writer.slides(paperInput);
@@ -141,7 +181,14 @@ export function runAutonomousResearch(
   const paperInv = memory.artifact.put({ kind: 'report', title: paper.title, body: paper.markdown, meta: { kind: 'paper' } });
   const slideInv = memory.artifact.put({ kind: 'report', title: `${paper.title} · slides`, body: slides.markdown, meta: { kind: 'slides' } });
 
-  const artifacts = [...run.artifacts, ...(campaign?.artifacts ?? []), paperInv.id, slideInv.id];
+  const artifacts = [...run.artifacts, ...(campaign?.artifacts ?? []), paperInv.id, slideInv.id, ...(matrixResult ? [matrixResult.artifactId] : [])];
+
+  // 5) 落盘（可选）：显式 memoryDir 优先；否则运行时 memory 自带 persist（plugin-core
+  //    配置 memory.dir 时挂上）→ 五类记忆 + 论文/幻灯片/矩阵 artifact 持久化归档。
+  const mem = memory as ResearchMemory & { persist?(dir?: string): string | undefined };
+  if (input.memoryDir) persistMemory(memory, input.memoryDir);
+  else if (typeof mem.persist === 'function') mem.persist?.();
+
   return {
     goalId: goal.id,
     topic: input.topic,
@@ -150,11 +197,70 @@ export function runAutonomousResearch(
     paper: paper.markdown,
     slides: slides.markdown,
     campaign,
+    matrix,
     episodes: memory.episodic.all().length,
     summary: `「${input.topic}」共 ${goal.claims.length} 条 claim` +
       `（${Object.values(claimVerdicts).filter((v) => v === 'verified').length} 已核验）` +
-      `、${paper.stats.experiments} 项实验、${artifacts.length} 个 artifact；论文与幻灯片已生成。`,
+      `、${paper.stats.experiments} 项战役` +
+      `（其中实验矩阵 ${matrix?.cells.length ?? 0} 格）、${artifacts.length} 个 artifact；论文与幻灯片已生成。`,
   };
+}
+
+export interface CampaignMatrixResult {
+  matrix: CampaignMatrix;
+  artifactId: string;   // 归档的矩阵结果 artifact id（进 report.artifacts 可追溯）
+}
+
+/** 运行实验矩阵：attack × validator 网格上逐格跑一场独立战役，聚合检测率与判定。 */
+export function runCampaignMatrix(
+  memory: ResearchMemory,
+  agent: Parameters<typeof runCampaign>[1],
+  primary: ResearchClaim | undefined,
+  input: AutonomousInput & { matrix?: MatrixOptions | false },
+): CampaignMatrixResult | undefined {
+  if (input.matrix === false) return undefined;
+  if (!primary) return undefined;
+  const attacks = input.matrix?.attacks ?? DEFAULT_MATRIX_ATTACKS;
+  const validators = input.matrix?.validators ?? DEFAULT_MATRIX_VALIDATORS;
+  const reps = input.matrix?.repetitions ?? input.repetitions ?? 2;
+  const cells: MatrixCell[] = [];
+  for (const attack of attacks) {
+    for (const validator of validators) {
+      const c = runCampaign(memory, agent, {
+        claim: { id: primary.id, statement: primary.statement },
+        env: input.env ?? 'sim',
+        repetitions: reps,
+        validator,
+        attackClass: attack,
+        supportThreshold: input.supportThreshold,
+        seed: input.seed,
+      });
+      cells.push({
+        attack,
+        validator,
+        detection: c.detection.mean,
+        falsePositive: c.detection.falsePositive.mean,
+        outcome: c.outcome,
+        verdict: c.verdict,
+      });
+    }
+  }
+  const matrix: CampaignMatrix = { attacks, validators, cells };
+  memory.episodic.record({
+    kind: 'experiment',
+    summary: `实验矩阵 ${attacks.join('+')} × ${validators.join('+')} = ${cells.length} 格（claim ${primary.id}）`,
+    claimId: primary.id,
+    outcome: cells.some((c) => c.outcome === 'support') ? 'support' : cells.some((c) => c.outcome === 'refute') ? 'refute' : 'inconclusive',
+    source: 'campaign-matrix',
+  });
+  const art = memory.artifact.put({
+    kind: 'result',
+    title: `experiment matrix: ${primary.id}`,
+    body: JSON.stringify(matrix),
+    claimId: primary.id,
+    meta: { kind: 'matrix', attacks, validators, cells: cells.length },
+  });
+  return { matrix, artifactId: art.id };
 }
 
 function experimentsFor(goal: ResearchGoal, campaign?: CampaignReport): Array<{

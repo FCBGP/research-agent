@@ -1,4 +1,0 @@
-# research-tools.yml — 工具能力覆盖层（示例，未接入 bundle 列表）。
-# 工具集由 dsh-research-core 行在运行时注册（research_verify / research_record /
-# research_search / research_review / research_experiment）；此处保留空数组占位。
-[]

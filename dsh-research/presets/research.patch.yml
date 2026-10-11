@@ -1,0 +1,207 @@
+# presets/research.patch.yml — @basil/dsh-research 的 preset 平面分片（bundle insert 层，阶段 5）。
+#
+# 命名定型（2026-10-09）：本 preset 即 **dsh-routing-research**（域间路由安全研究 Agent），
+# 操作命令仍为 `dsh research`；领域词汇（BGP / RPKI / BGPsec / ASPA / VRO / CRC / FC-BGP /
+# FRR / VPP）的唯一口径来源在 src/domain/vocabulary.ts（persona / description 此处引用同一套词表）。
+#
+# 组合语义（见 dsh-app-boot/profile）：profile 的 dsh.profile.bundles 按序叠加
+# 每个 bundle 的 patch 文件（./cordis.patch.yml + 本文件），最后再叠加 profile 自己的
+# cordis.patch.yml。行 id 是寻址键：更高层 patch（profile overlay）可对本行做整行覆盖/禁用。
+#
+# 阶段 5 把 research 包装为 **preset-research（Research Agent 本体）** + 多个职责单一插件：
+#   cordis.patch.yml = host 平面 5 行（core / director / experiment / writer / operations）
+#   本文件         = preset 平面 1 行：preset-research（@deepseek-ai/dsh-agent-preset）
+#
+# preset-research 挂载内容（按 TODO 阶段 5·A）：
+#   1. persona        —— 研究 agent 身份（域间路由安全科研工作台，直接替换 standard 的编码器 persona）
+#   2. research-tools —— @basil/dsh-research/tools：13 个 research_* 工具只注册到本预设作用域，
+#                        不再 host 全局注册（消除 always-on 污染：standard 会话看不到 research_*）
+#   3. skill-filesystem —— customSkillDirs → node_modules/@basil/dsh-research/skills
+#                        （与 cordis preset 同款 createRequire(baseUrl) 解析；部署后路径为
+#                        $DSH_HOME/profiles/<name>/node_modules/@basil/dsh-research/skills）
+#   4. tool-skill     —— 程序性 skill（experiment / paper-review）进会话目录（领域知识 2026-10-10 起走词汇表 + WeKnora，详见 docs/domain-knowledge-notes.md）
+#   5. standard 基础工具集 —— clone web-app/presets/standard.patch.yml 的工具段
+#      （persona 被上面的研究 persona 取代；skill-filesystem/tool-skill 由本文件 3/4 提供，不重复挂）
+#
+# child 条目 id 可省略（Loader 自动分配）；这里显式保留 standard 同名 id，便于 profile overlay
+# 按 id 覆盖某个 child 工具（例如禁用 tool-web / planning 等）。
+- insert:
+    - id: preset-research
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: research
+        order: 2
+        description: >-
+          dsh-routing-research — 域间路由安全（BGP / RPKI / BGPsec / ASPA / VRO / CRC / FC-BGP）
+          科研工作台：假定 → 实验 → 核验 → 证据 → 论文/幻灯片（操作命令 dsh research）。
+        plugins:
+          # 1. persona — 研究 agent 身份（替换 standard 的编码器 persona）。
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              suffix: Your working directory is {{cwd}}.
+              prefix: >-
+                You are dsh-routing-research, the research agent inside the dsh Research Agent
+                OS, specializing in inter-domain routing security (BGP / RPKI / BGPsec / ASPA /
+                VRO / CRC / FC-BGP; real-node executors FRR / VPP).
+                Your products are Claims, Evidence, and Verdicts, not just answers. Run the
+                three separated loops: Research Loop (search → read → reason → verify →
+                evidence → artifact → paper/report), Verification Loop (never treat a reasonable
+                guess as a verified claim; actively seek counter-evidence), and Experiment Loop
+                (hypothesis → spec → run → measure → analyze → verify → archive). Ground every
+                claim with source / evidence / confidence, distinguish Fact / Hypothesis /
+                Assumption / Result, and bind experiment conclusions to experiment artifacts.
+          # 2. research-tools — 13 个 research_* 工具只出现在 research 预设会话的工具目录。
+          - id: research-tools
+            name: '@basil/dsh-research/tools'
+          # 3. skill-filesystem — 程序性 skill 根：bundle 自带 skills/ 目录（experiment / paper-review）。
+          - id: skill-filesystem
+            name: '@deepseek-ai/dsh-skill-filesystem'
+            config:
+              customSkillDirs:
+                - !!js process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:path').dirname(process.getBuiltinModule('node:module').createRequire(baseUrl).resolve('@basil/dsh-research/package.json')), 'skills')
+          # 4. tool-skill — 会话 skill 目录与 skill 载入工具（需与 skill-filesystem 同挂）。
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+          # 5. standard 基础工具集（clone web-app/presets/standard.patch.yml 工具段）。
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: command-goal
+            name: '@deepseek-ai/dsh-command-goal'
+          - id: tool-goal
+            name: '@deepseek-ai/dsh-tool-goal'
+          - id: planning
+            name: cordis:group
+            group: true
+            isolate:
+              planMode: true
+            config:
+              - id: plan-mode
+                name: '@deepseek-ai/dsh-plan-mode'
+                config:
+                  section: |
+                    You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+                    Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+
+                    The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+
+                    Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+
+                    Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+
+                    When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+          - id: delegation
+            name: cordis:group
+            group: true
+            isolate:
+              workflowEngine: true
+            config:
+              - id: tool-subagent-control
+                name: '@deepseek-ai/dsh-tool-subagent-control'
+              - id: tool-subagent-list-agents
+                name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+              - id: tool-subagent
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: spawn
+                  toolName: subagent
+                  modelSelectionSettings: true
+                  backgroundMode: continuable
+                  toolFilter:
+                    deny:
+                      - schedule_create
+                      - schedule_delete
+                      - schedule_list
+                      - schedule_update
+              - id: tool-subagent-fork
+                name: '@deepseek-ai/dsh-tool-subagent'
+                config:
+                  provider: fork
+                  toolName: subagent_fork
+                  backgroundMode: continuable
+                  toolFilter:
+                    deny:
+                      - schedule_create
+                      - schedule_delete
+                      - schedule_list
+                      - schedule_update
+              - id: tool-subagent-codex
+                name: '@deepseek-ai/dsh-tool-subagent'
+                disabled: true
+                config:
+                  provider: codex
+                  toolName: subagent_codex
+                  backgroundMode: one-shot
+                  maxDepth: provider-managed
+              - id: tool-subagent-claude-code
+                name: '@deepseek-ai/dsh-tool-subagent'
+                disabled: true
+                config:
+                  provider: claude-code
+                  toolName: subagent_claude_code
+                  backgroundMode: one-shot
+                  maxDepth: provider-managed
+              - id: workflow-ptc
+                name: '@deepseek-ai/dsh-workflow-ptc'
+                config:
+                  provider: spawn
+              - id: tool-workflow
+                name: '@deepseek-ai/dsh-tool-workflow'
+              - id: tool-ralph
+                name: '@deepseek-ai/dsh-tool-ralph'
+                disabled: true
+                config:
+                  subagentProvider: spawn
+                  maxRounds: 64
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+            config:
+              allowParallelInProgress: true
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: present
+            name: '@deepseek-ai/dsh-tool-present'
+          - id: tool-plugin-manager
+            name: '@deepseek-ai/dsh-plugin-manager/tools'
+            disabled: true

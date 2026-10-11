@@ -1,15 +1,19 @@
 {
   "name": "dsh-profile-research",
   "version": "0.2.0",
-  "description": "Deployable research profile: base + web front-end (Web UI) + @basil/dsh-research.",
+  "description": "dsh-routing-research profile (domain naming; command stays `dsh research`): base + web front-end (Web UI) + @basil/dsh-research + @wxg-prc-cpg/dsh-weknora (WeKnora knowledge plane, declared here so re-deploy never drops the plugin). Built-in domain vocabulary: BGP / RPKI / BGPsec / ASPA / VRO / CRC / FC-BGP / FRR / VPP.",
   "type": "module",
   "dsh": {
     "profile": {
       "bundles": [
         "@deepseek-ai/dsh-base",
         "@deepseek-ai/dsh-web-app",
-        "@basil/dsh-research"
+        "@basil/dsh-research",
+        "@wxg-prc-cpg/dsh-weknora"
       ]
     }
+  },
+  "dependencies": {
+    "@wxg-prc-cpg/dsh-weknora": "^0.1.0"
   }
 }

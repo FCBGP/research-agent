@@ -1,0 +1,31 @@
+# chain-research-policy.yml — 组合链 · 第 1 层：research policy（研究纪律覆盖层）。
+#
+# 用法（与 chain-bgp-research.yml / chain-fcbgp-experiment.yml 按序叠加）:
+#   DSH_HOME=/tmp/dsh-home dsh --profile research \
+#     --patch dsh-research/patches/chain-research-policy.yml \
+#     --patch dsh-research/patches/chain-bgp-research.yml \
+#     --patch dsh-research/patches/chain-fcbgp-experiment.yml \
+#     --dump-config | grep -E '^# ==|research-|policy:'
+#
+# loader 语义（dsh-app-boot/profile）：`--patch` 在 `dsh.profile.bundles` 与 profile 自身
+# cordis.patch.yml 之后按 argv 顺序叠加；对目标行 id 做**整行 config 替换（不深合并）**。
+# 因此本层覆盖 research-operations 行时，必须原样保留 bundle 里的 tools / policy / subagents
+# 子键，否则它们会回退到插件默认值。
+#
+# 链层顺序（base → research policy → bgp research → experiment-specific）:
+#   base                           = dsh.research profile 的 bundle 组合树（本层之上的事实）
+#   chain-research-policy.yml      = 本文件：研究纪律覆盖层（policy.extra 追加纪律）
+#   chain-bgp-research.yml         = 第 2 层：BGP 研究方向（research-core memory.dir）
+#   chain-fcbgp-experiment.yml     = 第 3 层：实验专层（research-experiment defaults）
+- id: research-operations
+  config:
+    tools:
+      enabled: true
+    policy:
+      enabled: true
+      extra:
+        - "链层 L1/research-policy：本次科研战役由 base → research-policy → bgp-research → experiment-specific 四层叠加；所有 Evidence 必须标注来源层（layer provenance）。"
+        - "链层 L1/research-policy：联网/真实网元测量与 RouteEngineSim 的结论分开归档，不得混标引擎。"
+    subagents:
+      enabled: true
+      provider: spawn

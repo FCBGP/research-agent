@@ -7,6 +7,13 @@
 
 我们不是在做一个"更强的 Codex"，而是在做一个 **Research Agent OS**：一个用于 **域间路由安全研究（BGP / RPKI / BGPsec / ASPA / VRO / CRC / FC-BGP）** 的领域专用科研 Agent。
 
+**命名定型（2026-10-09）**：该 Agent / Profile 的定型名称 = **`dsh-routing-research`**
+（对应 `prompts/dsh.md` §11「不要叫它 research」）；操作命令不变，README/脚本仍用
+`dsh research`（== `dsh --profile research`）。领域词汇（范围 BGP / RPKI / BGPsec / ASPA /
+VRO / CRC / FC-BGP + 执行器 FRR / VPP）**内置**于 `dsh-research/src/domain/vocabulary.ts`
+（唯一口径来源），供 persona / preset 描述 / `research_search` 种子检索 /
+`researchCore.domain` 服务统一引用。
+
 - **DeepSeek Harness = Runtime（操作系统底座）**
 - **Research Agent OS = 核心成果（上层 Agent Operating System）**
 - **Codex Loop = Engineering Executor**
@@ -127,12 +134,20 @@ Problem
 
 铁律：**不能把"模型曾经说过"当作事实。** 每条 claim 必须记录 `source / evidence / confidence / verified / last_verified`，否则视为未验证。
 
-## 7. Skill 组织（按需加载，勿塞进 system prompt）
+## 7. Skill 组织与领域知识分层（按需加载，勿塞进 system prompt）
 
-- `skills/research/`: literature-review, rfc-analysis, standards-analysis, claim-verification, peer-review
-- `skills/networking/`: bgp, rpki, bgpsec, aspa, fcbgp, routing-experiment
-- `skills/engineering/`: frr, bird, vpp, docker, vmware
-- `skills/publication/`: paper, ppt, figure, technical-report
+**Skill = 程序性能力**（「怎么做」：流程、清单、纪律），按需进会话目录；
+**领域知识 ≠ Skill**——「某机制是什么（bgp / rpki / bgpsec / fcbgp / aspa…）」是参考数据，
+放进知识平面而不是 skill 目录（2026-10-10 修正）。
+
+- 程序性 Skill（`dsh-research/skills/`，bundle 自带，经 `skill-filesystem` 挂载）：
+  - `experiment` —— 自动实验流水线纪律：deploy → run(×repetitions) → collect → analyze → verify → archive（四口径）
+  - `paper-review` —— `research-paper-review` 8 步审稿工作流
+- 领域知识（BGP / RPKI / BGPsec / ASPA / FC-BGP / VRO / CRC / 攻击面…）：
+  - 一句话口径 → `dsh-research/src/domain/vocabulary.ts`（GLOSSARY，唯一口径来源）
+  - 详细参考 → `docs/domain-knowledge-notes.md`（暂存，非权威，以 RFC / IETF 草案 / 论文为准）
+  - 长期运行的知识平面 → **WeKnora 知识库**（RAG 检索，见仓库 README「WeKnora 知识库对接」）
+- 禁止把领域参考知识塞成 skill（污染 skill 目录、且非程序性）。
 
 `research-paper-review` 8 步：identify claims → check citations → check methodology → search counterexamples → inspect experiment design → identify unsupported conclusions → assign confidence → produce review report。
 
@@ -175,7 +190,11 @@ Problem
 dsh research                             # 或 dsh --profile research
 dsh research "分析 RPKI+BGPsec 的安全能力边界"
 dsh research --patch profiles/fcbgp-experiment.yml "验证恶意 ASPP 情形"
-dsh routing-research                     # 更明确的领域命名
+# 命名定型（2026-10-09）：Profile 定型名称 = dsh-routing-research（域间路由安全研究专用，
+# 见 prompts/dsh.md §11「不要叫它 research」）；操作命令不变，README/脚本仍用 dsh research。
+# 内置领域词汇：BGP / RPKI / BGPsec / ASPA / VRO / CRC / FC-BGP（研究范围）+ FRR / VPP（执行器）；
+# 唯一口径来源 = dsh-research/src/domain/vocabulary.ts，供 persona / preset 描述 /
+# research_search 种子检索 / researchCore.domain 服务统一引用。
 ```
 
 开发态（本仓库，不用 npm 发布）——先把 profile 部署进 `$DSH_HOME`（默认 `~/.dsh`，
@@ -195,6 +214,19 @@ dsh research "分析 RPKI+BGPsec 的安全能力边界"     # == dsh --profile r
 - 运行：`dsh research "<任务>"`（== `dsh --profile research "<任务>"`）；部署与模型路由见 `README.md`。
 - **禁止修改 `deepseek-harness/` 下 `packages/` 的基础设施代码**；新能力放独立 bundle / plugin / 本仓库上层代码。
 - 设计文档放 `docs/`；研究产出与实验 artifact 必须可追溯、可归档。
+
+### 10.1 文档卫生 · TODO.md / CHANGELOG.md 维护规则
+
+每次收尾一轮工作时，必须按下述规则维护 `TODO.md` 与 `CHANGELOG.md`（两者互补、不重复）：
+
+- **TODO.md 只保留未完成项**：标识仅两种——未完成 `- [ ]`、已完成 `- [x]`，无其他标识。
+- **已完成项整条移入 `CHANGELOG.md`**：按日期分节归档，逐条保留「做了什么 / 关键产物 / 提交号
+  (SHA) / 测试与 SMOKE 数字」，保证可追溯；归档后从 TODO.md 删除，不在两边重复出现。
+- **未完成项逐条斟酌**：过时 / 与现状冲突（如 `.gitignore` 变更、方案被取代）的项改写或删除，
+  而非原样保留；保留就绪的项，调整措辞使其与当前状态一致。
+- **新规划直接写入 TODO.md**：以新阶段 / 新条目追加（如「阶段 5 · Agent Preset + 插件化重构」，
+  按 A/B/C/D/E 分阶段列可勾选子项），并同步更新「里程碑」口径。
+- **规则本文件收口**：本规则（10.1）即流程定义；任何一轮的 TODO↔CHANGELOG 整理都照此执行。
 
 ## 仓库状态（2026-10-08 快照）
 
@@ -355,3 +387,82 @@ dsh research "分析 RPKI+BGPsec 的安全能力边界"     # == dsh --profile r
 research_campaign 等 13 个 research_* 工具）在 web 会话内交互，**不再支持
 `dsh research "<task>"` 位置参数一次任务**。真机端到端浏览器实测留待用户在
 `$HOME/.dsh` 部署后确认（沙箱无法开浏览器）。
+
+---
+
+## 阶段 5 · Agent Preset + 插件化重构：preset-research + 6 插件（2026-10-09）
+
+需求：`@basil/dsh-research` 从「一个 700+ 行巨型插件（12 服务 + 13 工具全在 host 平面，
+`research_*` 对所有 preset 会话 always-on 可见）」重构为
+**preset-research（Research Agent 本体）+ 6 个职责单一插件**；工具只在 research 会话出现，
+领域 skill（bgp / rpki / …）经 `skill-filesystem` 真正挂载。
+
+改动：
+- `dsh-research/package.json`：`dsh.bundle.patch` 由单文件改为数组
+  `["./cordis.patch.yml", "./presets/research.patch.yml"]`；`exports` 为 6 个插件入口加
+  显式子路径 `./core` `./director` `./experiment` `./writer` `./operations` `./tools`；
+  `main` / `.` 指向 `./src/plugin-core.ts`。
+- 新增 `dsh-research/cordis.patch.yml`：host 平面 5 行 `research-core` /
+  `research-director` / `research-experiment` / `research-writer` / `research-operations`
+  （行序 = 依赖顺序；config 承接 `tools.enabled` / `memory.dir` / policy 等）。
+- 新增 `dsh-research/presets/research.patch.yml`：`preset-research`
+  （`@deepseek-ai/dsh-agent-preset`，id=research, order=2）挂载 persona（研究 agent 身份）+
+  research-tools（13 个 `research_*` 工具 → 会话作用域）+ skill-filesystem
+  （customSkillDirs → bundle `skills/`）+ tool-skill + standard 基础工具集。
+- `src/plugin.ts` 拆为 6 个插件：`src/plugin-{core,director,experiment,writer,operations}.ts`
+  （host；服务名 / 工具 schema 语义零变化）+ `src/plugin-tools.ts`（preset 平面 tools，
+  `inject ['tools']`）；`src/plugin.ts` 降级为纯 re-export（保留历史模块路径）。
+- 删除 `dsh-research/patches/research-agent.yml`（被 `cordis.patch.yml` 取代）。
+- `profiles/research/cordis.patch.yml`：新增 `agent-preset-registry` 行
+  `config.default: research`（新会话默认 Research Agent；模型 overlay 原样保留）。
+
+**行为变更（2026-10-09）：**
+- **默认 preset = research**：新会话默认 Research Agent 本体（persona + 领域 skill +
+  `research_*` 工具），而非 web 的 standard。
+- **`research_*` 只在 research 会话出现**：工具注册移到 preset 作用域（research-tools
+  子行）；standard 等其它 preset 会话看不到（always-on 污染消除，runtime-smoke 反证
+  断言 standard tools w/ research_* = 0）。
+
+实测（沙箱，`DSH_HOME=/tmp/dsh-home`）：
+- `node --test "src/**/*.test.ts"` = **83/83 全绿**（含 `plugin-tools.test.ts`）。
+- 部署 + `--dump-config` 组合树含 research-* 5 行 + preset-research（无旧 dsh-research-core 行）。
+- runtime-smoke → **SMOKE PASS**（services 12 + tools 13/13 preset 作用域 + standard=0 +
+  verdict / campaign / policy / autonomous / job / schedule / reflect / subagents 全真；
+  `subagents status: {"available":true,...}`）。
+
+用法变化（承 4.5）：`dsh research` 仍是 Web UI 浏览器会话；科研任务
+（13 个 research_* 工具）只在 research 预设会话内交互，位置参数一次任务仍不支持。
+
+---
+
+## 阶段 6 · 多 Profile（2026-10-09）
+
+需求：TODO「多 Profile」—— 目前仅 `profiles/research/`，补建 `paper` / `experiment` /
+`engineering` / `reviewer`（共享 research 能力；阶段 5 的 preset 粒度被多 Profile 复用）。
+
+改动：
+- `dsh-research/presets/roles.patch.yml`（bundle patch 第 3 片）：preset 平面追加 4 个角色
+  preset —— `preset-paper`（order=3）/ `preset-experiment`（order=4）/
+  `preset-engineering`（order=5）/ `preset-reviewer`（order=6）；每个角色 = persona +
+  research-tools（`config.tools.only` 白名单）+ skill-filesystem + tool-skill +
+  standard 基础工具集（与 research.patch.yml 同一块，五处同步）。
+- `dsh-research/package.json`：`dsh.bundle.patch` 改为
+  `[cordis.patch.yml, presets/research.patch.yml, presets/roles.patch.yml]`。
+- `src/plugin-tools.ts`：新增 `config.tools.only` 白名单裁剪（`register` 闭包过滤）；
+  `undefined`/空数组 = 全量 13 个（preset-research 不设 only，行为与阶段 5 一致）。
+- 新建 `profiles/{paper,experiment,engineering,reviewer}/`：`package.json`（base + web 前端 +
+  `@basil/dsh-research`）+ `cordis.patch.yml`（复制 research，`default` 改为对应角色）。
+- `scripts/deploy-profile.sh`：支持任意 profile 名（位置参数或 `PROFILE_NAME`，缺省 research）。
+
+行为：
+- **多 Profile 角色视图**：`dsh research` / `dsh --profile paper` / `experiment` /
+  `engineering` / `reviewer` 各自启动 Web UI，新会话默认 preset = 对应角色；
+  `research_*` 工具按 `tools.only` 白名单裁剪到角色工具集（paper/experiment 10、
+  engineering 6、reviewer 8）。
+
+实测（沙箱，`DSH_HOME=/tmp/dsh-home`）：
+- `node --test "src/**/*.test.ts"` = **85/85 全绿**（含 `tools.only` 白名单/空数组两用例）。
+- 5 个 profile `--dump-config` 各出现对应 `preset-<role>` + `default: <role>`。
+- runtime-smoke → **SMOKE PASS**，新增 `roles=true`：
+  `paper:OK[10/10] experiment:OK[10/10] engineering:OK[6/6] reviewer:OK[8/8]`
+  （组成 inventory 存在 + 未 broken + research-tools enabled + 会话工具目录 = 白名单）。

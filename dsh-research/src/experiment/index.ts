@@ -3,3 +3,4 @@ export * from './stats.ts';
 export * from './topology.ts';
 export * from './executors.ts';
 export * from './runner.ts';
+export * from './live-metrics.ts';

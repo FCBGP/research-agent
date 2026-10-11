@@ -21,3 +21,11 @@ test('model-router: roleModels 提供每角色模型后缀', () => {
   assert.equal(router.route('experimenter').model, 'dsv4long');
   assert.ok(router.describe('experimenter').includes('dsv4long'));
 });
+
+test('model-router: setRole 持久覆盖并优先于默认', () => {
+  const router = new ModelRouter();
+  assert.deepEqual(router.route('reviewer'), DEFAULT_MODEL_ROUTE);
+  router.setRole('reviewer', { provider: 'deepseek-official', model: 'dsv4' });
+  assert.deepEqual(router.route('reviewer'), { provider: 'deepseek-official', model: 'dsv4' });
+  assert.ok(router.describe('reviewer').includes('deepseek-official/dsv4'));
+});

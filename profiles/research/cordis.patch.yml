@@ -4,14 +4,25 @@
 #
 # 与 web profile 一致：
 # - ui-settings-general：欢迎语版本（与 web 同款，避免旧缓存差异）
+# - agent-preset-registry：新会话默认 preset 从 web 的 standard 切到 research
+#   （Research Agent 本体；preset-research 定义见 bundle presets/research.patch.yml）
 # - llm-pi-ai 提供 provider local-interval-dsv4（OpenAI 兼容，baseURL 本机内网网关），
 #   key 通过 credential-ref LOCAL_INTERVAL_DSV4_API_KEY 从 $DSH_HOME/.credentials.yaml 解析
 # - agent-default-model 把默认模型切到 dsv4flash；web 会话/agent-loop 不再走 base 默认
 #   deepseek-official（其 DEEPSEEK_API_KEY 常为占位值「0731」会 401）
+# - weknora 官方插件 @wxg-prc-cpg/dsh-weknora：本行覆盖插件自带 env 默认行，baseUrl 钉死
+#   内网知识库、apiKey/tenantId 走环境变量（key 不进仓库）；插件未装时该行被静默丢弃
+#   （非致命警告 entry not found），装上即生效 → 模板可长期保留（见 README「WeKnora」）
 - id: ui-settings-general
   name: "@deepseek-ai/dsh-client-ui-settings-general"
   config:
     welcomeNoticeVersion: 2026-09-28.1
+# 新会话默认用 Research Agent（而非 web 的 standard）。整层覆盖 base/web 的
+# agent-preset-registry 行 config（web 定义只有 default 字段），default: research。
+- id: agent-preset-registry
+  name: "@deepseek-ai/dsh-agent-preset-registry"
+  config:
+    default: research
 - id: llm-pi-ai
   name: "@deepseek-ai/dsh-llm-pi-ai"
   config:
@@ -29,3 +40,22 @@
   config:
     provider: local-interval-dsv4
     model: dsv4flash
+
+
+# weknora — WeKnora 知识库检索（Knowledge Plane）。baseUrl 已含 /api/v1（插件未含会自动补全）；
+# knowledgeBaseIds 留空 = 自动解析凭据可见的全部知识库；resourceUrls: public = 引用给可加载直链
+# （403 时插件自动退回 handle）；tenantId 仅平台级 key 需要（X-Tenant-ID 选工作空间）。
+- id: weknora
+  name: "@wxg-prc-cpg/dsh-weknora"
+  config:
+    baseUrl: http://10.2.165.201/api/v1
+    apiKey: !!js process.env.WEKNORA_API_KEY
+    tenantId: !!js process.env.WEKNORA_TENANT_ID
+    knowledgeBaseIds: []
+    resourceUrls: public
+    toolPrefix: weknora
+    tools:
+      listKnowledgeBases: true
+      search: true
+      readDocument: true
+      ask: true

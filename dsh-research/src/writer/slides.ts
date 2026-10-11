@@ -77,6 +77,25 @@ export function generateSlides(input: PaperInput): SlideDeckReport {
       '> detection − false_positive 即 effectiveScore，越大越优。',
     ].join('\n'),
 
+    // 5b 实验矩阵（detection 对照；autonomous 流水线带矩阵时追加一页）
+    ...(input.experimentMatrix
+      ? [[
+          '## 实验矩阵（检测率对照）',
+          '',
+          `| 验证策略 \\ 攻击 | ${input.experimentMatrix.attacks.join(' | ')} |`,
+          `|${input.experimentMatrix.attacks.map(() => '---').join('|')}|`,
+          ...input.experimentMatrix.validators.map((v) => {
+            const cells = input.experimentMatrix.attacks.map((a) => {
+              const c = input.experimentMatrix.cells.find((x) => x.attack === a && x.validator === v);
+              return c ? `${Math.round(c.detection * 100)}%` : '—';
+            });
+            return `| ${v} | ${cells.join(' | ')} |`;
+          }),
+          '',
+          '> 单元格 = 检测率均值（%）。逐格 verdict 见论文 §4.1。',
+        ].join('\n')]
+      : []),
+
     // 6 结论与判定
     [
       '## 结论与判定',

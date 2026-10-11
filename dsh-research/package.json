@@ -1,23 +1,66 @@
 {
   "name": "@basil/dsh-research",
   "version": "0.2.0",
-  "description": "Research agent bundle for dsh: research/verification/experiment loops, artifact store, BGP-RPKI domain skills.",
+  "description": "dsh-routing-research bundle for dsh: inter-domain routing security (BGP / RPKI / BGPsec / ASPA / VRO / CRC / FC-BGP; FRR / VPP executors) research/verification/experiment loops, artifact store, domain skills. Operational command stays `dsh research`.",
   "type": "module",
   "scripts": {
     "test": "node --test \"src/**/*.test.ts\"",
     "smoke:runtime": "DSH_HOME=${DSH_HOME:?run ./scripts/deploy-profile.sh first} node scripts/runtime-smoke.mjs",
-    "deploy:profile": "./scripts/deploy-profile.sh"
+    "deploy:profile": "./scripts/deploy-profile.sh",
+    "pack": "./scripts/pack.sh",
+    "prepack": "echo '⛔ no direct npm pack/publish: use npm run pack (builds bootable .js staging + packs) -- see scripts/pack.sh' >&2; exit 1",
+    "build": "node scripts/build.mjs"
+  },
+  "files": [
+    "src",
+    "cordis.patch.yml",
+    "presets",
+    "patches",
+    "skills",
+    "scripts/runtime-smoke.mjs",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "dsh": {
     "bundle": {
-      "patch": "./patches/research-agent.yml"
+      "patch": [
+        "./cordis.patch.yml",
+        "./presets/research.patch.yml",
+        "./presets/roles.patch.yml"
+      ]
     }
   },
-  "main": "./src/plugin.ts",
+  "main": "./src/plugin-core.ts",
   "exports": {
     ".": {
-      "types": "./src/plugin.ts",
-      "default": "./src/plugin.ts"
+      "types": "./src/plugin-core.ts",
+      "default": "./src/plugin-core.ts"
+    },
+    "./core": {
+      "types": "./src/plugin-core.ts",
+      "default": "./src/plugin-core.ts"
+    },
+    "./director": {
+      "types": "./src/plugin-director.ts",
+      "default": "./src/plugin-director.ts"
+    },
+    "./experiment": {
+      "types": "./src/plugin-experiment.ts",
+      "default": "./src/plugin-experiment.ts"
+    },
+    "./writer": {
+      "types": "./src/plugin-writer.ts",
+      "default": "./src/plugin-writer.ts"
+    },
+    "./operations": {
+      "types": "./src/plugin-operations.ts",
+      "default": "./src/plugin-operations.ts"
+    },
+    "./tools": {
+      "types": "./src/plugin-tools.ts",
+      "default": "./src/plugin-tools.ts"
     },
     "./src/*": "./src/*",
     "./package.json": "./package.json"

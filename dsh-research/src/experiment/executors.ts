@@ -3,12 +3,14 @@
 //   TopologyExecutor : 部署 → 注入攻击 → 采集四口径指标 → 依据 detection 阈值判定
 //                      outcome（support / refute / inconclusive）。默认使用
 //                      RouteEngineSim（确定性、可复现）；FRR/VPP 适配器可用时接管。
+//                      data.simulated 不再硬编码，随拓扑 engine 派生（TODO「真实网元验证」）：
+//                      frr / vpp = live 数据（false），route-engine-sim / *-adapter-sim = 模拟（true）。
 //
 //   StubExecutor 仍保留在 agents/experiment.ts 中作为「最轻量占位」；真正的阶段 3
 //   实验使用 TopologyExecutor。engine/data.simulated 字段如实标记数据来源。
 import type { Executor, ExperimentPlan } from '../agents/experiment.ts';
 import type { ExperimentResult } from '../core/types.ts';
-import { RouteEngineSim, type Topology, type TopologyConfig, type ValidatorMode, type AttackClass } from './topology.ts';
+import { RouteEngineSim, isSimulatedEngine, type Topology, type TopologyConfig, type ValidatorMode, type AttackClass } from './topology.ts';
 
 export interface TopologyExecutorOptions {
   topology?: Topology;
@@ -65,7 +67,8 @@ export class TopologyExecutor implements Executor {
         validator: this.topo.info.validator,
         attackClass: attack,
         steps: plan.steps.length,
-        simulated: true, // RouteEngineSim 明确为模拟数据；接入真实 FRR/VPP 后随引擎改写
+        env: plan.env,
+        simulated: isSimulatedEngine(this.topo.info.engine), // 随 engine 改写（不复用硬编码 true）
         ...sample,
       },
       archivedAt: new Date().toISOString(),
@@ -83,6 +86,7 @@ export function inferAttack(plan: ExperimentPlan): AttackClass {
   const s = plan.scenario.toLowerCase();
   if (s.includes('hijack')) return 'prefix-hijack';
   if (s.includes('as_set') || s.includes('asset') || s.includes('as-set')) return 'as-set-injection';
+  if (s.includes('leak') || s.includes('泄密')) return 'authorized-leak';
   if (s.includes('bgpsec') || s.includes('path')) return 'path-manipulation';
   return 'prefix-hijack';
 }

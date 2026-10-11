@@ -19,6 +19,9 @@ export interface ResearchMemory {
   artifact: ArtifactMemory;
   hypothesis: HypothesisMemory;
   evidence: EvidenceMemory;
+  /** 可选持久化：dir 缺省用构造时配置（plugin-core 提供 memory.dir 时挂上）；
+   *  纯内存 memory（createMemory()）无此方法，保持默认全内存行为。 */
+  persist?(dir?: string): string | undefined;
 }
 
 export function createMemory(): ResearchMemory {

@@ -1,0 +1,14 @@
+# chain-bgp-research.yml — 组合链 · 第 2 层：bgp research（BGP/RPKI 研究方向覆盖层）。
+#
+# 与 chain-research-policy.yml（第 1 层）/ chain-fcbgp-experiment.yml（第 3 层）按序叠加。
+# 本层落在 research-core 行：为 BGP 研究开启记忆 JSON 落盘（memory.dir）。
+# 整行替换 research-core config，故须保留 bundle 里的 agents.enabled。
+#
+# 注意：plugin-core 的 loadMemoryInto 只**读** dir/research-memory.json（不存在则跳过），
+# 不展开环境变量；这里用 !!js 在运行时展开 DSH_HOME，dump-config 会原样打印该表达式。
+- id: research-core
+  config:
+    agents:
+      enabled: true
+    memory:
+      dir: !!js process.env.DSH_HOME + '/profiles/research/memory/bgp-research'

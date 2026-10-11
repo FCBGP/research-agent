@@ -1,6 +1,7 @@
 // Research Agent Policy — 10 条研究纪律（AGENTS.md §9）固化为可复用的策略层。
 // 提供：规则定义（可被 profile overlay 增删）+ 系统提示渲染 + 开启/关闭开关。
-// 纯数据 + 纯函数，零依赖、可测；策略在插件层注入（patches/research-agent.yml）。
+// 纯数据 + 纯函数，零依赖、可测；策略在插件层注入
+// （@basil/dsh-research/operations 插件行 research-operations 的 config.policy，见 cordis.patch.yml）。
 
 export interface ResearchPolicyRule {
   id: string;          // p01..p10

@@ -2,6 +2,8 @@
 
 bundle 运行时代码入口（TypeScript/Cordis 插件）。零外部运行时依赖，Node 24 类型剥离直跑。
 
+- `domain/` — 阶段 8 命名定型 + 内置领域词汇：`dsh-routing-research` 定型名 / 领域范围
+  （BGP · RPKI · BGPsec · ASPA · VRO · CRC · FC-BGP）· 执行器（FRR · VPP）· 检索种子词 · 词汇表
 - `core/` — 阶段 1 领域核心：types / dag / claim / verification / artifact-store
 - `memory/` — 阶段 2 五类记忆：semantic / episodic / artifact / hypothesis / evidence + 门面与持久化
 - `agents/` — 阶段 2 三角色：literature（+seed corpus）/ reviewer（8 步）/ experiment（计划-执行-统计）

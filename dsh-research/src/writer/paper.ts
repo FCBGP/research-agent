@@ -24,6 +24,20 @@ export interface PaperExperimentInput {
   engine?: string;
 }
 
+/** 实验矩阵：attack × validator 网格逐格战役的检测率/判定对照（autonomous 流水线产出）。 */
+export interface PaperExperimentMatrix {
+  attacks: string[];
+  validators: string[];
+  cells: Array<{
+    attack: string;
+    validator: string;
+    detection: number;
+    falsePositive?: number;
+    outcome: string;
+    verdict?: string;
+  }>;
+}
+
 export interface PaperInput {
   title: string;
   researchQuestion: string;
@@ -31,6 +45,7 @@ export interface PaperInput {
   contextNotes?: string[];          // 文献/背景要点
   claims: PaperClaimInput[];
   experiments?: PaperExperimentInput[];
+  experimentMatrix?: PaperExperimentMatrix;  // 实验矩阵小结（§4.1）
   limitations?: string[];
   artifacts?: string[];
   generatedAt?: string;
@@ -57,6 +72,14 @@ const VERDICT_LABEL: Record<Verdict, string> = {
   pending: '⏳ 待验证',
 };
 
+/** 矩阵单元格用的紧凑判定标记（与 VERDICT_LABEL 同源短标）。 */
+const VMARK: Record<string, string> = {
+  verified: '✅',
+  disputed: '⚠️',
+  rejected: '❌',
+  pending: '⏳',
+};
+
 const TYPE_LABEL: Record<ClaimType, string> = {
   Fact: '事实',
   Hypothesis: '假设',
@@ -77,15 +100,18 @@ function mdTable(headers: string[], rows: string[][]): string {
 export function generatePaper(input: PaperInput): PaperReport {
   const claims = input.claims;
   const experiments = input.experiments ?? [];
+  const matrixCells = input.experimentMatrix?.cells.length ?? 0;
   const verified = claims.filter((c) => c.verificationStatus === 'verified').length;
   const disputed = claims.filter((c) => c.verificationStatus === 'disputed').length;
   const rejected = claims.filter((c) => c.verificationStatus === 'rejected').length;
-  const stats = { claims: claims.length, verified, disputed, rejected, experiments: experiments.length };
+  const stats = { claims: claims.length, verified, disputed, rejected, experiments: experiments.length + matrixCells };
 
   const abstract =
     `针对「${input.researchQuestion}」，本文沿 research-loop 提出假设「${input.hypothesis}」，` +
     `经文献沉淀、假设构造与实验验证，共形成 ${claims.length} 条 claim（已核验 ${verified} / 存疑 ${disputed} / 证伪 ${rejected}）` +
-    `与 ${experiments.length} 项实验。核心机制的判定见 §5 结论与判定，全部证据可经附录逐条追溯。`;
+    `与 ${experiments.length + matrixCells} 项战役` +
+    (matrixCells > 0 ? `（含 ${matrixCells} 格实验矩阵）` : '') +
+    `。核心机制的判定见 §5 结论与判定，全部证据可经附录逐条追溯。`;
 
   const sections: PaperReport['sections'] = [];
 
@@ -129,35 +155,49 @@ export function generatePaper(input: PaperInput): PaperReport {
   });
 
   // 4. 实验与结果
+  let expBody = experiments.length === 0
+    ? '（本期未执行实验。）'
+    : mdTable(
+        ['Claim', '场景', '配置指纹', '执行源', 'outcome', 'verdict'],
+        experiments.map((e) => [
+          e.claimId,
+          e.scenario,
+          e.configFingerprint,
+          e.engine ?? 'sim',
+          e.outcome,
+          e.verdict ?? '—',
+        ]),
+      ) +
+      (experiments.some((e) => e.stats && Object.keys(e.stats).length > 0)
+        ? '\n\n四口径统计摘要（均值）：\n\n' +
+          mdTable(
+            ['Claim', 'detection', 'false_positive', 'convergence_ms', 'latency_ms'],
+            experiments.map((e) => [
+              e.claimId,
+              num(e.stats?.detection_rate),
+              num(e.stats?.false_positive_rate),
+              num(e.stats?.convergence_time),
+              num(e.stats?.verification_latency),
+            ]),
+          )
+        : '');
+  if (input.experimentMatrix) {
+    const m = input.experimentMatrix;
+    const rows = m.attacks.map((a) => [
+      a,
+      ...m.validators.map((v) => {
+        const cell = m.cells.find((c) => c.attack === a && c.validator === v);
+        return cell ? `${Math.round(cell.detection * 100)}% ${VMARK[cell.verdict ?? ''] ?? cell.outcome}` : '—';
+      }),
+    ]);
+    expBody +=
+      '\n\n### 4.1 实验矩阵（检测率 × 验证策略）\n\n每格 = 检测率均值 + 判定标记（✅ 已核验 / ⚠️ 存疑 / ❌ 被证伪）：\n\n' +
+      mdTable(['攻击 \\ 验证', ...m.validators], rows);
+  }
   sections.push({
     id: 'experiments',
     heading: '## 4. 实验与结果',
-    body: experiments.length === 0
-      ? '（本期未执行实验。）'
-      : mdTable(
-          ['Claim', '场景', '配置指纹', '执行源', 'outcome', 'verdict'],
-          experiments.map((e) => [
-            e.claimId,
-            e.scenario,
-            e.configFingerprint,
-            e.engine ?? 'sim',
-            e.outcome,
-            e.verdict ?? '—',
-          ]),
-        ) +
-        (experiments.some((e) => e.stats && Object.keys(e.stats).length > 0)
-          ? '\n\n四口径统计摘要（均值）：\n\n' +
-            mdTable(
-              ['Claim', 'detection', 'false_positive', 'convergence_ms', 'latency_ms'],
-              experiments.map((e) => [
-                e.claimId,
-                num(e.stats?.detection_rate),
-                num(e.stats?.false_positive_rate),
-                num(e.stats?.convergence_time),
-                num(e.stats?.verification_latency),
-              ]),
-            )
-          : ''),
+    body: expBody,
   });
 
   // 5. 结论与判定

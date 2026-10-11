@@ -1,7 +1,0 @@
-# research-memory.yml — 记忆能力覆盖层（示例，未接入 bundle 列表）。
-#
-# 阶段 2 的记忆（Semantic/Episodic/Artifact/Hypothesis/Evidence 五类）由
-# research-agent.yml 的 dsh-research-core 行在运行时挂载；这里保留一个
-# 合法空数组占位。若要启用持久化，请在 profile overlay 中整行覆盖
-# dsh-research-core 行并给 `memory.dir`。（patch 按行 id 整行替换 config，不合并）
-[]

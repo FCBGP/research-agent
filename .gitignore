@@ -10,3 +10,8 @@ templates/
 
 # 系统与编辑器
 .DS_Store
+logs/
+research/
+
+# archive-research.mjs 默认落盘目录（research/ 归档快照，不入 git）
+/storage/

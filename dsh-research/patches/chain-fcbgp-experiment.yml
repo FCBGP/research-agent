@@ -1,0 +1,15 @@
+# chain-fcbgp-experiment.yml — 组合链 · 第 3 层：experiment-specific patch（实验专层）。
+#
+# 与 chain-research-policy.yml（第 1 层）/ chain-bgp-research.yml（第 2 层）按序叠加。
+# 本层落在 research-experiment 行：为 FC-BGP / 恶意 ASPP 情景钉死静态实验默认值
+# （config.defaults，plugin-experiment 消费；每次 runAutomatic/工具调用的显式输入覆盖默认值）。
+#
+# 语义：验证「恶意 ASPP（as-set-injection）在 sim 引擎 + rov+bgpsec 校验下的检测收益」战役，
+# 只给出 claim 即可复现，无需每次重传 env/validator/attackClass。
+- id: research-experiment
+  config:
+    defaults:
+      env: sim
+      validator: rov+bgpsec
+      attackClass: as-set-injection
+      repetitions: 4

@@ -1,4 +1,0 @@
-# research-policy.yml — 研究策略覆盖层（示例，未接入 bundle 列表）。
-# 阶段 3 起把 10 条 Research Agent Policy 固化为 profile 固有行为（写入行 config）。
-# 当前保留合法空数组占位。
-[]
