@@ -110,49 +110,11 @@
 - [x] V4 / V5 条件性 disputed 的展开：V4（ROV 高效但受 NotFound/覆盖前提限制）、V5（BGPsec 高效
   但受部分部署降级限制）需把"覆盖假设"参数化进 sim 网格再验证
 
-## 阶段 8 · TRIZ 方法论接入（2026-10-14 规划）
-
-> 需求：把 TRIZ（发明问题解决理论）加入 `dsh research`，作为假说生成 / 机制设计方法
-> （研究卡在「两难」时的机制方向来源）。定位：程序性方法论 → 服务 + skill（§7），
-> 输出永远是待核验假说（confidence=0.5），接 research_verify / research_campaign 闭环。
-
-### A · TRIZ 知识基 + 分析引擎
-
-- [x] 新建 `dsh-research/src/triz/data.ts`：40 发明原理（含路由提示）/ 39 技术参数 / 路由参数
-  中英别名表 / 精选矛盾矩阵（适配子集，诚实标注非全表）/ 启发式兜底原理表 / 启动原理
-- [x] 新建 `dsh-research/src/triz/index.ts`：resolveParameter（中/英/别名/模糊）→ principlesFor
-  （curated-matrix / heuristic-fallback / unresolved 三态如实标注）→ separation / evolution /
-  idealityFraming（IFR）→ toHypotheses（type=Hypothesis, source=triz, confidence=0.5）
-- [x] `dsh-research/src/triz/triz.test.ts`：9 单测全绿
-
-### B · 运行时接线
-
-- [x] `src/plugin-triz.ts`：host 插件 `dsh-research-triz`，ctx.provide('researchTriz')；
-  `cordis.patch.yml` host 5 → 6 行（research-core → research-triz → director → experiment →
-  writer → operations）；package.json exports 加 `./triz`
-- [x] `src/plugin-tools.ts`：runtime 加 triz 字段；第 14 个工具 `research_triz`
-  （problem/improving/worsening/record → source/candidates/separation/evolution/ideality/
-  hypotheses/artifactId；默认写 artifact + episodic, kind=triz）；research 14 全量 +
-  engineering 白名单 +triz = 7
-
-### C · skill + 打包 + 冒烟
-
-- [x] `skills/triz/SKILL.md`：矛盾 → 原理 → 假说 → 核验闭环 + 常见矛盾↔原理映射表 + 纪律
-- [x] `scripts/pack.sh` REQUIRED 加 `src/plugin-triz.js` + `skills/triz/SKILL.md`
-- [x] `runtime-smoke.mjs`：EXPECTED 14、ROLE_TOOLS.engineering +triz、servicesOk +researchTriz、
-  triz 冒烟块（curated-matrix 命中 + 3 假说）
-
-### D · 验证 + 文档
-
-- [x] 单测 146/146 全绿（基线 137 + TRIZ 9）；runtime-smoke **SMOKE PASS**
-  （tools 14/14、engineering 7/7、triz=true）；pack.sh **PACK OK**（0 个 src/*.ts）
-- [x] README.md / dsh-research/README.md / AGENTS.md 同步（7 插件 / 14 工具 / host 6 行 /
-  engineering 7 / skills 加 triz / 新增 TRIZ 小节）
 
 ## 里程碑
 
 
-- [x] 阶段 8 完成 = TRIZ 方法论接入（research_triz 工具 + triz skill）；146/146 单测 + SMOKE PASS（triz=true）
+- [x] 阶段 8 完成（`ce94b68`）= TRIZ 方法论接入（research_triz 工具 + triz skill）；146/146 单测 + SMOKE PASS（tools 14/14, engineering 7/7, triz=true）
 - [x] Phase 5 完成 = preset-research + 6 插件重构落地；SMOKE PASS 且 standard 会话无 research_*
 - [x] Phase 4 完成（收尾）= 仅剩 16c real subagent、多 Profile、`--patch` 链、npm 一键部署、
   报告跟进

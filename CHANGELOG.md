@@ -8,6 +8,51 @@
 
 ---
 
+## 2026-10-14 · 阶段 8 · TRIZ 方法论接入（`ce94b68`）
+
+需求：把 TRIZ（发明问题解决理论）加入 `dsh research`，作为**假说生成 / 机制设计方法**
+（研究卡在「两难」时的机制方向来源）。定位：TRIZ = 程序性方法论 → **服务 + skill**（AGENTS.md §7），
+不是领域知识（领域知识仍走 vocabulary.ts + WeKnora）；输出永远是**待核验假说**。
+
+- **知识基 + 分析引擎**（`src/triz/`）：`data.ts` —— 40 发明原理（每条含路由安全提示
+  routingHint）/ 39 技术参数 / 路由参数中英别名表（reliability・检测・收敛・抗劫持 ↔ 参数号）/
+  **精选矛盾矩阵**（适配子集，诚实标注非 39×39 全表转录）/ 启发式兜底原理表 / 启动原理集；
+  `index.ts` —— `resolveParameter`（中/英/别名/包含模糊）→ `principlesFor`（三态如实标注
+  `curated-matrix | heuristic-fallback | unresolved`）→ `separationFor`（空间/时间/条件/系统级）/
+  `evolutionFor`（进化法则视角）/ `idealityFraming`（IFR 理想解 / 有害作用 / 可用资源 / 增益）/
+  `toHypotheses`（`type=Hypothesis, source=triz, confidence=0.5`）。
+- **host 插件** `src/plugin-triz.ts`（package.json `exports` 加 `./triz`）：`ctx.provide('researchTriz')`；
+  `cordis.patch.yml` host 平面 **5 → 6 行**：`research-core` / **`research-triz`** / `research-director` /
+  `research-experiment` / `research-writer` / `research-operations`。
+- **第 14 个工具 `research_triz`**（`src/plugin-tools.ts`）：入参 `problem / improving / worsening /
+  record`（record 默认 true → 写 artifact + episodic, kind=triz），输出 `source / contradiction /
+  candidates / separation / evolution / ideality / hypotheses / artifactId`；仅在 research（14 全量）
+  与 engineering（白名单 +triz = **7**）会话可见。
+- **skill** `skills/triz/SKILL.md`：矛盾 → 原理 → 假说 → 核验闭环 + 常见路由安全矛盾 ↔ 原理映射表
+  （检测率↔收敛延迟 → 预操作/反馈/向缓冲；安全强度↔复杂度 → 中介/合并/局部质量…）；纪律 = 别把
+  TRIZ 方向当新发现，先对照既有工作（FC-BGP/ASPA 已含「反向/自证」、RPKI 预验证是「预操作」）。
+- **打包 / 冒烟同步**：`pack.sh` REQUIRED 加 `src/plugin-triz.js` + `skills/triz/SKILL.md`；
+  `runtime-smoke.mjs` EXPECTED 14、ROLE_TOOLS.engineering +triz、servicesOk +researchTriz、triz 冒烟块。
+- **文档**：README.md / dsh-research/README.md（新增「阶段 8」小节）/ profiles/README.md /
+  AGENTS.md（§7 skills 加 triz + 追加阶段 8 快照）同步；工具口径 13→14、host 5→6 行、插件 6→7、
+  engineering 6→7。
+
+**验证（沙箱，`DSH_HOME=/tmp/dsh-home`）：**
+- 单测 `node --test "src/**/*.test.ts"` = **146/146 全绿**（基线 137 + TRIZ 9：resolveParameter 中英
+  别名 / curated-matrix 命中 / heuristic-fallback / unresolved / separation+evolution / toHypotheses /
+  idealityFraming / createTrizService 端到端 / plugin-tools + triz）。
+- runtime-smoke → **SMOKE PASS**：`services=true`、`tools(14/14)=true`、`standard=0`、
+  `engineering:OK[7/7]`、`triz=true`（命中 curated-matrix：#11 Beforehand cushioning / #10 Preliminary
+  action / #23 Feedback，生成 3 条 Hypothesis，confidence=0.5）。
+- pack.sh → **PACK OK**：`src/plugin-triz.js` + `src/triz/{data,index}.js` + `skills/triz/SKILL.md`
+  进 tarball，包内 0 个 `src/*.ts`。
+
+**口径变更（自本阶段起）**：`research_*` 工具 = 14 全量（research）/ engineering 7；host 平面 6 行 /
+13 服务；bundle 插件 7 个（host 6 + preset tools 1）。阶段 4.5/5/6 快照里的 13 / 5 行 / 6 插件属当时
+口径，以本段为准。
+
+---
+
 ## 2026-10-10 · FC-BGP 概念修正 + 领域知识分层 + WeKnora 对接（6e2307f）
 
 - **FC-BGP 概念修正**：确认 FC-BGP = **Forwarding Commitment BGP**（基于「转发承诺（Forwarding
