@@ -8,6 +8,63 @@
 
 ---
 
+## 2026-10-14 · 域间路由意图（AS Intent）调研 + TRIZ 核验闭环
+
+需求：`research_triz` + 调研域间路由意图（inter-domain routing intent）——把「意图」作为跨 AS
+声明式安全策略表达/验证的调研题目：现状盘点 → Gap 定位 → TRIZ 机制方向 → 核验闭环 → 中文调研报告。
+
+- **现状盘点**：RFC 9315（意图通用概念，IRTF NMRG，域内管理域）、RFC 9234（BGP Roles/OTC =
+  角色意图）、ASPA draft-28（上游授权意图）、ROA/ROV（起源意图，RFC 6811/6480）、FC-BGP
+  （转发承诺意图，SIDR/IDR 工作项、草案期非 RFC）四类载体 + 通用概念层。
+- **Gap 实证**：datatracker `name__icontains=asintent` → 0 命中；`as-intent` → 仅 1 条过期
+  TEAS 草案（流量工程，非安全验证）；`intent` 全量 206 项均非路由安全 →「无统一 AS 路由
+  意图对象」成立（V1 verified）。
+- **TRIZ**：`research_triz`（测量精度 28 ↔ 系统复杂度 36，curated-matrix）→ 候选 #23 反馈 /
+  #2 抽取 / #24 中介；对照既有工作 #23/#2 已被内化，**#24 统一 AS 意图中介层 = 核心 Gap 方向
+  （假说 H-UNI, source=triz, confidence=0.5）**。
+- **实验（RouteEngineSim, reps=3, 阈值 0.8, 五指纹）**：base/prefix det=0.093；rov/prefix=0.792；
+  rov+aspa/subprefix=0.610 vs rov/subprefix=0.55（ASPA +0.06，C5 被证伪）；aspa/path-manip=0.650
+  （覆盖 ROV 盲区）；FP≤0.022。五指纹配置指纹 fp-2047234355 / fp-483651690 / fp-2040600629 /
+  fp-873252011 / fp-84288830。
+- **核验闭环**（research_verify）：V1 verified（无统一意图对象 Gap）；V2 verified（意图验证
+  0.093→0.55–0.79、FP≤0.022，「达 0.8」部分被数据否定）；C5 rejected（ASPA 在原子上 +0.06 且
+  独立覆盖路径操纵）；V3 disputed（H-UNI 受「表达力↔可判定性」取舍与 SIDR 单机制偏好约束，
+  仅设计假说，未实证）。
+- **产出**：`docs/domain-intent-survey.md`（中文调研报告：8 条文献按首次出现编号、表题前置、
+  逐条可追溯）+ `docs/output/domain-intent-survey.docx`（Word 版，report-word 转换管线）+
+  artifact 证据日志 art-5。
+- **口径决策（待用户确认）**：域间路由意图 = 跨 AS 声明式安全策略（origin/provider/role/
+  forwarding 四类意图对象 + 跨 AS 验证），**不**含域内 IBN 控制器意图；已在报告 §1.2 / §六
+  显式列明，用户认可后再将「意图/intent」词条增补进 vocabulary.ts。
+
+---
+
+## 2026-10-14 · 阶段 8.5 · 右侧栏「TRIZ 发明原理」面板（Web UI 可视化）
+
+需求（用户）：`dsh research` 的研究结果要在 **Web UI 右侧栏有一栏**，解释「最终结果用了 TRIZ
+的什么发明原理 / 为什么这么做」。承接 `research_triz` 工具（每次分析写 kind=note artifact），
+把 TRIZ 分析从「工具返回」升级为「右侧栏可视化的解释层」。分层：host 半边只读数据、浏览器半边
+只渲染，不进 Research Loop，不新增 `research_*` 工具。
+
+- **host 半边** `src/plugin-triz-ui.ts`（exports `./triz-ui`，inject `['connection']`）：
+  `cordis.patch.yml` 第 3 行（host 6 → **7 行**），在 connection 鉴权栅栏内挂**只读 GET**
+  `/api/research.triz.notes` —— 从 `researchCore.artifacts` 过滤 TRIZ note（kind=note /
+  !archived / source ∈ curated-matrix|heuristic-fallback|unresolved / title^="triz: "），
+  `createdAt` 降序取最近 10 条，回填 40 原理明细（no/name/summary/routingHint）+ 逐行假说。
+- **浏览器半边** `client/`：`dsh.client.platform: web` + `inject: @deepseek-ai/dsh-client-ui-sidebar-right`
+  两步注册 —— `definition.ts`（Tab 类型定义 kind=triz-explainer + guide 条目）+
+  `TrizTab.tsx`（按 tab 生命周期 signal 拉数据渲染）+ `route.ts`（client↔host 契约）。
+  `scripts/build-client.mjs`（esbuild）→ `lib/client.js`（ModuleLoader wrapper，已入库；
+  client-modules 按 `dsh.client` 声明自动加载）。
+- **面板内容**：问题 + 来源徽标 + 候选发明原理（编号/名称/摘要/路由提示）+ 推导假说；
+  UI 文案如实标注**待核验假说（source=triz, confidence=0.5）**，须验证后才成结论
+  （Research Agent Policy：不把工具生成当事实）。
+- **验证**：单测 **151/151 全绿**（+ `plugin-triz-ui.test.ts` 5）；runtime-smoke → **SMOKE PASS**
+  新增 `trizUi=true`（`research-triz-ui` 在组合树 + `connection.fetch` 可用）；build-client 复现
+  `lib/client.js`；dump-config 组合树含 `research-triz-ui` 行。
+
+---
+
 ## 2026-10-14 · 阶段 8 · TRIZ 方法论接入（`ce94b68`）
 
 需求：把 TRIZ（发明问题解决理论）加入 `dsh research`，作为**假说生成 / 机制设计方法**

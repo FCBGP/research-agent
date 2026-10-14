@@ -102,16 +102,17 @@
 
 | 文件 | 平面 | 内容 |
 |---|---|---|
-| `cordis.patch.yml` | host | 6 行：`research-core` / `research-triz` / `research-director` / `research-experiment` / `research-writer` / `research-operations`（行序 = 依赖顺序） |
+| `cordis.patch.yml` | host | 7 行：`research-core` / `research-triz` / `research-triz-ui` / `research-director` / `research-experiment` / `research-writer` / `research-operations`（行序 = 依赖顺序；阶段 8.5 起新增 `research-triz-ui`） |
 | `presets/research.patch.yml` | preset | `preset-research`（`@deepseek-ai/dsh-agent-preset`，id=research, order=2）：persona + research-tools + skill-filesystem + tool-skill + standard 基础工具集 |
 
-**7 个插件**（包 `exports` 显式子路径 `./core` `./triz` `./director` `./experiment`
-`./writer` `./operations` `./tools`）：
+**8 个插件**（包 `exports` 显式子路径 `./core` `./triz` `./triz-ui` `./director` `./experiment`
+`./writer` `./operations` `./tools`；另有浏览器半边 `./client`，见阶段 8.5）：
 
 | 插件 | 入口 | 平面 | 提供 |
 |---|---|---|---|
 | `dsh-research-core` | `src/plugin-core.ts` | host | `researchCore` / `researchMemory` / `researchAgents` |
 | `dsh-research-triz` | `src/plugin-triz.ts` | host | `researchTriz`（TRIZ 知识基 + 矛盾分析 / IFR / 假说生成） |
+| `dsh-research-triz-ui` | `src/plugin-triz-ui.ts` | host | 右侧栏「TRIZ 发明原理」面板数据源：`connection.fetch` 挂 `/api/research.triz.notes`（只读，不注册工具） |
 | `dsh-research-director` | `src/plugin-director.ts` | host | `researchDirector`（DAG 调度） |
 | `dsh-research-experiment` | `src/plugin-experiment.ts` | host | `researchExperiment`（自动实验战役） |
 | `dsh-research-writer` | `src/plugin-writer.ts` | host | `researchWriter`（论文 / 幻灯片） |
@@ -133,9 +134,10 @@
 
 ### 运行时插件（阶段 5 · 6 插件分片，Cordis 形态）— ✅ 已端到端挂载实测
 
-- 原 `src/plugin.ts` 巨型插件已拆为 7 个职责单一插件（服务名 / 工具 schema 语义零变化；
-  阶段 8 起新增 `dsh-research-triz`），挂载分两个平面：
-  - **host 平面**（`cordis.patch.yml` 6 行，行序 = 依赖顺序）提供 13 个服务 ——
+- 原 `src/plugin.ts` 巨型插件已拆为 8 个职责单一插件（服务名 / 工具 schema 语义零变化；
+  阶段 8 起新增 `dsh-research-triz`、阶段 8.5 起新增 `dsh-research-triz-ui`），挂载分两个平面：
+  - **host 平面**（`cordis.patch.yml` 7 行，行序 = 依赖顺序）提供 13 个服务（`research-triz-ui`
+    不 provide 服务，只挂右栏面板数据源 route）——
     `researchCore` / `researchMemory` / `researchAgents`（core）；`researchTriz`（triz）；`researchDirector`（director）；
     `researchExperiment`（experiment）；`researchWriter`（writer）；`researchPolicy` /
     `researchAutonomous` / `researchJobs` / `researchScheduler` / `researchSelfImprove` /
@@ -155,8 +157,8 @@
 # 1) 部署 profile（复制模板 + symlink 本包到 $DSH_HOME/profiles/research）
 DSH_HOME=/tmp/dsh-home ./scripts/deploy-profile.sh
 
-# 2) 组合树含 research-* 6 行 + preset-research（无旧 dsh-research-core 行）
-DSH_HOME=/tmp/dsh-home dsh --profile research --dump-config | grep -E "research-(core|triz|director|experiment|writer|operations)|preset-research"
+# 2) 组合树含 research-* 7 行 + preset-research（无旧 dsh-research-core 行）
+DSH_HOME=/tmp/dsh-home dsh --profile research --dump-config | grep -E "research-(core|triz|triz-ui|director|experiment|writer|operations)|preset-research"
 
 # 3) 运行时冒烟：13 服务（host，含 researchTriz）/ 14 工具（research 会话作用域，standard=0）/
 #    BGP claim→verify / campaign / policy / autonomous / job / schedule / reflect / subagents / triz
@@ -256,7 +258,8 @@ patch 栈，冒烟时断言 `policy rules: 12`（L1）与 `chain defaults-only c
   `idealityFraming`（IFR 理想解 / 有害作用 / 可用资源 / 增益）+ `toHypotheses`
   （把候选原理翻译成机制方向假说，`type=Hypothesis, source=triz, confidence=0.5`）。
 - **host 插件** `src/plugin-triz.ts`（exports `./triz`）：`ctx.provide('researchTriz', …)`，
-  挂在 host 平面第 2 行（`research-core` 之后 / `research-director` 之前），使 host 由 5 → **6 行**。
+  挂在 host 平面第 2 行（`research-core` 之后 / `research-director` 之前），使 host 由 5 → **6 行**；
+  阶段 8.5 再把 `research-triz-ui` 插在第 3 行（`research-triz` 之后），host 6 → **7 行**。
 - **工具** `research_triz`（第 14 个 `research_*`，仅 research 全量 + engineering 白名单可见）：
   入参 `problem / improving / worsening / record`（record 默认 true 写 artifact + episodic, kind=triz）；
   返回 `source / contradiction / candidates / separation / evolution / ideality / hypotheses / artifactId`。
@@ -278,11 +281,43 @@ patch 栈，冒烟时断言 `policy rules: 12`（L1）与 `chain defaults-only c
 - pack.sh → 产物含 `src/plugin-triz.js` + `src/triz/{data,index}.js` + `skills/triz/SKILL.md`，
   反证包内 0 个 `src/*.ts`（PACK OK）。
 
+### 阶段 8.5 · 右侧栏「TRIZ 发明原理」面板（2026-10-14：Web UI 数据可视化，✅ 已实现并自测）
+
+> 需求（用户）：`dsh research` 的研究结果要在 **Web UI 右侧栏有一栏**，解释「最终结果用了
+> TRIZ 的什么发明原理 / 为什么这么做」。承接阶段 8 的 `research_triz` 工具——每次分析都写
+> artifact（kind=note, meta.source ∈ 三态, title 以 `triz: ` 开头），本阶段把这批 artifact
+> 变成右侧栏一个可读面板。分层：**host 半边只管读数据，浏览器半边只管渲染**，不进入
+> Research Loop，也不新增任何 `research_*` 工具。
+
+- **host 半边** `src/plugin-triz-ui.ts`（exports `./triz-ui`，inject `['connection']`）：
+  `cordis.patch.yml` 第 3 行（`research-triz` 之后 / `research-director` 之前），在 connection
+  鉴权栅栏内挂**只读 GET** `/api/research.triz.notes`——从 `researchCore.artifacts` 过滤
+  `research_triz` 写入的 note（`kind=note && !archived && source ∈ triz 三态 && title^="triz: "`），
+  按 `createdAt` 降序取最近 **10** 条，回填 40 原理明细（no/name/summary/routingHint）与逐行假说。
+- **浏览器半边** `client/`（`dsh.client.platform: web` + `inject: ['@deepseek-ai/dsh-client-ui-sidebar-right']`）：
+  两步注册（与 ui-deliverables 同款）——stage one `sidebarRightTabs.register`（Tab 类型定义 +
+  guide 条目「TRIZ 发明原理」），stage two `slots.inject('sidebar.right.pane.tab', …)` 挂
+  `TrizTab.tsx` 组件（按 tab 生命周期 signal 拉取 `/api/research.triz.notes` 渲染）。
+  `scripts/build-client.mjs` 用 esbuild 打成 `lib/client.js`（ModuleLoader wrapper，已入库），
+  profile 部署后由 client-modules 按 `package.json` 的 `dsh.client` 声明自动加载。
+- **面板内容**：每条 TRIZ 分析 = 问题 + 来源徽标（curated-matrix / heuristic-fallback /
+  unresolved）+ 候选发明原理（编号 / 名称 / 一句话摘要 / 路由提示）+ 逐行推导假说。文案
+  **如实标注为待核验假说（source=triz, confidence=0.5）**，须经 research_verify /
+  research_campaign 验证后才成为结论——遵守 Research Agent Policy（不把模型/工具生成当事实）。
+
+**验证（沙箱，`DSH_HOME=/tmp/dsh-home`）：**
+- 单测 **151/151 全绿**（基线 146 + `plugin-triz-ui.test.ts` 5：isTrizArtifact 判定 / 40 原理
+  明细回填 / 降序取最近 N / researchCore 缺失安全空 / apply 挂 route + GET 返回 `{notes}`）。
+- runtime-smoke → **SMOKE PASS**：新增 `trizUi=true`（`research-triz-ui` 在组合树里 +
+  `connection.fetch` 可用，host 数据源挂载）。
+- `ESBUILD_BIN=<esbuild> node scripts/build-client.mjs` → 复现 `lib/client.js`（module id
+  `@basil/dsh-research`，esbuild internal 变量名可能因版本浮动，功能等价）。
+
 ## npm 打包与一键部署（2026-10-09：TODO「一键部署」✅）
 
 
 `@basil/dsh-research` 是**可 npm 安装的 bundle 包**：`package.json` 声明了
-`dsh.bundle.patch`（3 片 bundle patch）与 7 个插件子路径 `exports`；用
+`dsh.bundle.patch`（3 片 bundle patch）与 8 个插件子路径 `exports`（+ 浏览器 `./client`）；用
 `dsh plugin --profile <name> add` 安装后是 `node_modules` 下的**真实拷贝**，可被 dsh
 运行时直接 import。**与 `deploy-profile.sh` 是两条互补路径，不存在替代关系**：
 
@@ -324,7 +359,7 @@ dsh plugin --profile research add @basil/dsh-research
 
 `dsh plugin --profile <name> add` 在 profile 目录（首次自动初始化）里跑 pnpm：把该包加入
 `dependencies`，并把 `@basil/dsh-research` 追加进 `dsh.profile.bundles`，组合树即含
-research-* 6 行 + preset-research。
+research-* 7 行 + preset-research。
 
 ### 一键部署（本地 tarball，发布前验证同构流程）
 
@@ -335,7 +370,7 @@ DSH_HOME=${DSH_HOME:-$HOME/.dsh} node dsh-research/scripts/boot-probe.mjs   # �
 ```
 
 > 沙箱实测（2026-10-09）：tarball 经 `dsh plugin --profile research add` 装进 scratch profile
-> → `--dump-config` 组合树含 research-* 6 行 + preset-research；boot-probe →
+> → `--dump-config` 组合树含 research-* 7 行 + preset-research；boot-probe →
 > `boot:researchCore YES (all 9 research services up)`（0 个 failed-to-import），dev symlink
 > 路径的 runtime-smoke 不受影响（SMOKE PASS）。
 >
@@ -369,6 +404,7 @@ node --test "src/**/*.test.ts"   # core + memory + agents + triz + director + pl
 - `src/plugin-tools.ts` / `src/plugin-tools.test.ts` — 阶段 5 preset 平面插件：14 个
   `research_*` 工具（research 会话作用域，含 `research_triz`）；`src/plugin.test.ts` — 插件自检（内存假 ctx）
 - `src/plugin.ts` — 兼容 re-export（不再承载实现；`main` / `exports` 指向 7 插件分片）
+- `scripts/build-client.mjs` — 用 esbuild 把 `client/`（TS/TSX）打成右侧栏面板浏览器 bundle → `lib/client.js`（ModuleLoader wrapper；`$ESBUILD_BIN` / 本地 esbuild / CLI 三级兜底）
 - `scripts/pack.sh` — 一键打包 `@basil/dsh-research` 为**可 boot** 的 npm tarball（单测 → `build.mjs` 构建 staging → npm pack → 产物校验；`VERIFY_INSTALL=1` 时再用 `dsh plugin add` 安装 + boot 验证）
 - `scripts/build.mjs` — 为发行包构建 staging：`src/*.ts` 类型剥离（`node:module.stripTypeScriptTypes`，零依赖）+ 相对 import `.ts→.js` + 改写 staging `package.json`（`main`/`exports` 指向 `.js`）
 - `scripts/boot-probe.mjs` — 最小 boot 探针：验证 profile 能 boot 且 researchCore 就绪（专测 npm 实装包，能识别 `.ts` 缺陷导致的 `failed to import`）
@@ -376,7 +412,8 @@ node --test "src/**/*.test.ts"   # core + memory + agents + triz + director + pl
 - `scripts/archive-research.mjs` — 归档 `research/` 三文件 → Memory artifact store（art-1…art-13；`--check` 回读断言，`--dir`/`RESEARCH_MEMORY_DIR` 指定落盘目录）
 - `scripts/runtime-smoke.mjs` — in-dsh 运行时冒烟（preset 作用域工具断言 + standard=0 反证 + 角色预设断言；`SMOKE_OVERLAYS` 注入 `--patch` 链）
 - `scripts/verify-patch-chain.sh` — `--patch` 组合链一键验证（dump 离线组合 + 后层赢 + 运行时 + 单测）
-- `cordis.patch.yml` / `presets/research.patch.yml` / `presets/roles.patch.yml` — bundle patch 分片（host 6 行 + preset-research + 4 角色 preset）
+- `cordis.patch.yml` / `presets/research.patch.yml` / `presets/roles.patch.yml` — bundle patch 分片（host 7 行 + preset-research + 4 角色 preset）
 - `patches/` — 组合链覆盖层（`chain-research-policy.yml` / `chain-bgp-research.yml` /
   `chain-fcbgp-experiment.yml`）；旧空占位（research-tools / research-policy / research-memory）已随阶段 5 删除——policy / 模型注入改走 `cordis.patch.yml` + 插件行
 - `skills/` — 程序性 skill：experiment / paper-review / triz（阶段 2+ / 阶段 8；领域知识 2026-10-10 起走 vocabulary.ts + docs/domain-knowledge-notes.md + WeKnora，不再入 skill 目录）
+- `client/` — 浏览器半边（阶段 8.5）：右侧栏「TRIZ 发明原理」Tab 的注册 / 定义 / 路由契约 / 组件；`lib/client.js` 为构建产物（已入库）

@@ -358,10 +358,18 @@ if (trizSvc?.analyzeProblem && trizSvc?.toHypotheses) {
   console.log('triz:', a.source, '| candidates:', a.candidates.map((c) => `#${c.no} ${c.name}`).join(', '), '| hypotheses:', hs.length);
 }
 
+// 阶段 8.5 冒烟：右侧栏「TRIZ 发明原理」面板 —— host 半边插件（research-triz-ui）必须在
+// 组合树里，且 connection.fetch（route 注册依赖）可用；浏览器半边（client bundle）由
+// client-modules 按 package.json 的 dsh.client 声明加载，本冒烟只验 host 数据源挂载。
+const trizUiEntryOk = [...(ctx.get('loader')?.entries?.() ?? [])]
+  .some((entry) => entry?.options?.name === '@basil/dsh-research/triz-ui');
+const trizUiOk = trizUiEntryOk && !!ctx.get('connection')?.fetch?.register;
+console.log('triz-ui:', trizUiOk ? 'OK (right-sidebar TRIZ explainer route source mounted)' : 'FAIL');
+
 const servicesOk = ['researchCore', 'researchMemory', 'researchAgents', 'researchDirector', 'researchExperiment', 'researchWriter', 'researchPolicy', 'researchAutonomous', 'researchJobs', 'researchScheduler', 'researchSelfImprove', 'researchSubagents', 'researchTriz'].every((s) => ctx.get(s) !== undefined);
-const ok = servicesOk && toolOk && standardClean && rolesOk && verdict === 'verified' && domainOk && searchOk && campaignOk && policyOk && autoOk && jobOk && schedOk && reflectOk && subagentsOk && chainDefaultsOk && trizOk;
+const ok = servicesOk && toolOk && standardClean && rolesOk && verdict === 'verified' && domainOk && searchOk && campaignOk && policyOk && autoOk && jobOk && schedOk && reflectOk && subagentsOk && chainDefaultsOk && trizOk && trizUiOk;
 await ctx.fiber.dispose();
 console.log('disposed OK');
 console.log(ok ? 'SMOKE PASS' : 'SMOKE FAIL');
-console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} standard=${standardClean} roles=${rolesOk} verdict=${verdict} domain=${domainOk} search=${searchOk} campaign=${campaignOk} policy=${policyOk} autonomous=${autoOk} job=${jobOk} schedule=${schedOk} reflect=${reflectOk} subagents=${subagentsOk} chainDefaults=${chainDefaultsOk} triz=${trizOk}`);
+console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} standard=${standardClean} roles=${rolesOk} verdict=${verdict} domain=${domainOk} search=${searchOk} campaign=${campaignOk} policy=${policyOk} autonomous=${autoOk} job=${jobOk} schedule=${schedOk} reflect=${reflectOk} subagents=${subagentsOk} chainDefaults=${chainDefaultsOk} triz=${trizOk} trizUi=${trizUiOk}`);
 process.exit(ok ? 0 : 2);

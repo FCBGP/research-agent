@@ -511,3 +511,38 @@ host 平面 = **6 行 / 13 服务**、bundle 插件 = **7 个**（host 6 + prese
 `research_triz problem="ROV 提升劫持检测率但跨长收敛" improving="检测" worsening="收敛"`，
 读 `candidates / separation / evolution / ideality / hypotheses`，挑高信息增益方向走
 `research_verify` / `research_campaign` 核验；完整工作流见 `skills/triz/SKILL.md`。
+
+## 阶段 8.5 · 右侧栏「TRIZ 发明原理」面板（2026-10-14）
+
+需求（用户）：`dsh research` 的研究结果要在 **Web UI 右侧栏有一栏**，解释「最终结果用了 TRIZ
+的什么发明原理 / 为什么这么做」。承接 `research_triz` 每次分析写的 kind=note artifact，把 TRIZ
+分析升级为**右侧栏可读的解释层**。分层：host 半边只读数据、浏览器半边只渲染，不进 Research
+Loop，不新增 `research_*` 工具。
+
+改动：
+- 新增 host 插件 `dsh-research/src/plugin-triz-ui.ts`（exports `./triz-ui`，inject `['connection']`）：
+  `cordis.patch.yml` host 平面 6 → **7 行**（`research-core` / `research-triz` /
+  **`research-triz-ui`** / `research-director` / …），在 connection 鉴权栅栏内挂**只读 GET**
+  `/api/research.triz.notes` —— 从 `researchCore.artifacts` 过滤 TRIZ note（kind=note /
+  !archived / source ∈ triz 三态 / title^="triz: "），`createdAt` 降序取最近 10 条，回填
+  40 原理明细（no/name/summary/routingHint）+ 逐行假说。
+- 新增浏览器半边 `dsh-research/client/`（`dsh.client.platform: web` + `inject:
+  ['@deepseek-ai/dsh-client-ui-sidebar-right']`）：`definition.ts`（sidebarRightTabs Tab 类型 +
+  guide 条目）+ `TrizTab.tsx`（按 tab 生命周期 signal 拉 `/api/research.triz.notes` 渲染）+
+  `route.ts`（两侧契约）。`scripts/build-client.mjs`（esbuild，`$ESBUILD_BIN`/本地/CLI 三级兜底）
+  → `lib/client.js`（ModuleLoader wrapper，已入库；client-modules 按 `dsh.client` 声明加载）。
+- 面板内容：问题 + 来源徽标（curated-matrix / heuristic-fallback / unresolved）+ 候选发明原理
+  （编号/名称/摘要/路由提示）+ 逐行推导假说；UI 文案如实标注**待核验假说（source=triz,
+  confidence=0.5）**，须经 research_verify / research_campaign 验证后才成结论（Policy §9）。
+
+**口径变更（自本阶段起）**：host 平面 = **7 行 / 13 服务**（triz-ui 不 serve 服务）、
+bundle 插件 = **8 个**（host 7 + preset tools 1）；阶段 8 快照里的 6 行 / 7 插件属当时口径。
+
+实测（沙箱，`DSH_HOME=/tmp/dsh-home`）：
+- `node --test "src/**/*.test.ts"` = **151/151 全绿**（基线 146 + plugin-triz-ui 5）。
+- runtime-smoke → **SMOKE PASS**：`trizUi=true`（`research-triz-ui` 在组合树 + `connection.fetch`
+  可用）；dump-config 组合树含 `research-triz-ui` 行；build-client 复现 `lib/client.js`。
+
+用法（用户口径）：`dsh research` 启动 Web UI 后，右侧栏打开「TRIZ 发明原理」面板即可看到
+本次研究过程里 `research_triz` 分析出的发明原理与推理链；配合 `skills/triz/SKILL.md` 把候选
+方向接 research_verify / research_campaign 核验。

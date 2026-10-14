@@ -16,9 +16,9 @@ export class ArtifactStore {
   private items = new Map<string, Artifact>();
   private seq = 0;
 
-  put(partial: Omit<Artifact, 'id' | 'createdAt' | 'archived'>): Artifact {
+  put(partial: Omit<Artifact, 'id' | 'createdAt' | 'archived'> & { createdAt?: string }): Artifact {
     this.seq += 1;
-    const a: Artifact = { ...partial, id: `art-${this.seq}`, createdAt: new Date().toISOString(), archived: false };
+    const a: Artifact = { ...partial, id: `art-${this.seq}`, createdAt: partial.createdAt ?? new Date().toISOString(), archived: false };
     this.items.set(a.id, a);
     return a;
   }

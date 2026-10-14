@@ -233,6 +233,12 @@ experiment / paper-review）。
 research_triz problem="ROV 提升劫持检测率但跨长收敛" improving="检测" worsening="收敛"
 ```
 
+- **右侧栏可视化（阶段 8.5）**：Web UI 右侧栏新增「TRIZ 发明原理」面板（host
+  `/api/research.triz.notes` + 浏览器 bundle `client/` → `lib/client.js`）——把研究过程里
+  `research_triz` 分析出的发明原理（编号/名称/摘要/路由提示）与推导假说列成可读卡片，
+  解释「这个方案用了 TRIZ 的什么原理」；UI 如实标注待核验假说，接 research_verify /
+  research_campaign 闭环后才成为结论。
+
 ## WeKnora 知识库对接（dsh ↔ 腾讯 WeKnora，2026-10-10）
 
 `dsh research` 可通过官方插件 `@wxg-prc-cpg/dsh-weknora` 连上已有 WeKnora 部署

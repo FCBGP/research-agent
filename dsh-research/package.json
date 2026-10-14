@@ -1,7 +1,7 @@
 {
   "name": "@basil/dsh-research",
-  "version": "0.2.0",
-  "description": "dsh-routing-research bundle for dsh: inter-domain routing security (BGP / RPKI / BGPsec / ASPA / VRO / CRC / FC-BGP; FRR / VPP executors) research/verification/experiment loops, artifact store, domain skills. Operational command stays `dsh research`.",
+  "version": "0.2.1",
+  "description": "dsh-routing-research bundle for dsh: inter-domain routing security (BGP / RPKI / BGPsec / ASPA / VRO / CRC / FC-BGP; FRR / VPP executors) research/verification/experiment loops, artifact store, domain skills, Web right-sidebar TRIZ explainer. Operational command stays `dsh research`.",
   "type": "module",
   "scripts": {
     "test": "node --test \"src/**/*.test.ts\"",
@@ -9,15 +9,19 @@
     "deploy:profile": "./scripts/deploy-profile.sh",
     "pack": "./scripts/pack.sh",
     "prepack": "echo '⛔ no direct npm pack/publish: use npm run pack (builds bootable .js staging + packs) -- see scripts/pack.sh' >&2; exit 1",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "build:client": "node scripts/build-client.mjs"
   },
   "files": [
     "src",
+    "client",
+    "lib",
     "cordis.patch.yml",
     "presets",
     "patches",
     "skills",
     "scripts/runtime-smoke.mjs",
+    "scripts/build-client.mjs",
     "README.md"
   ],
   "publishConfig": {
@@ -29,6 +33,12 @@
         "./cordis.patch.yml",
         "./presets/research.patch.yml",
         "./presets/roles.patch.yml"
+      ]
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
       ]
     }
   },
@@ -62,9 +72,16 @@
       "types": "./src/plugin-triz.ts",
       "default": "./src/plugin-triz.ts"
     },
+    "./triz-ui": {
+      "types": "./src/plugin-triz-ui.ts",
+      "default": "./src/plugin-triz-ui.ts"
+    },
     "./tools": {
       "types": "./src/plugin-tools.ts",
       "default": "./src/plugin-tools.ts"
+    },
+    "./client": {
+      "default": "./lib/client.js"
     },
     "./src/*": "./src/*",
     "./package.json": "./package.json"

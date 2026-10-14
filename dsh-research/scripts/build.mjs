@@ -81,11 +81,14 @@ function stagedPackageJson(pkg) {
   next.exports = exportsOut;
   next.files = [
     'src',
+    'lib',
+    'client',
     'cordis.patch.yml',
     'presets',
     'patches',
     'skills',
     'scripts/runtime-smoke.mjs',
+    'scripts/build-client.mjs',
     'README.md',
   ];
   return next;
@@ -119,7 +122,7 @@ for (const rel of walkFiles(srcDir)) {
 }
 
 // 3) 非 src 运行时/验证资产复制
-for (const rel of ['README.md', 'cordis.patch.yml', 'presets', 'patches', 'skills', 'scripts/runtime-smoke.mjs']) {
+for (const rel of ['README.md', 'cordis.patch.yml', 'presets', 'patches', 'skills', 'scripts/runtime-smoke.mjs', 'scripts/build-client.mjs', 'lib', 'client']) {
   const source = join(PKG_DIR, rel);
   if (!existsSync(source)) throw new Error(`missing package asset: ${source}`);
   const dest = join(outDir, rel);

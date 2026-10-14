@@ -111,10 +111,21 @@
   但受部分部署降级限制）需把"覆盖假设"参数化进 sim 网格再验证
 
 
+## 在研 · 域间路由意图（AS Intent）调研跟进（2026-10-14 调研完成，报告 docs/domain-intent-survey.md）
+
+- [ ] 真实网元复测：FRR/VPP 可用后复跑四攻击 × 四策略矩阵，把 rov/aspa 增量结论（subprefix
+  +0.06、path-manip 0.65）从 sim 证据升级为真实网元证据（`executors.ts` simulated 随 engine 改写）
+- [ ] H-UNI 最小原型：统一 AS 意图对象 + 组合验证算法，与分散对象对比一致性维护/验证开销
+  （设计假说 V3 目前 disputed，需实证后升级）
+- [ ] WeKnora 建库后正文级反证检索：RFC 9315/9234/ASPA/FC-BGP 全文检索「统一意图对象」
+- [ ] 用户确认「跨 AS 安全意图」口径后，向 `src/domain/vocabulary.ts` GLOSSARY 增补
+  「意图/intent」词条（唯一口径来源，未确认前不改）
+
 ## 里程碑
 
 
 - [x] 阶段 8 完成（`ce94b68`）= TRIZ 方法论接入（research_triz 工具 + triz skill）；146/146 单测 + SMOKE PASS（tools 14/14, engineering 7/7, triz=true）
+- [x] 阶段 8.5 完成 = 右侧栏「TRIZ 发明原理」面板（host `/api/research.triz.notes` + client bundle `lib/client.js`）；151/151 单测 + SMOKE PASS（trizUi=true），暂无未完成子项
 - [x] Phase 5 完成 = preset-research + 6 插件重构落地；SMOKE PASS 且 standard 会话无 research_*
 - [x] Phase 4 完成（收尾）= 仅剩 16c real subagent、多 Profile、`--patch` 链、npm 一键部署、
   报告跟进
