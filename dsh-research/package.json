@@ -58,6 +58,10 @@
       "types": "./src/plugin-operations.ts",
       "default": "./src/plugin-operations.ts"
     },
+    "./triz": {
+      "types": "./src/plugin-triz.ts",
+      "default": "./src/plugin-triz.ts"
+    },
     "./tools": {
       "types": "./src/plugin-tools.ts",
       "default": "./src/plugin-tools.ts"

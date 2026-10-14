@@ -6,7 +6,7 @@
 （Research Loop / Verification Loop / Experiment Loop）。
 
 本仓库只做 dsh 的**上层叠加**：`dsh` 是运行时（操作系统底座），
-我们的成果 = **profile + bundle（preset + 6 插件）+ skills**，
+我们的成果 = **profile + bundle（preset + 7 插件）+ skills**，
 **绝不修改 `deepseek-harness/` 内部代码**。
 
 ## 命名定型（2026-10-09）
@@ -32,12 +32,13 @@ research-agents/
 │   ├── src/agents/               # Literature / Reviewer / Experiment 三角色
 │   ├── src/research-director/ + 三个 loop/   # 调度与三条循环
 │   ├── src/experiment/           # 实验层：stats / RouteEngineSim / FRR·VPP 适配器 / 自动战役
-│   ├── src/plugin-*.ts           # Cordis 插件六片：core/director/experiment/writer/operations/tools
+│   ├── src/plugin-*.ts           # Cordis 插件七片：core/triz/director/experiment/writer/operations/tools
 │   │                             #   （plugin.ts 仅为兼容 re-export，运行时挂载走子路径）
+│   ├── src/triz/                 # TRIZ 知识基 + 分析引擎（40 原理 / 39 参数 / 精选矛盾矩阵 / IFR）
 │   ├── presets/                  # preset 平面：research.patch.yml（preset-research）
 │   │                             #   + roles.patch.yml（paper/experiment/engineering/reviewer）
 │   ├── patches/                  # bundle 组合：chain-{research-policy,bgp-research,fcbgp-experiment}.yml（--patch 组合链）
-│   ├── skills/                   # 程序性 skill：experiment / paper-review（领域知识见 docs/domain-knowledge-notes.md + WeKnora）
+│   ├── skills/                   # 程序性 skill：experiment / paper-review / triz（领域知识见 docs/domain-knowledge-notes.md + WeKnora）
 │   └── scripts/                  # deploy-profile.sh / runtime-smoke.mjs / verify-patch-chain.sh / pack.sh
 ├── profiles/              # 可部署 Profile 模板（research + paper/experiment/engineering/reviewer）
 ├── research/              # 研究产出（报告 / 实验数据 / 实验脚本）
@@ -81,7 +82,7 @@ DSH_HOME="$HOME/.dsh" dsh --profile research --dump-config | grep -E "web|resear
 # 4. 运行（dsh research == dsh --profile research；research profile 基于 web，启动 Web UI）
 dsh research
 #   → 浏览器打开 DeepSeek Harness Web UI（默认 http://127.0.0.1:3080/）。
-#     科研任务（13 个 research_* 工具：research_autonomous / research_campaign 等）
+#     科研任务（14 个 research_* 工具：research_autonomous / research_campaign / research_triz 等）
 #     在浏览器会话里交互执行；web 基座不接受位置参数（不支持 `dsh research "<任务>"`）。
 #   不想自动开浏览器：dsh research --no-open；改端口：dsh research --port 8080
 ```
@@ -95,7 +96,7 @@ dsh research
 `pack.sh` 把 `@basil/dsh-research` 打成一个**可 boot 的** npm tarball：
 先用 `scripts/build.mjs` 构建 staging（类型剥离 + 相对 import `.ts→.js` + staged
 `package.json`），再 `npm pack`；产物**只含编译后 JS**（含 `.ts` 视为失败项），
-并校验包内必须包含 5 个 host 插件 / presets / chain patches / skills / smoke 脚本。
+并校验包内必须包含 6 个 host 插件 / presets / chain patches / skills / smoke 脚本。
 
 ```bash
 # 1. 打包（跑单测 → 构建 staging → npm pack → 产物内容校验）
@@ -139,9 +140,9 @@ DSH_HOME=/tmp/dsh-home ./dsh-research/scripts/verify-patch-chain.sh
 
 ```bash
 # 单元测试（不依赖 dsh）
-cd dsh-research && node --test "src/**/*.test.ts"     # 137/137 全绿
+cd dsh-research && node --test "src/**/*.test.ts"     # 146/146 全绿
 
-# dsh 真实运行树冒烟：服务 + 13/13 工具 + standard 无 research_* + roles + 链默认
+# dsh 真实运行树冒烟：服务 + 14/14 工具（含 TRIZ）+ standard 无 research_* + roles + 链默认
 DSH_HOME=/tmp/dsh-home ./dsh-research/scripts/deploy-profile.sh
 DSH_HOME=/tmp/dsh-home node dsh-research/scripts/runtime-smoke.mjs   # → SMOKE PASS
 
@@ -208,6 +209,29 @@ BGP 安全研究，IETF SIDR/IDR 方向、草案阶段非 RFC），**不是**此
 （无人机组网）」。已同步修正 `vocabulary.ts` GLOSSARY 与 `docs/domain-knowledge-notes.md`；
 原 `skills/{bgp,bgpsec,fcbgp,rpki}` 参考速查已从 skill 目录迁出（skill 目录保留程序性两个：
 experiment / paper-review）。
+
+## TRIZ 方法论接入（2026-10-14：假说生成 / 机制设计工具）
+
+**TRIZ = 程序性方法论**（「怎么想出新机制」），与领域知识（BGP/RPKI/…「是什么」）正交：
+领域知识走 `vocabulary.ts` + WeKnora，TRIZ 给的是**矛盾形式化 + 发明原理 → 机制方向假说**。
+
+- **服务**：host 插件 `dsh-research-triz`（`src/plugin-triz.ts`）提供 `researchTriz`
+  服务（`src/triz/` 知识基：40 发明原理·含路由提示、39 技术参数·含路由中英别名、精选矛盾矩阵、
+  IFR 理想解、分离/进化视角）。
+- **工具**：`research_triz`（第 14 个 `research_*` 工具，只在 research / engineering 会话可见）——
+  入参 `problem / improving / worsening / record`，返回
+  `source / contradiction / candidates / separation / evolution / ideality / hypotheses / artifactId`；
+  默认写入 artifact + 情景记忆（kind: triz）。
+- **输出永远是假说**：`hypotheses` 为 `type=Hypothesis, source=triz, confidence=0.5`，
+  必须经 `research_verify` / `research_campaign` 核验后才能成为 claim（Research Agent Policy）。
+- **诚实标注**：矩阵是**精选适配子集**（非 39×39 全表转录），未命中走启发式兜底并如实标
+  `source=heuristic-fallback / unresolved`。
+- **工作流**：`skills/triz/SKILL.md`——矛盾 → 原理 → 假说 → 核验闭环；常见矛盾↔原理映射表见该 skill。
+
+```bash
+# 在 research 会话里用（web UI 执行）
+research_triz problem="ROV 提升劫持检测率但跨长收敛" improving="检测" worsening="收敛"
+```
 
 ## WeKnora 知识库对接（dsh ↔ 腾讯 WeKnora，2026-10-10）
 

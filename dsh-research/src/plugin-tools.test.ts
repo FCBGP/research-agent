@@ -2,7 +2,7 @@
 // plugin-tools.ts 的 apply()，验证：
 //   (1) inject ['tools']（插件声明依赖 dsh-tools 的 ctx.tools）
 //   (2) ctx.get(researchCore/…) 消费 host 平面 5 插件提供的 12 个服务
-//   (3) 13 个 research_* 工具全部原样注册；返回的 disposer 能全部卸载
+//   (3) 14 个 research_* 工具全部原样注册（含 research_triz）；返回的 disposer 能全部卸载
 //   (4) 任一 host 核心服务缺失 → 优雅跳过（不注册半吊子工具）
 //   (5) config.tools.enabled=false → 跳过注册
 //   (6) research_verify / research_record 经 ctx.get 装配的 runtime 可真实执行
@@ -14,6 +14,7 @@ import { LocalCorpusSource } from './agents/literature.ts';
 import { SEED_CORPUS } from './agents/corpus.ts';
 import { PRODUCT_NAME, COMMAND, PROFILE_FLAG, DOMAIN_SCOPE, DOMAIN_EXECUTORS, DOMAIN_KEYWORDS, GLOSSARY, describeDomain, scopeList, executorList } from './domain/index.ts';
 import { newClaim, addEvidence, addCounterEvidence, synthConfidence } from './core/claim.ts';
+import { createTrizService } from './triz/index.ts';
 import { runVerification } from './core/verification.ts';
 import { ArtifactStore } from './core/artifact-store.ts';
 
@@ -51,7 +52,7 @@ function makeGuestCtx(provided: Record<string, unknown>): FakeCtx {
   return ctx as unknown as FakeCtx;
 }
 
-const TOOL_NAMES = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy', 'research_job', 'research_schedule', 'research_reflect'];
+const TOOL_NAMES = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy', 'research_job', 'research_schedule', 'research_reflect', 'research_triz'];
 
 /** host 平面 12 个服务的齐全 stub（researchCore 用真实 core 模块，可跑执行冒烟）。 */
 function hostServices(): Record<string, unknown> {
@@ -101,6 +102,7 @@ function hostServices(): Record<string, unknown> {
     researchScheduler: {},
     researchSelfImprove: {},
     researchSubagents: {},
+    researchTriz: createTrizService(),
   };
 }
 
@@ -108,7 +110,7 @@ function registeredNames(ctx: FakeCtx): string[] {
   return ctx.registeredTools.map((t) => (t as { name: string }).name);
 }
 
-test('plugin-tools: inject 声明依赖 ctx.tools，host 服务齐全时注册全部 13 个工具且可卸载', () => {
+test('plugin-tools: inject 声明依赖 ctx.tools，host 服务齐全时注册全部 14 个工具（含 research_triz）且可卸载', () => {
   assert.equal(name, 'dsh-research-tools');
   assert.deepEqual([...inject], ['tools'], '必须 inject ["tools"] 才能读 ctx.tools');
 
@@ -116,9 +118,9 @@ test('plugin-tools: inject 声明依赖 ctx.tools，host 服务齐全时注册�
   const dispose = apply(ctx as never);
 
   assert.equal(typeof dispose, 'function', '应返回 disposer');
-  assert.deepEqual(registeredNames(ctx).sort(), [...TOOL_NAMES].sort(), '13 个 research_* 全部注册');
+  assert.deepEqual(registeredNames(ctx).sort(), [...TOOL_NAMES].sort(), '14 个 research_* 全部注册');
 
-  // 卸载后 13 个全部注销
+  // 卸载后 14 个全部注销
   dispose!();
   assert.equal(ctx.registeredTools.length, 0);
   assert.equal(ctx.unregisteredTools.length, TOOL_NAMES.length);
@@ -160,7 +162,7 @@ test('plugin-tools: config.tools.only 白名单裁剪 — 只注册列出的 res
   assert.equal(ctx.unregisteredTools.length, only.length);
 });
 
-test('plugin-tools: config.tools.only 传空数组 → 等同缺省（注册全部 13 个）', () => {
+test('plugin-tools: config.tools.only 传空数组 → 等同缺省（注册全部 14 个）', () => {
   const ctx = makeGuestCtx(hostServices());
   const dispose = apply(ctx as never, { tools: { only: [] } });
 

@@ -1,11 +1,11 @@
 // 运行时插件自测（阶段 5·B 末步改写）：`src/plugin.ts` 已降级为 re-export，巨型单文件
-// 插件拆为 6 个职责单一插件。本测试改为「按依赖顺序挂载 host 平面 5 插件
-// (core/director/experiment/writer/operations) + preset 平面 tools 插件」的组合形态，验证：
-//   (1) 12 个 research 服务（researchCore / researchMemory / researchAgents /
+// 插件拆为 7 个职责单一插件。本测试改为「按依赖顺序挂载 host 平面 6 插件
+// (core/triz/director/experiment/writer/operations) + preset 平面 tools 插件」的组合形态，验证：
+//   (1) 13 个 research 服务（researchCore / researchMemory / researchAgents / researchTriz /
 //       researchDirector / researchExperiment / researchWriter / researchPolicy /
 //       researchAutonomous / researchJobs / researchScheduler / researchSelfImprove /
 //       researchSubagents）全部挂载
-//   (2) research_verify / research_record / … 13 个 research_* 工具注册（tools 插件返回
+//   (2) research_verify / research_record / … 14 个 research_* 工具注册（含 research_triz；tools 插件返回
 //       disposer，能全部卸载）
 //   (3) 各阶段服务端到端冒烟（BGP claim→verify→artifact / director DAG / campaign /
 //       writer+policy+autonomous / jobs+scheduler+selfImprove / subagents 本地回退）
@@ -13,6 +13,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { apply as applyCore, name as coreName } from './plugin-core.ts';
+import { apply as applyTriz, name as trizName } from './plugin-triz.ts';
 import { apply as applyDirector, name as directorName } from './plugin-director.ts';
 import { apply as applyExperiment, name as experimentName } from './plugin-experiment.ts';
 import { apply as applyWriter, name as writerName } from './plugin-writer.ts';
@@ -59,7 +60,7 @@ function makeCtx(): FakeCtx {
   return ctx as unknown as FakeCtx;
 }
 
-const TOOL_NAMES = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy', 'research_job', 'research_schedule', 'research_reflect'];
+const TOOL_NAMES = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy', 'research_job', 'research_schedule', 'research_reflect', 'research_triz'];
 
 /** 按依赖顺序挂载 host 平面 5 插件 + preset 平面 tools 插件。 */
 function mountStack(
@@ -71,12 +72,13 @@ function mountStack(
     if (typeof d === 'function') disposers.push(d as () => void);
   };
   push(applyCore(ctx as never, { agents: { enabled: true } }));
+  push(applyTriz(ctx as never));
   push(applyDirector(ctx as never));
   push(applyExperiment(ctx as never, experimentConfig ?? {}));
   push(applyWriter(ctx as never));
   push(applyOperations(ctx as never));
   push(applyTools(ctx as never));
-  // 只有 tools 插件返回 disposer（host 5 插件 apply 返回 void）
+  // 只有 tools 插件返回 disposer（host 6 插件 apply 返回 void，triz 返回 void）
   const disposeTools = disposers[disposers.length - 1];
   return { disposers, disposeTools };
 }
@@ -85,13 +87,14 @@ function registeredNames(ctx: FakeCtx): string[] {
   return ctx.registeredTools.map((t) => (t as { name: string }).name);
 }
 
-test('plugin: host 5 插件 + tools 组合挂载，BGP claim→verify→artifact，13 工具注册且可卸载', () => {
+test('plugin: host 6 插件 + tools 组合挂载，BGP claim→verify→artifact，14 工具注册（含 research_triz）且可卸载', () => {
   assert.equal(coreName, 'dsh-research-core');
   assert.equal(directorName, 'dsh-research-director');
   assert.equal(experimentName, 'dsh-research-experiment');
   assert.equal(writerName, 'dsh-research-writer');
   assert.equal(operationsName, 'dsh-research-operations');
   assert.equal(toolsName, 'dsh-research-tools');
+  assert.equal(trizName, 'dsh-research-triz');
 
   const ctx = makeCtx();
   const { disposeTools } = mountStack(ctx);
@@ -124,7 +127,7 @@ test('plugin: host 5 插件 + tools 组合挂载，BGP claim→verify→artifact
   assert.equal(core.artifacts.trace(claim.id).length, 1);
   assert.equal(core.artifacts.get(art.id)?.kind, 'result');
 
-  // tools 插件注册全部 13 个工具
+  // tools 插件注册全部 14 个工具（含 research_triz）
   assert.deepEqual(registeredNames(ctx).sort(), [...TOOL_NAMES].sort());
 
   // dispose 后工具卸载

@@ -143,6 +143,8 @@ Problem
 - 程序性 Skill（`dsh-research/skills/`，bundle 自带，经 `skill-filesystem` 挂载）：
   - `experiment` —— 自动实验流水线纪律：deploy → run(×repetitions) → collect → analyze → verify → archive（四口径）
   - `paper-review` —— `research-paper-review` 8 步审稿工作流
+  - `triz` —— TRIZ 假设生成工作流（阶段 8，2026-10-14）：矛盾 → 发明原理 → 机制方向假说 →
+    接 research_verify / research_campaign 核验闭环
 - 领域知识（BGP / RPKI / BGPsec / ASPA / FC-BGP / VRO / CRC / 攻击面…）：
   - 一句话口径 → `dsh-research/src/domain/vocabulary.ts`（GLOSSARY，唯一口径来源）
   - 详细参考 → `docs/domain-knowledge-notes.md`（暂存，非权威，以 RFC / IETF 草案 / 论文为准）
@@ -466,3 +468,46 @@ research_campaign 等 13 个 research_* 工具）在 web 会话内交互，**不
 - runtime-smoke → **SMOKE PASS**，新增 `roles=true`：
   `paper:OK[10/10] experiment:OK[10/10] engineering:OK[6/6] reviewer:OK[8/8]`
   （组成 inventory 存在 + 未 broken + research-tools enabled + 会话工具目录 = 白名单）。
+
+---
+
+## 阶段 8 · TRIZ 方法论接入（2026-10-14）
+
+需求：把 TRIZ（发明问题解决理论）加入 `dsh research`，作为**假说生成 / 机制设计方法**
+（研究卡在「两难」时的机制方向来源；与领域知识正交）。定位与分层遵循 §7：TRIZ = **程序性
+方法论 → 服务 + skill**，不是领域知识（领域知识仍走 vocabulary.ts + WeKnora）。
+
+改动：
+- 新增 `dsh-research/src/triz/`：`data.ts`（40 发明原理·含路由提示 / 39 技术参数 / 路由参数中英
+  别名表 / **精选矛盾矩阵**（适配子集，诚实标注非全表）/ 启发式兜底原理表）+ `index.ts` 分析引擎
+  （`resolveParameter` 中/英/别名/模糊、`principlesFor` 三态 `curated-matrix | heuristic-fallback |
+  unresolved`、`separationFor` / `evolutionFor` / `idealityFraming`（IFR）/ `toHypotheses`）。
+- 新增 host 插件 `dsh-research/src/plugin-triz.ts`（exports `./triz`）：提供 `researchTriz` 服务；
+  `cordis.patch.yml` host 平面由 5 → **6 行**：`research-core` / **`research-triz`** /
+  `research-director` / `research-experiment` / `research-writer` / `research-operations`。
+- `src/plugin-tools.ts`：第 **14** 个工具 `research_triz`（入参 `problem/improving/worsening/record`，
+  输出 `source/contradiction/candidates/separation/evolution/ideality/hypotheses/artifactId`，
+  默认写 artifact + episodic, kind=triz）；仅在 research（14 全量）与 engineering（白名单
+  +triz = **7**）可见。
+- 新增 `dsh-research/skills/triz/SKILL.md`：矛盾 → 原理 → 假说 → 核验闭环 + 常见路由安全矛盾↔
+  原理映射表；纪律 = 输出只是假说（confidence=0.5），未经 research_verify / research_campaign
+  核验不得成为 claim；别把 TRIZ 方向当新发现，先对照既有工作。
+- `scripts/runtime-smoke.mjs` / `scripts/pack.sh` / 各测试同步（EXPECTED 14、ROLE_TOOLS、
+  servicesOk 加 researchTriz、pack 必备条目加 plugin-triz.js + skills/triz）。
+
+**口径变更（自本阶段起）**：`research_*` 工具 = **14 个全量**（research）、engineering 白名单 = **7**、
+host 平面 = **6 行 / 13 服务**、bundle 插件 = **7 个**（host 6 + preset tools 1）；阶段 4.5 / 5 / 6
+快照里的 13 / 5 行 / 6 插件数字属当时口径，以本段为准。
+
+实测（沙箱，`DSH_HOME=/tmp/dsh-home`）：
+- `node --test "src/**/*.test.ts"` = **146/146 全绿**（基线 137 + TRIZ 9）。
+- runtime-smoke → **SMOKE PASS**：`tools(14/14)=true`、`standard=0`、`engineering:OK[7/7]`、
+  `triz=true`（命中 curated-matrix：#11 Beforehand cushioning / #10 Preliminary action /
+  #23 Feedback，生成 3 条 Hypothesis, confidence=0.5）。
+- pack.sh → **PACK OK**：`src/plugin-triz.js` + `src/triz/*.js` + `skills/triz/SKILL.md` 进 tarball，
+  包内 0 个 `src/*.ts`。
+
+用法（用户口径）：`dsh research` 启动 Web UI，在 research 会话里调 `research_triz`——
+`research_triz problem="ROV 提升劫持检测率但跨长收敛" improving="检测" worsening="收敛"`，
+读 `candidates / separation / evolution / ideality / hypotheses`，挑高信息增益方向走
+`research_verify` / `research_campaign` 核验；完整工作流见 `skills/triz/SKILL.md`。

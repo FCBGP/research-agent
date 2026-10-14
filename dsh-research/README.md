@@ -102,20 +102,21 @@
 
 | 文件 | 平面 | 内容 |
 |---|---|---|
-| `cordis.patch.yml` | host | 5 行：`research-core` / `research-director` / `research-experiment` / `research-writer` / `research-operations`（行序 = 依赖顺序） |
+| `cordis.patch.yml` | host | 6 行：`research-core` / `research-triz` / `research-director` / `research-experiment` / `research-writer` / `research-operations`（行序 = 依赖顺序） |
 | `presets/research.patch.yml` | preset | `preset-research`（`@deepseek-ai/dsh-agent-preset`，id=research, order=2）：persona + research-tools + skill-filesystem + tool-skill + standard 基础工具集 |
 
-**6 个插件**（包 `exports` 显式子路径 `./core` `./director` `./experiment` `./writer`
-`./operations` `./tools`）：
+**7 个插件**（包 `exports` 显式子路径 `./core` `./triz` `./director` `./experiment`
+`./writer` `./operations` `./tools`）：
 
 | 插件 | 入口 | 平面 | 提供 |
 |---|---|---|---|
 | `dsh-research-core` | `src/plugin-core.ts` | host | `researchCore` / `researchMemory` / `researchAgents` |
+| `dsh-research-triz` | `src/plugin-triz.ts` | host | `researchTriz`（TRIZ 知识基 + 矛盾分析 / IFR / 假说生成） |
 | `dsh-research-director` | `src/plugin-director.ts` | host | `researchDirector`（DAG 调度） |
 | `dsh-research-experiment` | `src/plugin-experiment.ts` | host | `researchExperiment`（自动实验战役） |
 | `dsh-research-writer` | `src/plugin-writer.ts` | host | `researchWriter`（论文 / 幻灯片） |
 | `dsh-research-operations` | `src/plugin-operations.ts` | host | `researchPolicy` / `researchAutonomous` / `researchJobs` / `researchScheduler` / `researchSelfImprove` / `researchSubagents` |
-| `dsh-research-tools` | `src/plugin-tools.ts` | **preset** | 13 个 `research_*` 工具（research 会话作用域） |
+| `dsh-research-tools` | `src/plugin-tools.ts` | **preset** | 14 个 `research_*` 工具（research 会话作用域） |
 
 - `package.json` `main` / `.` 指向 `src/plugin-core.ts`；`src/plugin.ts` 降级为纯 re-export
   （保留历史模块路径不中断，不再承载实现）。
@@ -128,22 +129,22 @@
   子行（会话作用域 `ctx.tools`）；standard 等其它 preset 会话看不到 `research_*`
   （消除 always-on 污染，runtime-smoke 反证断言 standard tools w/ research_* = 0）。
 - 程序性 skill 真正挂载：skill-filesystem `customSkillDirs` → bundle 自带 `skills/`
-  （experiment / paper-review；领域知识 2026-10-10 起不再做成 skill，见 docs/domain-knowledge-notes.md 与仓库 README「WeKnora 知识库对接」）。
+  （experiment / paper-review / triz；领域知识 2026-10-10 起不再做成 skill，见 docs/domain-knowledge-notes.md 与仓库 README「WeKnora 知识库对接」）。
 
 ### 运行时插件（阶段 5 · 6 插件分片，Cordis 形态）— ✅ 已端到端挂载实测
 
-- 原 `src/plugin.ts` 巨型插件已拆为 6 个职责单一插件（服务名 / 工具 schema 语义零变化），
-  挂载分两个平面：
-  - **host 平面**（`cordis.patch.yml` 5 行，行序 = 依赖顺序）提供 12 个服务 ——
-    `researchCore` / `researchMemory` / `researchAgents`（core）；`researchDirector`（director）；
+- 原 `src/plugin.ts` 巨型插件已拆为 7 个职责单一插件（服务名 / 工具 schema 语义零变化；
+  阶段 8 起新增 `dsh-research-triz`），挂载分两个平面：
+  - **host 平面**（`cordis.patch.yml` 6 行，行序 = 依赖顺序）提供 13 个服务 ——
+    `researchCore` / `researchMemory` / `researchAgents`（core）；`researchTriz`（triz）；`researchDirector`（director）；
     `researchExperiment`（experiment）；`researchWriter`（writer）；`researchPolicy` /
     `researchAutonomous` / `researchJobs` / `researchScheduler` / `researchSelfImprove` /
     `researchSubagents`（operations）
   - **preset 平面**（`presets/research.patch.yml` 的 research-tools 子行，`inject ['tools']`）
-    在会话作用域注册 13 个 `research_*` 工具 —— `research_verify` / `research_record` /
+    在会话作用域注册 14 个 `research_*` 工具 —— `research_verify` / `research_record` /
     `research_search` / `research_review` / `research_experiment` / `research_campaign` /
     `research_paper` / `research_slides` / `research_autonomous` / `research_policy` /
-    `research_job` / `research_schedule` / `research_reflect`
+    `research_job` / `research_schedule` / `research_reflect` / `research_triz`
 - 依赖生命周期挂在 fiber effect 上：profile 卸载即回收
 - 行 `config`（`tools.enabled` 开关、`memory.dir` 持久化等）经 bundle patch
   （`cordis.patch.yml`）进入组合树，profile overlay 可整行覆盖
@@ -154,11 +155,11 @@
 # 1) 部署 profile（复制模板 + symlink 本包到 $DSH_HOME/profiles/research）
 DSH_HOME=/tmp/dsh-home ./scripts/deploy-profile.sh
 
-# 2) 组合树含 research-* 5 行 + preset-research（无旧 dsh-research-core 行）
-DSH_HOME=/tmp/dsh-home dsh --profile research --dump-config | grep -E "research-(core|director|experiment|writer|operations)|preset-research"
+# 2) 组合树含 research-* 6 行 + preset-research（无旧 dsh-research-core 行）
+DSH_HOME=/tmp/dsh-home dsh --profile research --dump-config | grep -E "research-(core|triz|director|experiment|writer|operations)|preset-research"
 
-# 3) 运行时冒烟：12 服务（host）/ 13 工具（research 会话作用域，standard=0）/
-#    BGP claim→verify / campaign / policy / autonomous / job / schedule / reflect / subagents
+# 3) 运行时冒烟：13 服务（host，含 researchTriz）/ 14 工具（research 会话作用域，standard=0）/
+#    BGP claim→verify / campaign / policy / autonomous / job / schedule / reflect / subagents / triz
 DSH_HOME=/tmp/dsh-home node scripts/runtime-smoke.mjs   # → SMOKE PASS
 #    端口被占用时：SMOKE_PORT=<空闲端口> node scripts/runtime-smoke.mjs
 ```
@@ -168,7 +169,7 @@ DSH_HOME=/tmp/dsh-home node scripts/runtime-smoke.mjs   # → SMOKE PASS
 > 背景（TODO 「多 Profile」）：`profiles/` 原来只有 `research/`。阶段 5 把 Research Agent 做成
 > preset 平面后，同一 bundle 可在 preset 平面再注册多个角色预设，每个 Profile
 > （`profiles/<role>/`）经自己 `cordis.patch.yml` 的默认 preset 选取对应角色 —— 无需复制代码，
-> 四个角色共享同一 host 平面（research-core/director/experiment/writer/operations）。
+> 四个角色共享同一 host 平面（research-core/triz/director/experiment/writer/operations）。
 
 - **preset 注册**：`presets/roles.patch.yml`（bundle patch 第 3 片，`package.json`
   `dsh.bundle.patch` = `[cordis.patch.yml, presets/research.patch.yml, presets/roles.patch.yml]`）
@@ -177,11 +178,11 @@ DSH_HOME=/tmp/dsh-home node scripts/runtime-smoke.mjs   # → SMOKE PASS
   （角色专用 agent 身份）+ research-tools（`config.tools.only` 白名单裁剪）+ skill-filesystem +
   tool-skill + standard 基础工具集（与 `research.patch.yml` 同一块，改时五处同步）。
 - **工具裁剪语义（`config.tools.only`）**：`src/plugin-tools.ts` 的 `register()` 闭包
-  只注册白名单内的 `research_*` 工具；白名单 = `undefined`/空数组 → 全量 13 个
+  只注册白名单内的 `research_*` 工具；白名单 = `undefined`/空数组 → 全量 14 个
   （preset-research 不设 only → 行为与阶段 5 完全一致）。角色白名单：
   - `paper`（10）：search / record / verify / paper / slides / autonomous / policy / job / schedule / reflect
   - `experiment`（10）：search / record / verify / experiment / campaign / autonomous / policy / job / schedule / reflect
-  - `engineering`（6）：record / verify / policy / job / schedule / reflect
+  - `engineering`（7）：record / verify / **triz** / policy / job / schedule / reflect
   - `reviewer`（8）：search / record / verify / review / policy / job / schedule / reflect
 - **Profile 模板**：`profiles/{paper,experiment,engineering,reviewer}/` 各含 `package.json`
   （base + web 前端 + `@basil/dsh-research`）+ `cordis.patch.yml`（从 `profiles/research/`
@@ -195,7 +196,7 @@ DSH_HOME=/tmp/dsh-home node scripts/runtime-smoke.mjs   # → SMOKE PASS
 - 5 个 profile `--dump-config` 各出现其默认 preset 行（`preset-{research,paper,experiment,
   engineering,reviewer}`）+ 对应 `agent-preset-registry.config.default`。
 - runtime-smoke → **SMOKE PASS**，新增角色断言 `roles=true`：
-  `paper:OK[10/10] experiment:OK[10/10] engineering:OK[6/6] reviewer:OK[8/8]`
+  `paper:OK[10/10] experiment:OK[10/10] engineering:OK[7/7] reviewer:OK[8/8]`
   （组成 inventory 存在 + 未 broken + research-tools enabled；对应会话工具目录里
   `research_*` 恰好 = 白名单）。
 
@@ -239,10 +240,49 @@ DSH_HOME=/tmp/dsh-home ./dsh-research/scripts/verify-patch-chain.sh   # 可选�
 `scripts/runtime-smoke.mjs` 额外支持 `SMOKE_OVERLAYS`（空白分隔、相对 cwd 的 `--patch` 清单）注入 boot 的
 patch 栈，冒烟时断言 `policy rules: 12`（L1）与 `chain defaults-only campaign: OK | env: sim`（L3）。
 
+### 阶段 8 · TRIZ 方法论接入（2026-10-14：假说生成 / 机制设计，✅ 已实现并自测）
+
+> 需求（用户）：把 TRIZ（发明问题解决理论）加入 `dsh research`，用于**研究卡在「两难」时的
+> 机制方向生成**。定位 = **程序性方法论 → 服务 + skill**（不是领域知识，领域知识走
+> vocabulary.ts + WeKnora）；输出永远是**待核验假说**（confidence=0.5），接
+> research_verify / research_campaign 闭环后才成为 claim。
+
+- **知识基** `src/triz/data.ts`：40 发明原理（每条含路由安全提示 routingHint）、39 技术参数、
+  路由参数中英别名表（`ROUTING_PARAMETER_ALIASES`：reliability/检测/收敛/…↔ 参数号）、
+  **精选矛盾矩阵**（适配子集，非 39×39 全表转录）、启发式兜底原理表、启动原理集。
+- **分析引擎** `src/triz/index.ts`：`resolveParameter`（中/英/别名/包含模糊）→
+  `principlesFor`（curated-matrix 命中 / heuristic-fallback / unresolved 三态如实标注）→
+  `separationFor`（空间/时间/条件/系统级分离）+ `evolutionFor`（技术进化法则视角）+
+  `idealityFraming`（IFR 理想解 / 有害作用 / 可用资源 / 增益）+ `toHypotheses`
+  （把候选原理翻译成机制方向假说，`type=Hypothesis, source=triz, confidence=0.5`）。
+- **host 插件** `src/plugin-triz.ts`（exports `./triz`）：`ctx.provide('researchTriz', …)`，
+  挂在 host 平面第 2 行（`research-core` 之后 / `research-director` 之前），使 host 由 5 → **6 行**。
+- **工具** `research_triz`（第 14 个 `research_*`，仅 research 全量 + engineering 白名单可见）：
+  入参 `problem / improving / worsening / record`（record 默认 true 写 artifact + episodic, kind=triz）；
+  返回 `source / contradiction / candidates / separation / evolution / ideality / hypotheses / artifactId`。
+  输入中英皆可（improving="检测" 或 "reliability"），别名表 + 模糊包含兜底。
+- **skill** `skills/triz/SKILL.md`：TRIZ 假设生成工作流（矛盾 → 原理 → 假说 → 核验闭环），
+  含「常见路由安全矛盾 ↔ 原理映射」表（检测率↔收敛延迟→预操作/反馈/向缓冲；安全强度↔复杂度→
+  中介/合并/局部质量…）；纪律 = 别把 TRIZ 方向当新发现，先对照既有工作（FC-BGP/ASPA 已含
+  「反向/自证」、RPKI 预验证是「预操作」）。
+- **角色可见性**：research（14 全量）＋ engineering（白名单 +triz = 7，擅长机制设计）；
+  paper / experiment / reviewer 不含 `research_triz`。
+
+**验证（沙箱，`DSH_HOME=/tmp/dsh-home`）：**
+- 单测 146/146 全绿（基线 137 + TRIZ 9：resolveParameter 中英别名 / curated-matrix 命中 /
+  heuristic-fallback / unresolved / separation+evolution / toHypotheses / idealityFraming /
+  createTrizService 端到端 / plugin-tools TOOL_NAMES + triz）。
+- runtime-smoke → **SMOKE PASS**：`tools(14/14)=true`、`engineering:OK[7/7]`、
+  `triz=true`（分析命中 curated-matrix：`#11 Beforehand cushioning / #10 Preliminary action /
+  #23 Feedback`，生成 3 条 Hypothesis，`confidence=0.5`）。
+- pack.sh → 产物含 `src/plugin-triz.js` + `src/triz/{data,index}.js` + `skills/triz/SKILL.md`，
+  反证包内 0 个 `src/*.ts`（PACK OK）。
+
 ## npm 打包与一键部署（2026-10-09：TODO「一键部署」✅）
 
+
 `@basil/dsh-research` 是**可 npm 安装的 bundle 包**：`package.json` 声明了
-`dsh.bundle.patch`（3 片 bundle patch）与 6 个插件子路径 `exports`；用
+`dsh.bundle.patch`（3 片 bundle patch）与 7 个插件子路径 `exports`；用
 `dsh plugin --profile <name> add` 安装后是 `node_modules` 下的**真实拷贝**，可被 dsh
 运行时直接 import。**与 `deploy-profile.sh` 是两条互补路径，不存在替代关系**：
 
@@ -268,10 +308,10 @@ OUT_DIR=/tmp/out ./dsh-research/scripts/pack.sh   # 自定义输出目录
 VERIFY_INSTALL=1 ./dsh-research/scripts/pack.sh   # 打包后 dsh plugin 装进 scratch profile，校验组合树 + boot 探针
 ```
 
-- 先跑单测（98/98）→ `scripts/build.mjs` 构建 staging：`src/*.ts` 类型剥离（
+- 先跑单测（146/146）→ `scripts/build.mjs` 构建 staging：`src/*.ts` 类型剥离（
   `node:module.stripTypeScriptTypes`，零依赖）+ 相对 import 后缀 `.ts→.js`，并改写
   `main`/`exports` 指向 `.js`；然后 `npm pack` 以 staging 为包根出 tarball。
-- 产物逐项校验：package.json / 3 片 bundle patch / 6 插件入口（`.js`）/ skills / patches /
+- 产物逐项校验：package.json / 3 片 bundle patch / 7 插件入口（`.js`）/ skills / patches /
   runtime-smoke 必在包内；**反证包内无 `src/*.ts`**。
 - `files` 白名单只发运行时 + 验证所需：`src`（编译后）、`cordis.patch.yml`、`presets/`、
   `patches/`、`skills/`、`scripts/runtime-smoke.mjs`、`README.md`；单测 / 构建脚本不进包。
@@ -284,19 +324,19 @@ dsh plugin --profile research add @basil/dsh-research
 
 `dsh plugin --profile <name> add` 在 profile 目录（首次自动初始化）里跑 pnpm：把该包加入
 `dependencies`，并把 `@basil/dsh-research` 追加进 `dsh.profile.bundles`，组合树即含
-research-* 5 行 + preset-research。
+research-* 6 行 + preset-research。
 
 ### 一键部署（本地 tarball，发布前验证同构流程）
 
 ```sh
 DSH_HOME=${DSH_HOME:-$HOME/.dsh} dsh plugin --profile research add ./dist/basil-dsh-research-<version>.tgz
-DSH_HOME=${DSH_HOME:-$HOME/.dsh} dsh --profile research --dump-config | grep -E "research-(core|director|experiment|writer|operations)|preset-research"
+DSH_HOME=${DSH_HOME:-$HOME/.dsh} dsh --profile research --dump-config | grep -E "research-(core|triz|director|experiment|writer|operations)|preset-research"
 DSH_HOME=${DSH_HOME:-$HOME/.dsh} node dsh-research/scripts/boot-probe.mjs   # 期望 boot:researchCore YES
 ```
 
 > 沙箱实测（2026-10-09）：tarball 经 `dsh plugin --profile research add` 装进 scratch profile
-> → `--dump-config` 组合树含 research-* 5 行 + preset-research；boot-probe →
-> `boot:researchCore YES (all 8 research services up)`（0 个 failed-to-import），dev symlink
+> → `--dump-config` 组合树含 research-* 6 行 + preset-research；boot-probe →
+> `boot:researchCore YES (all 9 research services up)`（0 个 failed-to-import），dev symlink
 > 路径的 runtime-smoke 不受影响（SMOKE PASS）。
 >
 > 注：`dsh plugin add` 初始化的 profile 是 dsh-base 之上的最小组合（无 Web 前端 / 模型
@@ -308,7 +348,7 @@ DSH_HOME=${DSH_HOME:-$HOME/.dsh} node dsh-research/scripts/boot-probe.mjs   # �
 
 ```sh
 cd dsh-research
-node --test "src/**/*.test.ts"   # core + memory + agents + director + plugin + domain 全绿（98/98）
+node --test "src/**/*.test.ts"   # core + memory + agents + triz + director + plugin + domain 全绿（146/146）
 ```
 
 ## 目录
@@ -324,10 +364,11 @@ node --test "src/**/*.test.ts"   # core + memory + agents + director + plugin + 
 - `src/real-subagent/` — 阶段 4c real subagent：web 会话 seam / persona / 本地回退 / RealSubagentAgent
 - `src/autonomous/` — 阶段 4 一键科研流水线
 - `src/jobs/` `src/scheduler/` `src/self-improve/` — 阶段 4 长任务 / 周期调度 / 自省改进
-- `src/plugin-{core,director,experiment,writer,operations}.ts` — 阶段 5 host 平面 5 插件入口
-- `src/plugin-tools.ts` / `src/plugin-tools.test.ts` — 阶段 5 preset 平面插件：13 个
-  `research_*` 工具（research 会话作用域）；`src/plugin.test.ts` — 插件自检（内存假 ctx）
-- `src/plugin.ts` — 兼容 re-export（不再承载实现；`main` / `exports` 指向 6 插件分片）
+- `src/plugin-{core,triz,director,experiment,writer,operations}.ts` — 阶段 5/8 host 平面 6 插件入口
+  （阶段 8 新增 `src/plugin-triz.ts`）
+- `src/plugin-tools.ts` / `src/plugin-tools.test.ts` — 阶段 5 preset 平面插件：14 个
+  `research_*` 工具（research 会话作用域，含 `research_triz`）；`src/plugin.test.ts` — 插件自检（内存假 ctx）
+- `src/plugin.ts` — 兼容 re-export（不再承载实现；`main` / `exports` 指向 7 插件分片）
 - `scripts/pack.sh` — 一键打包 `@basil/dsh-research` 为**可 boot** 的 npm tarball（单测 → `build.mjs` 构建 staging → npm pack → 产物校验；`VERIFY_INSTALL=1` 时再用 `dsh plugin add` 安装 + boot 验证）
 - `scripts/build.mjs` — 为发行包构建 staging：`src/*.ts` 类型剥离（`node:module.stripTypeScriptTypes`，零依赖）+ 相对 import `.ts→.js` + 改写 staging `package.json`（`main`/`exports` 指向 `.js`）
 - `scripts/boot-probe.mjs` — 最小 boot 探针：验证 profile 能 boot 且 researchCore 就绪（专测 npm 实装包，能识别 `.ts` 缺陷导致的 `failed to import`）
@@ -335,7 +376,7 @@ node --test "src/**/*.test.ts"   # core + memory + agents + director + plugin + 
 - `scripts/archive-research.mjs` — 归档 `research/` 三文件 → Memory artifact store（art-1…art-13；`--check` 回读断言，`--dir`/`RESEARCH_MEMORY_DIR` 指定落盘目录）
 - `scripts/runtime-smoke.mjs` — in-dsh 运行时冒烟（preset 作用域工具断言 + standard=0 反证 + 角色预设断言；`SMOKE_OVERLAYS` 注入 `--patch` 链）
 - `scripts/verify-patch-chain.sh` — `--patch` 组合链一键验证（dump 离线组合 + 后层赢 + 运行时 + 单测）
-- `cordis.patch.yml` / `presets/research.patch.yml` / `presets/roles.patch.yml` — bundle patch 分片（host 5 行 + preset-research + 4 角色 preset）
+- `cordis.patch.yml` / `presets/research.patch.yml` / `presets/roles.patch.yml` — bundle patch 分片（host 6 行 + preset-research + 4 角色 preset）
 - `patches/` — 组合链覆盖层（`chain-research-policy.yml` / `chain-bgp-research.yml` /
   `chain-fcbgp-experiment.yml`）；旧空占位（research-tools / research-policy / research-memory）已随阶段 5 删除——policy / 模型注入改走 `cordis.patch.yml` + 插件行
-- `skills/` — 领域技能：bgp / rpki / bgpsec / fcbgp / paper-review / experiment（阶段 2+）
+- `skills/` — 程序性 skill：experiment / paper-review / triz（阶段 2+ / 阶段 8；领域知识 2026-10-10 起走 vocabulary.ts + docs/domain-knowledge-notes.md + WeKnora，不再入 skill 目录）

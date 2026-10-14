@@ -6,13 +6,14 @@
 # 可对本行做整行覆盖/禁用。
 #
 # 阶段 5 把原先单行 dsh-research-core 巨型插件（11 服务 + 13 工具全在 host 平面）
-# 拆为 6 个职责单一插件：
-#   本文件 = host 平面 5 行（核心服务：core / director / experiment / writer / operations）
+# 拆为 7 个职责单一插件：
+#   本文件 = host 平面 6 行（核心服务：core / triz / director / experiment / writer / operations）
 #   presets/research.patch.yml = preset 平面（preset-research：research-tools + skill 挂载）
-# research_* 工具不再 host 全局注册，只在 research 预设会话可见（消除 always-on 污染）。
+# research_* 工具不再 host 全局注册，只在 research/engineering 等预设会话可见（消除 always-on 污染）。
+# 阶段 8 追加 research-triz（TRIZ 方法论服务：40 原理/39 参数/精选矩阵/IFR），供 research_triz 工具消费。
 #
 # host 行顺序 = 依赖顺序：research-core 最先（provides researchCore/Memory/Agents，
-# 被 research-director / research-experiment / research-writer / research-operations 消费），
+# 被 research-triz / research-director / research-experiment / research-writer / research-operations 消费），
 # research-operations 最后（聚合 autonomous，经 writer/experiment/memory 组装）。
 - insert:
     # research-core ── 核心数据模型（claim / verify / plan / artifact）+ 五类记忆
@@ -28,6 +29,13 @@
         # 记忆默认全内存；需要落盘时由 profile overlay 整行覆盖本行并给出 dir：
         # memory:
         #   dir: '$DSH_HOME/profiles/research/memory'
+
+    # research-triz ── TRIZ 方法论服务（发明问题解决理论：假说生成 / 机制设计）。
+    # provides researchTriz（analyzeProblem / idealityFraming / toHypotheses）。
+    # 独立于其它 research-* 服务（知识基自带），defines 在 research-core 之后便于
+    # plugin-tools 一并 ctx.get；消费方 = research_triz 工具 + skills/triz/SKILL.md。
+    - id: research-triz
+      name: '@basil/dsh-research/triz'
 
     # research-director ── 研究 DAG 调度（消费 core 的 memory/agents，按「依赖满足 +
     # 信息增益最高」分派任务）。provides researchDirector。

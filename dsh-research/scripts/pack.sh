@@ -65,8 +65,10 @@ REQUIRED=(
   package/src/plugin-writer.js
   package/src/plugin-operations.js
   package/src/plugin-tools.js
+  package/src/plugin-triz.js
   package/skills/experiment/SKILL.md
   package/skills/paper-review/SKILL.md
+  package/skills/triz/SKILL.md
   package/scripts/runtime-smoke.mjs
 )
 for entry in "${REQUIRED[@]}"; do

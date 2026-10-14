@@ -22,9 +22,10 @@
 
 - `@deepseek-ai/dsh-web-app`：Web UI 前端基座（web-startup / webserver / web-runtime），
   `dsh research` 启动浏览器会话（默认 `http://127.0.0.1:3080/`），**不接受位置参数任务**。
-- `@basil/dsh-research`：领域层（阶段 5 = **preset-research + 6 插件** ——
-  12 个服务在 host 平面 5 个插件上，13 个 `research_*` 工具在 preset 平面的
-  research-tools 子行注册），在 web 会话里跑科研流水线。
+- `@basil/dsh-research`：领域层（阶段 5/8 = **preset-research + 7 插件** ——
+  13 个服务在 host 平面 6 个插件上（core / **triz** / director / experiment / writer /
+  operations，阶段 8 新增 research-triz），14 个 `research_*` 工具（含 `research_triz`）在
+  preset 平面的 research-tools 子行注册），在 web 会话里跑科研流水线。
 - **默认 preset = research**：`agent-preset-registry.config.default: research`
   → 新会话默认 Research Agent（persona + 领域 skill + `research_*` 工具），而非 web 的 standard。
 - **行为变更**：`research_*` 工具**只在 research 预设会话**的工具目录出现；
@@ -39,9 +40,9 @@
 # 部署：复制模板 + symlink 本仓库 dsh-research 到 profile
 DSH_HOME=/tmp/dsh-home ./dsh-research/scripts/deploy-profile.sh
 
-# 组合验证：dump-config 应出现 web-startup / webserver + research-* 5 行 + preset-research
+# 组合验证：dump-config 应出现 web-startup / webserver + research-* 6 行 + preset-research
 # （旧 dsh-research-core 行已不存在；无 headless）
-DSH_HOME=/tmp/dsh-home dsh --profile research --dump-config | grep -E "web|research-(core|director|experiment|writer|operations)|preset-research"
+DSH_HOME=/tmp/dsh-home dsh --profile research --dump-config | grep -E "web|research-(core|triz|director|experiment|writer|operations)|preset-research"
 
 # 运行时验证（在 dsh 真实运行树内）：
 DSH_HOME=/tmp/dsh-home node dsh-research/scripts/runtime-smoke.mjs   # → SMOKE PASS
@@ -52,22 +53,22 @@ dsh research   # == dsh --profile research；可选 --no-open / --port <n> / --h
 ```
 
 > 说明：bundle 包 `@basil/dsh-research` 同时扮演两个角色 —— bundle（声明两份 patch：
-> `cordis.patch.yml` host 5 行 + `presets/research.patch.yml` preset-research）与
-> 6 个插件（`main` 指向 `src/plugin-core.ts`，`exports` 提供
-> `./core` `./director` `./experiment` `./writer` `./operations` `./tools` 子路径，
+> `cordis.patch.yml` host 6 行 + `presets/research.patch.yml` preset-research）与
+> 7 个插件（`main` 指向 `src/plugin-core.ts`，`exports` 提供
+> `./core` `./triz` `./director` `./experiment` `./writer` `./operations` `./tools` 子路径，
 > Node 24 类型剥离直接运行）。运行时解析采用 two-anchor：安装包优先，其次 profile 目录的
 > `node_modules`，因此 symlink 即可生效，改代码无需重装。## paper / experiment / engineering / reviewer（多 Profile · 角色视图，2026-10-09）
 
 四个角色 profile 与 `research/` 同构（web 基座 + `@basil/dsh-research`），差异只在默认 preset：
 `profiles/<role>/cordis.patch.yml` 的 `agent-preset-registry.config.default` 选到对应角色
-（preset 定义见 bundle `presets/roles.patch.yml`）。`research/` 全量 13 个 `research_*` 工具；
+（preset 定义见 bundle `presets/roles.patch.yml`）。`research/` 全量 14 个 `research_*` 工具（含 `research_triz`：TRIZ 矛盾分析 → 机制方向假说）；
 角色 profile 经 `config.tools.only` 白名单裁剪到各自工具集（`src/plugin-tools.ts` 注册闭包过滤）：
 
 | profile | 默认 preset | research_* 工具白名单 |
 |---|---|---|
 | `paper` | `preset-paper` | search / record / verify / paper / slides / autonomous / policy / job / schedule / reflect（10） |
 | `experiment` | `preset-experiment` | search / record / verify / experiment / campaign / autonomous / policy / job / schedule / reflect（10） |
-| `engineering` | `preset-engineering` | record / verify / policy / job / schedule / reflect（6） |
+| `engineering` | `preset-engineering` | record / verify / **triz** / policy / job / schedule / reflect（7） |
 | `reviewer` | `preset-reviewer` | search / record / verify / review / policy / job / schedule / reflect（8） |
 
 部署与验证与 `research/` 一致，只把 profile 名换成角色：

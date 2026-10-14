@@ -1,4 +1,4 @@
-// @basil/dsh-research/tools — preset 平面插件：13 个 research_* 工具（阶段 5·B2）。
+// @basil/dsh-research/tools — preset 平面插件：14 个 research_* 工具（阶段 5·B2 + 阶段 8·TRIZ）。
 //
 // 阶段 5 把 research_* 工具从 host 全局层（原 src/plugin.ts 的 registerTools）移到
 // preset 作用域：本插件作为 preset-research 的 research-tools 子行挂载
@@ -10,7 +10,7 @@
 // researchExperiment / researchWriter / researchPolicy / researchAutonomous /
 // researchJobs / researchScheduler / researchSelfImprove / researchSubagents
 // 经 `ctx.get(...)` 惰性读取（cordis ctx.get 无需 inject）；缺任一核心服务时告警跳过，
-// 不注册半吊子工具。13 个 research_* 工具定义原样保留（与 src/plugin.ts 一致）。
+// 不注册半吊子工具。14 个 research_* 工具定义原样保留（与 src/plugin.ts 一致）。
 
 import type { Context } from '@deepseek-ai/cordis';
 import type { ArtifactStore } from './core/artifact-store.ts';
@@ -27,6 +27,7 @@ import type { ResearchScheduler, ScheduleSpec } from './scheduler/index.ts';
 import type { SelfImprover, ReflectionReport } from './self-improve/index.ts';
 import type { RealSubagentAgent } from './real-subagent/index.ts';
 import type { ResearchExperimentService } from './plugin-experiment.ts';
+import type { ResearchTrizService } from './triz/index.ts';
 import { DOMAIN_KEYWORDS } from './domain/index.ts';
 import type { ResearchDomain } from './plugin-core.ts';
 
@@ -80,6 +81,7 @@ export interface ResearchRuntimeService {
   scheduler: ResearchScheduler;
   selfImprove: SelfImprover;
   subagents: RealSubagentAgent;
+  triz: ResearchTrizService;
 }
 
 export interface PluginToolsConfig {
@@ -92,7 +94,7 @@ export interface PluginToolsConfig {
 
 /**
  * preset 平面 apply：消费 host 平面 5 插件提供的服务（ctx.get(researchCore/…)），
- * 装配 runtime 聚合，再注册 13 个 research_* 工具。返回 disposer（卸载时注销工具）。
+ * 装配 runtime 聚合，再注册 14 个 research_* 工具（含 research_triz）。返回 disposer（卸载时注销工具）。
  */
 export function apply(ctx: Context, config: PluginToolsConfig = {}): (() => void) | undefined {
   if (config.tools?.enabled === false) {
@@ -112,16 +114,17 @@ export function apply(ctx: Context, config: PluginToolsConfig = {}): (() => void
   const scheduler = ctx.get('researchScheduler') as ResearchScheduler | undefined;
   const selfImprove = ctx.get('researchSelfImprove') as SelfImprover | undefined;
   const subagents = ctx.get('researchSubagents') as RealSubagentAgent | undefined;
+  const triz = ctx.get('researchTriz') as ResearchTrizService | undefined;
 
   if (!researchCore || !memory || !agents || !director || !experiment || !writer ||
-      !policy || !autonomous || !jobs || !scheduler || !selfImprove || !subagents) {
+      !policy || !autonomous || !jobs || !scheduler || !selfImprove || !subagents || !triz) {
     ctx.logger?.(name).warn('%s: host research 服务未就绪（research-core / research-writer / research-operations 未挂载？），跳过工具注册', name);
     return undefined;
   }
 
   const runtime: ResearchRuntimeService = {
     memory, agents, director, experiment, writer, policy, autonomous,
-    jobs, scheduler, selfImprove, subagents,
+    jobs, scheduler, selfImprove, subagents, triz,
   };
   return registerTools(ctx, researchCore, runtime, config?.tools?.only);
 }
@@ -670,6 +673,84 @@ function registerTools(
     },
   });
 
+  register({
+    name: 'research_triz',
+    description:
+      'TRIZ（发明问题解决理论）矛盾分析：把研究问题形式化为「改善↔恶化」技术矛盾，'
+      + '查 40 发明原理 / 精选矛盾矩阵给出机制方向假说、IFR 理想解与分离/进化视角。'
+      + '输出皆为待核验 Hypothesis（source=triz, confidence=0.5），须经 research_verify / '
+      + 'research_campaign 核验后才能成为 claim；record 时写入 artifact + 情景记忆。',
+    parameters: {
+      type: 'object',
+      properties: {
+        problem: { type: 'string', description: '要解决的研究问题 / 机制矛盾（如「ROV 提升劫持检测率但跨长收敛」）' },
+        improving: { type: 'string', description: '想改善的方面：中英皆可（reliability / 检测 / 抗劫持 / 收敛 / 自动化…）' },
+        worsening: { type: 'string', description: '可接受的恶化方面（latency / 复杂度 / 开销 / CPU / 部署成本…）' },
+        record: { type: 'boolean', description: '是否写入 artifact + 情景记忆（默认 true）' },
+      },
+      required: ['problem'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          problem: { type: 'string' },
+          source: { type: 'string', enum: ['curated-matrix', 'heuristic-fallback', 'unresolved'] },
+          contradiction: { type: 'object' },
+          candidates: { type: 'array', items: { type: 'object' } },
+          separation: { type: 'array', items: { type: 'object' } },
+          evolution: { type: 'array', items: { type: 'object' } },
+          ideality: { type: 'object' },
+          hypotheses: { type: 'array', items: { type: 'object' } },
+          artifactId: { type: 'string' },
+        },
+        required: ['problem', 'source', 'candidates', 'hypotheses'],
+        additionalProperties: true,
+      },
+      render: (_a, v) => [{
+        type: 'text',
+        text: JSON.stringify({
+          problem: v.problem,
+          source: v.source,
+          contradiction: v.contradiction,
+          candidates: (v.candidates ?? []).map((c) => `#${c.no} ${c.name} — ${c.routingHint}`),
+          hypotheses: (v.hypotheses ?? []).map((h) => h.statement),
+          artifactId: v.artifactId,
+        }, null, 2),
+      }],
+    },
+    async execute(args) {
+      const input = args as { problem: string; improving?: string; worsening?: string; record?: boolean };
+      const analysis = runtime.triz.analyzeProblem({ problem: input.problem, improving: input.improving, worsening: input.worsening });
+      const ideality = runtime.triz.idealityFraming({ problem: input.problem });
+      const hypotheses = runtime.triz.toHypotheses(analysis);
+      let artifactId: string | undefined;
+      if (input.record !== false) {
+        const body = hypotheses.map((h) => `[原理${h.principleNo} ${h.principleName}] ${h.statement}`).join('\n');
+        artifactId = researchCore.artifacts.put({
+          kind: 'note',
+          title: `triz: ${input.problem.slice(0, 40)}`,
+          body,
+          meta: { source: analysis.source, candidates: analysis.candidates.map((c) => c.no) },
+        }).id;
+        runtime.memory.episodic.record({ kind: 'triz', summary: `triz: ${input.problem.slice(0, 40)}`, outcome: analysis.source });
+      }
+      return {
+        problem: analysis.problem,
+        source: analysis.source,
+        contradiction: analysis.contradiction,
+        candidates: analysis.candidates.map((c) => ({ no: c.no, name: c.name, summary: c.summary, routingHint: c.routingHint })),
+        separation: analysis.separation,
+        evolution: analysis.evolution,
+        ideality,
+        hypotheses,
+        artifactId,
+      };
+    },
+  });
+
+
 function jobView(job: Job): { id: string; kind: string; title: string; status: string; progress: number; error?: string; createdAt: string } {
   return { id: job.id, kind: job.kind, title: job.title, status: job.status, progress: job.progress, error: job.error, createdAt: job.createdAt };
 }
@@ -696,7 +777,7 @@ function scheduleView(schedule: ScheduleSpec): { id: string; topic: string; enab
 
   ctx.logger?.(name).info(
     '%s: registered %d/%d research tools%s',
-    name, disposers.length, allow ? allow.size : 13, allow ? ` (tools.only=${[...allow].join(',')})` : '',
+    name, disposers.length, allow ? allow.size : 14, allow ? ` (tools.only=${[...allow].join(',')})` : '',
   );
   // 显式返回 disposer：cordis registry.plugin() 在卸载本插件时统一调用。
   return () => {
