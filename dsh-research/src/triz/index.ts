@@ -19,6 +19,7 @@ import {
   STARTER_PRINCIPLES,
   type TrizPrinciple,
 } from './data.ts';
+import { mapResultToTriz, type TrizResultMapping } from './result-map.ts';
 
 /** 单一分离原理条目。 */
 export interface SeparationPrinciple {
@@ -84,6 +85,8 @@ export interface ResearchTrizService {
   analyzeProblem(input: TrizAnalyzeInput): TrizAnalysis;
   idealityFraming(input: { problem: string }): IdealityFrame;
   toHypotheses(analysis: TrizAnalysis): TrizHypothesis[];
+  /** 「结果 → TRIZ 发明原理」映射（默认先做矛盾分析，再把结果文本特征词反演补足）。 */
+  mapResult(input: TrizAnalyzeInput & { resultText?: string }): TrizResultMapping;
 }
 
 const PRINCIPLE_BY_NO = new Map<number, TrizPrinciple>(TRIZ_PRINCIPLES.map((p) => [p.no, p]));
@@ -242,7 +245,7 @@ let seq = 0;
 /** 创建 ResearchTrizService（plugin-triz.ts 用；纯内存、无副作用）。 */
 export function createTrizService(): ResearchTrizService {
   const b = ++seq;
-  return {
+  const svc: ResearchTrizService = {
     analyzeProblem({ problem, improving, worsening }) {
       const ip = resolveParameter(improving);
       const wp = resolveParameter(worsening);
@@ -259,7 +262,17 @@ export function createTrizService(): ResearchTrizService {
     },
     idealityFraming,
     toHypotheses,
+    mapResult({ problem, improving, worsening, resultText }) {
+      const analysis = svc.analyzeProblem({
+        problem,
+        // 缺省矛盾：验证/检测精度 ↔ 系统复杂度（路由安全最常用的 TRIZ 入题角度）
+        improving: improving ?? 'detection',
+        worsening: worsening ?? 'complexity',
+      });
+      return mapResultToTriz({ problem, analysis, resultText });
+    },
   };
+  return svc;
 }
 
 /** 方便外部直接构造服务（测试/插件复用同一实例化逻辑）。 */

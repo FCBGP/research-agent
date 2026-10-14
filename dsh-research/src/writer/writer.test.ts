@@ -76,7 +76,7 @@ test('paper: 证据追溯把所有 claim 与其证据源列出', () => {
   assert.ok(limitations.body.includes('RFC 8205'), '反证应出现在局限/反证章节');
 });
 
-test('slides: Marp 分页 8 页，含标题/结果/结论', () => {
+test('slides: Marp 分页（≥8 页），含标题/结果/结论', () => {
   const writer = createWriter();
   const deck = writer.slides(sampleInput());
   const pages = deck.markdown.split(/\n---\n/);
@@ -98,4 +98,47 @@ test('slides: 空实验/空 claim 也能出骨架（不抛错）', () => {
   });
   assert.ok(deck.markdown.includes('# 空项目'));
   assert.ok(deck.markdown.length > 50);
+});
+
+test('paper: trizMapping 时 §6 = TRIZ 发明原理映射、局限顺延 §7，且条目标待核验', () => {
+  const writer = createWriter();
+  const report = writer.paper({
+    ...sampleInput(),
+    trizMapping: {
+      problem: 'ROV 提升劫持检测率而不放大误报',
+      source: 'curated-matrix',
+      contradiction: { improving: 'Measurement accuracy', worsening: 'Device complexity' },
+      entries: [
+        { principleNo: 23, principleName: 'Feedback', kind: 'didactic', reason: '矛盾分析命中 #23：劫持检测结果反馈到策略' },
+        { principleNo: 2, principleName: 'Taking out', kind: 'didactic', reason: '把验证逻辑抽离为旁路组件' },
+        { principleNo: 24, principleName: 'Intermediary', kind: 'retrospective', reason: '结果文本出现「中介」特征词，方向一致' },
+      ],
+    },
+  });
+  assert.ok(report.markdown.includes('## 6. TRIZ 发明原理映射'), '缺 TRIZ 章节');
+  assert.ok(report.markdown.includes('## 7. 局限与后续'), '带 TRIZ 时局限应顺延 §7');
+  assert.ok(!report.markdown.includes('## 6. 局限与后续'), '不应出现 §6 局限');
+  assert.ok(report.markdown.includes('| 23 | Feedback | 矛盾分析正演 |'), '原理行表应含条目');
+  assert.ok(report.markdown.includes('待核验假说'), '条目明确标待核验');
+  assert.ok(report.markdown.includes('source=triz, confidence=0.5'), '承诺 confidence=0.5');
+  assert.ok(report.markdown.includes('3 条 TRIZ 发明原理映射'), '摘要统计映射条数');
+});
+
+test('slides: trizMapping 时含 TRIZ 发明原理映射页（待核验标注）', () => {
+  const writer = createWriter();
+  const deck = writer.slides({
+    ...sampleInput(),
+    trizMapping: {
+      problem: 'ROV 提升劫持检测率而不放大误报',
+      source: 'curated-matrix',
+      contradiction: { improving: 'Measurement accuracy', worsening: 'Device complexity' },
+      entries: [
+        { principleNo: 23, principleName: 'Feedback', kind: 'didactic', reason: '矛盾分析命中 #23' },
+        { principleNo: 2, principleName: 'Taking out', kind: 'retrospective', reason: '结果文本特征词命中' },
+      ],
+    },
+  });
+  assert.ok(deck.markdown.includes('TRIZ 发明原理映射（本结果对应）'), '缺 TRIZ 幻灯片页');
+  assert.ok(deck.markdown.includes('#23 Feedback'), '幻灯片含原理条目');
+  assert.ok(deck.markdown.includes('待核验假说'), '幻灯片标待核验');
 });

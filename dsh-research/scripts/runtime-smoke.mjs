@@ -305,10 +305,12 @@ if (autoSvc?.run) {
   });
   autoOk = report?.campaign?.verdict === 'verified'
     && report?.paper?.includes('## 1. 背景与研究问题')
-    && report?.slides?.split(/\n---\n/).length >= 8
+    && report?.paper?.includes('## 6. TRIZ 发明原理映射')
+    && report?.slides?.split(/\n---\n/).length >= 9
     && (report?.artifacts?.length ?? 0) > 0
-    && report?.summary?.includes('已核验');
-  console.log('autonomous verdict:', report?.campaign?.verdict, '| slides pages:', report?.slides?.split(/\n---\n/).length, '| artifacts:', report?.artifacts?.length);
+    && report?.summary?.includes('已核验')
+    && !!report?.triz && (report?.triz?.entries?.length ?? 0) > 0; // 默认调用 TRIZ：结果→发明原理映射
+  console.log('autonomous verdict:', report?.campaign?.verdict, '| slides pages:', report?.slides?.split(/\n---\n/).length, '| triz entries:', report?.triz?.entries?.length ?? 0, '| artifacts:', report?.artifacts?.length);
 }
 
 // 阶段 4b 冒烟：长任务队列（job）+ 一次性调度（schedule）+ 自省（reflect）。

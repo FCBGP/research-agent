@@ -8,6 +8,43 @@
 
 ---
 
+---
+
+## 2026-10-14 · 阶段 8.6 · 默认调用 TRIZ + 每次研究结果 ↔ 发明原理映射（论文§6 / 幻灯片 / 右侧栏）
+
+需求（用户，三条）：① **git 每轮收尾完整提交一次并说明改了什么**；② research 时**默认就调用
+TRIZ**（不是可选项）；③ 不要 TRIZ skill，要**每次给出的结果都对应到 TRIZ 发明原理**——即研究
+产出（问题 / 假设 / claim / 实验结论）要反演映射回其体现的发明原理并给出理由，右侧栏一栏解释
+「最终结果用了 TRIZ 的什么原理 / 为什么这么做」。承接阶段 8（research_triz 正演矛盾分析）与
+8.5（右侧栏面板），本阶段把 TRIZ 从「手动工具」升级为「**默认自动 + 结果反演映射**」。
+
+- **`src/triz/result-map.ts`（新）**：`mapResultToTriz` 双通道映射引擎——
+  `didactic`（前置 `analyzeProblem` 矛盾分析命中的候选，永远在场）＋ `retrospective`
+  （结果文本对原理 name/aliases（中英）做特征词打分补足，最多 `MAX_RESULT_MAPPING=5` 条、
+  无命中不硬凑）；每条 = `[原理N Name] + kind + 理由`；输出全为**待核验假说**
+  （source=triz, confidence=0.5），须经 research_verify / research_campaign 验证后才成结论
+  （诚实标注，不作事实断言）。
+- **`src/triz/index.ts`**：`ResearchTrizService` 新增 `mapResult`；service 缺省矛盾
+  `improving:'detection' ↔ worsening:'complexity'`（命中精选矩阵 cell (28,36) → #23/2/24），
+  接受调用方 override。
+- **`src/autonomous/index.ts`**：`runAutonomousResearch` 新增 **2.6 默认 TRIZ 步骤**
+  （`input.triz !== false`，即默认开启，`triz:false` 可关）：把 topic + hypothesis +
+  claim + campaign 统计 + 矩阵拼成结果文本 → `mapResult` → 写 `kind=note, title^="triz: "`
+  artifact（右侧栏面板**自动可见**）+ episodic（kind=triz）→ 映射进论文 §6 + 幻灯片页；
+  `AutonomousReport.triz`、summary 统计「N 条 TRIZ 原理映射（待核验）」。
+- **`src/writer/paper.ts`**：新增 `PaperTrizMapping` / `TRIZ_SOURCE_LABEL` / `TRIZ_KIND_LABEL`；
+  新增 **§6 TRIZ 发明原理映射**（问题 / 来源 / 矛盾 / 原理表）+ 局限顺延 **§7**（无 TRIZ 映射
+  时局限回退 §6，编号不跳号）；摘要统计映射条数。
+- **`src/writer/slides.ts`**：新增 **5c «TRIZ 发明原理映射（本结果对应）»** 页（问题 / 来源 /
+  矛盾 / 逐条 `#N Name（类型）：理由` / 待核验标注），插在实验矩阵页之后、结论页之前。
+- **`src/plugin-tools.ts`**：`research_triz` 入参新增 `resultText`——传时输出 `mapping` 并写
+  进 artifact body（正演假说行 → 映射行），episodic 注明条数；`research_autonomous` 输出新增
+  `triz`（render 展示 source/contradiction/entries）。
+- **文档**：`docs/survey-interdomain-routing-intent-triz.md`（TRIZ 视角的域间路由意图调研，
+  与既有 intent-survey 配套）。
+- **验证**：单测 **162/162 全绿**（+ `result-map.test.ts` 7；triz + mapResult 2；writer 补
+  TRIZ §6/幻灯片 2；autonomous 默认 TRIZ + `triz:false` 关闭 2）；runtime-smoke → **SMOKE PASS**
+  新增 `triz entries: 3`（默认流水线即产出 3 条映射，论文含 §6、幻灯片 10 页）。
 ## 2026-10-14 · 域间路由意图（AS Intent）调研 + TRIZ 核验闭环
 
 需求：`research_triz` + 调研域间路由意图（inter-domain routing intent）——把「意图」作为跨 AS

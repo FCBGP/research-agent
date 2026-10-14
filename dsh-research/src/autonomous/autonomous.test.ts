@@ -53,16 +53,24 @@ test('runAutonomousResearch: 一键流水线端到端（hijack → ROV verified 
   assert.ok(cell('path-manipulation', 'rov').detection < 0.5);
   assert.ok(cell('path-manipulation', 'bgpsec').detection > 0.8);
 
-  // 论文：6 章节 + 摘要 + 附录 + 实验矩阵小节齐备
-  for (const heading of ['## 摘要', '## 1. 背景与研究问题', '## 2. 文献与现有工作', '## 3. 方法与假设', '## 4. 实验与结果', '## 5. 结论与判定', '## 6. 局限与后续', '## 附录 A · 证据追溯']) {
+  // 论文：7 章节 + 摘要 + 附录 + 实验矩阵小节 + TRIZ 映射小节齐备
+  for (const heading of ['## 摘要', '## 1. 背景与研究问题', '## 2. 文献与现有工作', '## 3. 方法与假设', '## 4. 实验与结果', '## 5. 结论与判定', '## 6. TRIZ 发明原理映射', '## 7. 局限与后续', '## 附录 A · 证据追溯']) {
     assert.ok(report.paper.includes(heading), `论文缺章节 ${heading}`);
   }
   assert.ok(report.paper.includes('### 4.1 实验矩阵'), '论文缺实验矩阵小节');
   assert.ok(report.paper.includes(report.topic));
 
-  // 幻灯片：≥9 页 Marp（含实验矩阵页）
-  assert.ok(report.slides.split(/\n---\n/).length >= 9);
+  // 默认调用 TRIZ：结果 → 发明原理映射进论文 §6 / 幻灯片 / triz note artifact（右侧栏可见）
+  assert.ok(report.triz, '默认应带结果→发明原理映射');
+  assert.ok(report.triz.entries.length > 0, '映射至少 1 条原理');
+  assert.ok(report.triz.entries.some((e) => e.kind === 'didactic'), 'didactic 矛盾分析正演始终在场');
+  assert.ok(report.paper.includes('待核验假说'), '论文标 TRIZ 条目为待核验假说');
+
+  // 幻灯片：≥10 页 Marp（含实验矩阵页 + TRIZ 映射页）
+  assert.ok(report.slides.split(/\n---\n/).length >= 10, `幻灯片页数 ${report.slides.split(/\n---\n/).length}`);
   assert.ok(report.slides.includes('实验矩阵'));
+  assert.ok(report.slides.includes('TRIZ 发明原理映射'), '幻灯片含 TRIZ 映射页');
+  assert.ok(report.summary.includes('TRIZ 原理映射'), 'summary 统计 TRIZ 映射条数');
 
   // 判定与归档
   assert.ok(Object.keys(report.claimVerdicts).length > 0);
@@ -88,11 +96,23 @@ test('runAutonomousResearch: 攻击语义 —— ROV 对 path-manipulation 无�
   assert.ok(report.paper.includes('## 5. 结论与判定'));
 });
 
-test('runAutonomousResearch: matrix:false 关闭实验矩阵，主战役仍完成', () => {
+test('runAutonomousResearch: matrix:false 关闭实验矩阵，主战役仍完成（TRIZ 默认仍调用）', () => {
   const report = runAutonomousResearch({ topic: 'X', hypothesis: 'H', matrix: false });
   assert.equal(report.matrix, undefined);
   assert.equal(report.campaign?.plan.env, 'sim');
   assert.ok(report.paper.includes('## 1. 背景与研究问题'));
+  assert.ok(report.slides.length > 0);
+  // TRIZ 是独立于矩阵的默认步骤：矩阵关掉仍映射
+  assert.ok(report.triz, 'matrix:false 仍默认调用 TRIZ');
+  assert.ok(report.paper.includes('## 6. TRIZ 发明原理映射'));
+  assert.ok(report.paper.includes('## 7. 局限与后续'));
+});
+
+test('runAutonomousResearch: triz:false 关闭 TRIZ 映射，论文无 §6 且局限回退 §6', () => {
+  const report = runAutonomousResearch({ topic: 'X', hypothesis: 'H', matrix: false, triz: false });
+  assert.equal(report.triz, undefined, 'triz:false 不应产生映射');
+  assert.ok(!report.paper.includes('## 6. TRIZ 发明原理映射'), '论文不应含 TRIZ 章节');
+  assert.ok(report.paper.includes('## 6. 局限与后续'), '无 TRIZ 时局限为 §6（编号无跳号）');
   assert.ok(report.slides.length > 0);
 });
 

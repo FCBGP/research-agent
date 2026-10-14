@@ -24,6 +24,33 @@ export interface PaperExperimentInput {
   engine?: string;
 }
 
+/** TRIZ「结果 → 发明原理」映射（autonomous 流水线默认调用；条目为待核验假说）。 */
+export interface PaperTrizMappingEntry {
+  principleNo: number;
+  principleName: string;
+  /** didactic = 矛盾分析正演命中；retrospective = 结果文本特征词反演命中。 */
+  kind: 'didactic' | 'retrospective';
+  reason: string;
+}
+
+export interface PaperTrizMapping {
+  problem: string;
+  source: string;
+  contradiction?: { improving?: string; worsening?: string };
+  entries: PaperTrizMappingEntry[];
+}
+
+/** TRIZ 来源三态中文标签 + 映射类型中文标签（slides.ts 复用）。 */
+export const TRIZ_SOURCE_LABEL: Record<string, string> = {
+  'curated-matrix': '命中精选矛盾矩阵',
+  'heuristic-fallback': '启发式兜底',
+  'unresolved': '参数未解析（启动原理集）',
+};
+export const TRIZ_KIND_LABEL: Record<string, string> = {
+  didactic: '矛盾分析正演',
+  retrospective: '结果特征词反演',
+};
+
 /** 实验矩阵：attack × validator 网格逐格战役的检测率/判定对照（autonomous 流水线产出）。 */
 export interface PaperExperimentMatrix {
   attacks: string[];
@@ -46,6 +73,7 @@ export interface PaperInput {
   claims: PaperClaimInput[];
   experiments?: PaperExperimentInput[];
   experimentMatrix?: PaperExperimentMatrix;  // 实验矩阵小结（§4.1）
+  trizMapping?: PaperTrizMapping;   // TRIZ 发明原理映射（§6；autonomous 默认带）
   limitations?: string[];
   artifacts?: string[];
   generatedAt?: string;
@@ -111,6 +139,7 @@ export function generatePaper(input: PaperInput): PaperReport {
     `经文献沉淀、假设构造与实验验证，共形成 ${claims.length} 条 claim（已核验 ${verified} / 存疑 ${disputed} / 证伪 ${rejected}）` +
     `与 ${experiments.length + matrixCells} 项战役` +
     (matrixCells > 0 ? `（含 ${matrixCells} 格实验矩阵）` : '') +
+    (input.trizMapping ? `、${input.trizMapping.entries.length} 条 TRIZ 发明原理映射（待核验，§6）` : '') +
     `。核心机制的判定见 §5 结论与判定，全部证据可经附录逐条追溯。`;
 
   const sections: PaperReport['sections'] = [];
@@ -210,7 +239,31 @@ export function generatePaper(input: PaperInput): PaperReport {
     ),
   });
 
-  // 6. 局限与后续
+  // 6. TRIZ 发明原理映射（autonomous 流水线默认调用 mapResultToTriz 生成；条目为待核验假说）
+  if (input.trizMapping) {
+    const m = input.trizMapping;
+    const rows = m.entries.map((e) => [String(e.principleNo), e.principleName, TRIZ_KIND_LABEL[e.kind] ?? e.kind, e.reason]);
+    sections.push({
+      id: 'triz-mapping',
+      heading: '## 6. TRIZ 发明原理映射',
+      body: [
+        `**问题**：${m.problem}`,
+        '',
+        `**映射来源**：${TRIZ_SOURCE_LABEL[m.source] ?? m.source}` +
+          (m.contradiction?.improving || m.contradiction?.worsening
+            ? `（矛盾分析：改善「${m.contradiction?.improving ?? '—'}」↔ 恶化「${m.contradiction?.worsening ?? '—'}」）`
+            : ''),
+        '',
+        '下表将本研究结果对应到 TRIZ（发明问题解决理论）的发明原理。每条对应为' +
+          '**待核验假说**（source=triz, confidence=0.5），须经 research_verify / research_campaign ' +
+          '实验与证据核验后才能成为结论，不作为事实断言。',
+        '',
+        mdTable(['#', '原理', '类型', '对应理由'], rows),
+      ].join('\n'),
+    });
+  }
+
+  // 7. 局限与后续
   const lim = [
     ...(input.limitations ?? []),
     ...claims
@@ -220,7 +273,8 @@ export function generatePaper(input: PaperInput): PaperReport {
   ];
   sections.push({
     id: 'limitations',
-    heading: '## 6. 局限与后续',
+    // 无 TRIZ 映射时局限为 §6；带 TRIZ 映射时 TRIZ 为 §6、局限顺延 §7（编号无跳号）
+    heading: input.trizMapping ? '## 7. 局限与后续' : '## 6. 局限与后续',
     body: lim.length === 0 ? '（未记录明显局限。）' : lim.map((x) => `- ${x}`).join('\n'),
   });
 

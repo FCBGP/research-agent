@@ -17,6 +17,8 @@ import { runCampaign, type CampaignReport } from '../experiment/runner.ts';
 import { createWriter, type ResearchWriter } from '../writer/index.ts';
 import { TASK_ROLE } from '../roles/index.ts';
 import { ModelRouter } from '../model-router/index.ts';
+import { createTrizService, type ResearchTrizService } from '../triz/index.ts';
+import { mapResultToTriz, toTrizMappingLine, type TrizResultMapping } from '../triz/result-map.ts';
 import type { ValidatorMode, AttackClass } from '../experiment/topology.ts';
 
 export interface MatrixOptions {
@@ -51,6 +53,15 @@ export interface AutonomousInput {
   seed?: number;
   /** 实验矩阵：false 关闭；对象可裁剪攻击/验证策略集合与每格轮数（缺省 4×4）。 */
   matrix?: MatrixOptions | false;
+  /**
+   * 默认调用 TRIZ：把研究结果映射到发明原理，写 triz note（右侧栏面板可见）并进论文
+   * §6 / 幻灯片页。true 为默认；false 关闭 TRIZ 步骤。
+   */
+  triz?: boolean;
+  /** TRIZ 矛盾分析「想改善」参数（缺省 detection = 验证/检测精度）。 */
+  trizImproving?: string;
+  /** TRIZ 矛盾分析「可接受恶化」参数（缺省 complexity = 系统复杂度）。 */
+  trizWorsening?: string;
   /** 可选：流水线结束后把五类记忆（含论文/幻灯片/矩阵 artifact）落盘到该目录。 */
   memoryDir?: string;
 }
@@ -64,6 +75,7 @@ export interface AutonomousReport {
   slides: string;               // marp 幻灯片
   campaign?: CampaignReport;
   matrix?: CampaignMatrix;      // 实验矩阵（每条战役各 attack×validator 的检测率/判定）
+  triz?: TrizResultMapping;     // 结果→TRIZ 发明原理映射（默认调用 TRIZ 的产物，非事实）
   episodes: number;
   summary: string;
 }
@@ -87,12 +99,13 @@ export function buildGoal(topic: string, hypothesis?: string): ResearchGoal {
 /** 一键流水线（注入 memory/agents/writer；缺省时自建）。 */
 export function runAutonomousResearch(
   input: AutonomousInput,
-  deps: { memory?: ResearchMemory; agents?: ResearchAgents; writer?: ResearchWriter; router?: ModelRouter } = {},
+  deps: { memory?: ResearchMemory; agents?: ResearchAgents; writer?: ResearchWriter; router?: ModelRouter; triz?: ResearchTrizService } = {},
 ): AutonomousReport {
   const memory = deps.memory ?? createMemory();
   const agents = deps.agents ?? createAgents({ memory });
   const writer = deps.writer ?? createWriter();
   const router = deps.router ?? new ModelRouter();
+  const trizSvc = deps.triz ?? createTrizService();
 
   const directive = (phase: string, role: string) => {
     const route = router.route(role as Parameters<ModelRouter['route']>[0]);
@@ -147,6 +160,45 @@ export function runAutonomousResearch(
   const matrixResult = runCampaignMatrix(memory, agents.experiment, primary, input);
   const matrix = matrixResult?.matrix;
 
+  // 2.6) 默认调用 TRIZ：研究结果 → 发明原理映射（didactic 矛盾分析 + 结果文本特征词反演）。
+  //      写 kind=note、title^="triz: " artifact（右侧栏面板自动可见）+ episodic 情景记忆；
+  //      映射进论文 §6 与幻灯片页，条目一律待核验（source=triz, confidence=0.5）。
+  let triz: TrizResultMapping | undefined;
+  let trizArtifact: string | undefined;
+  if (input.triz !== false) {
+    directive('triz', TASK_ROLE['verify']);
+    const r4 = (x: number | undefined) => (x === undefined ? '' : String(Math.round(x * 10000) / 10000));
+    const resultText = [
+      input.topic,
+      goal.hypothesis,
+      ...goal.claims.map((c) => c.statement),
+      campaign ? `实验：detection=${r4(campaign.detection.mean)} fp=${r4(campaign.detection.falsePositive.mean)}，outcome=${campaign.outcome}` : '',
+      matrix ? `实验矩阵：${matrix.attacks.join('+')} × ${matrix.validators.join('+')} = ${matrix.cells.length} 格` : '',
+    ].filter(Boolean).join('\n');
+    triz = trizSvc.mapResult({
+      problem: input.topic,
+      improving: input.trizImproving,
+      worsening: input.trizWorsening,
+      resultText,
+    });
+    const trizArt = memory.artifact.put({
+      kind: 'note',
+      title: `triz: ${input.topic.slice(0, 40)}`,
+      body: triz.entries.map(toTrizMappingLine).join('\n'),
+      meta: {
+        source: triz.source,
+        candidates: triz.entries.filter((e) => e.kind === 'didactic').map((e) => e.principleNo),
+        mapping: triz.entries.length,
+      },
+    });
+    trizArtifact = trizArt.id;
+    memory.episodic.record({
+      kind: 'triz',
+      summary: `triz(默认): ${input.topic.slice(0, 40)} → ${triz.entries.length} 条原理映射`,
+      outcome: triz.source,
+    });
+  }
+
   // 3) 全量验证扫描（写入 hypothesis/artifact 记忆）
   directive('verify', TASK_ROLE['verify']);
   const claimVerdicts: Record<string, Verdict> = {};
@@ -169,6 +221,12 @@ export function runAutonomousResearch(
       evidence: c.evidence, counterEvidence: c.counterEvidence,
     })),
     experiments: experimentsFor(goal, campaign),
+    trizMapping: triz ? {
+      problem: triz.problem,
+      source: triz.source,
+      contradiction: triz.contradiction,
+      entries: triz.entries,
+    } : undefined,
     experimentMatrix: matrix ? {
       attacks: matrix.attacks,
       validators: matrix.validators,
@@ -181,7 +239,7 @@ export function runAutonomousResearch(
   const paperInv = memory.artifact.put({ kind: 'report', title: paper.title, body: paper.markdown, meta: { kind: 'paper' } });
   const slideInv = memory.artifact.put({ kind: 'report', title: `${paper.title} · slides`, body: slides.markdown, meta: { kind: 'slides' } });
 
-  const artifacts = [...run.artifacts, ...(campaign?.artifacts ?? []), paperInv.id, slideInv.id, ...(matrixResult ? [matrixResult.artifactId] : [])];
+  const artifacts = [...run.artifacts, ...(campaign?.artifacts ?? []), paperInv.id, slideInv.id, ...(matrixResult ? [matrixResult.artifactId] : []), ...(trizArtifact ? [trizArtifact] : [])];
 
   // 5) 落盘（可选）：显式 memoryDir 优先；否则运行时 memory 自带 persist（plugin-core
   //    配置 memory.dir 时挂上）→ 五类记忆 + 论文/幻灯片/矩阵 artifact 持久化归档。
@@ -198,11 +256,14 @@ export function runAutonomousResearch(
     slides: slides.markdown,
     campaign,
     matrix,
+    triz,
     episodes: memory.episodic.all().length,
     summary: `「${input.topic}」共 ${goal.claims.length} 条 claim` +
       `（${Object.values(claimVerdicts).filter((v) => v === 'verified').length} 已核验）` +
       `、${paper.stats.experiments} 项战役` +
-      `（其中实验矩阵 ${matrix?.cells.length ?? 0} 格）、${artifacts.length} 个 artifact；论文与幻灯片已生成。`,
+      `（其中实验矩阵 ${matrix?.cells.length ?? 0} 格）` +
+      (triz ? `、${triz.entries.length} 条 TRIZ 原理映射（待核验）` : '') +
+      `、${artifacts.length} 个 artifact；论文与幻灯片已生成。`,
   };
 }
 

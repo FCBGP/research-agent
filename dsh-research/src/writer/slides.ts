@@ -2,7 +2,7 @@
 // （Marp 风格，`---` 分页，可在 Marp/VSCode/CLI 一键导出 PDF/PPTX）。
 // 与 paper.ts 共享 PaperInput，骨架确定、内容全部来自研究对象。
 import type { PaperInput } from './paper.ts';
-import { generatePaper } from './paper.ts';
+import { generatePaper, TRIZ_KIND_LABEL, TRIZ_SOURCE_LABEL } from './paper.ts';
 
 export interface SlideDeckReport {
   title: string;
@@ -93,6 +93,25 @@ export function generateSlides(input: PaperInput): SlideDeckReport {
           }),
           '',
           '> 单元格 = 检测率均值（%）。逐格 verdict 见论文 §4.1。',
+        ].join('\n')]
+      : []),
+
+    // 5c TRIZ 发明原理映射（autonomous 默认调用；本结果 ↔ 发明原理，待核验假说）
+    ...(input.trizMapping && input.trizMapping.entries.length > 0
+      ? [[
+          '## TRIZ 发明原理映射（本结果对应）',
+          '',
+          `问题：**${input.trizMapping.problem}**`,
+          `来源：${TRIZ_SOURCE_LABEL[input.trizMapping.source] ?? input.trizMapping.source}` +
+            (input.trizMapping.contradiction?.improving || input.trizMapping.contradiction?.worsening
+              ? `（改善「${input.trizMapping.contradiction?.improving ?? '—'}」↔ 恶化「${input.trizMapping.contradiction?.worsening ?? '—'}」）`
+              : ''),
+          '',
+          ...input.trizMapping.entries.map((e) =>
+            `- **#${e.principleNo} ${e.principleName}**（${TRIZ_KIND_LABEL[e.kind] ?? e.kind}）：${e.reason}`,
+          ),
+          '',
+          '> 每条对应为待核验假说（source=triz, confidence=0.5）；经 research_verify / research_campaign 验证后才成结论。',
         ].join('\n')]
       : []),
 

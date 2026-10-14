@@ -126,6 +126,9 @@
 
 - [x] 阶段 8 完成（`ce94b68`）= TRIZ 方法论接入（research_triz 工具 + triz skill）；146/146 单测 + SMOKE PASS（tools 14/14, engineering 7/7, triz=true）
 - [x] 阶段 8.5 完成 = 右侧栏「TRIZ 发明原理」面板（host `/api/research.triz.notes` + client bundle `lib/client.js`）；151/151 单测 + SMOKE PASS（trizUi=true），暂无未完成子项
+- [x] 阶段 8.6 完成 = 默认调用 TRIZ + 每次研究结果 ↔ 发明原理映射（`src/triz/result-map.ts` 双通道
+  didactic/retrospective；autonomous 2.6 默认步骤写 triz note（右侧栏可见）；论文 §6 + 幻灯片 5c
+  + research_triz resultText）；162/162 单测 + SMOKE PASS（autonomous triz entries: 3），暂无未完成子项
 - [x] Phase 5 完成 = preset-research + 6 插件重构落地；SMOKE PASS 且 standard 会话无 research_*
 - [x] Phase 4 完成（收尾）= 仅剩 16c real subagent、多 Profile、`--patch` 链、npm 一键部署、
   报告跟进

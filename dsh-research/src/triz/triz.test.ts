@@ -117,3 +117,19 @@ test('triz: createTrizService 端到端 —— analyze→hypotheses 全程可跑
   const hs = svc.toHypotheses(a);
   assert.ok(hs.length === a.candidates.length, '假说条数 = 候选条数');
 });
+
+test('triz: mapResult —— 结果→发明原理映射（缺省矛盾 + 结果文本反演）', () => {
+  const svc = createTrizService();
+  // 无文本/无矛盾：didactic 正演在场；缺省矛盾 detection↔complexity 命中精选矩阵
+  const m = svc.mapResult({ problem: 'ROV 提升劫持检测率而不放大误报' });
+  assert.equal(m.source, 'curated-matrix');
+  assert.equal(m.contradiction.improving, 'Measurement accuracy');
+  assert.equal(m.contradiction.worsening, 'Device complexity');
+  assert.ok(m.entries.length >= 1, '至少 1 条原理');
+  assert.ok(m.entries.every((e) => e.kind === 'didactic'), '无结果文本只有 didactic');
+  // 结果文本特征词补足 → 出现 retrospective 且不超上限
+  const m2 = svc.mapResult({ problem: 'x', improving: 'detection', worsening: 'complexity', resultText: '采用分割、抽取与预操作，并把攻击面变害为利' });
+  assert.ok(m2.entries.length > m.entries.length, '特征词补足更多原理');
+  assert.ok(m2.entries.some((e) => e.kind === 'retrospective'), '出现反演条目');
+  assert.ok(m2.entries.length <= 5, '不超 5 条上限');
+});

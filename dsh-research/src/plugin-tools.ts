@@ -524,12 +524,13 @@ function registerTools(
           goalId: { type: 'string' }, topic: { type: 'string' },
           claimVerdicts: { type: 'object' }, artifacts: { type: 'array', items: { type: 'string' } },
           paper: { type: 'string' }, slides: { type: 'string' }, campaign: { type: 'object' },
-          matrix: { type: 'object' }, episodes: { type: 'number' }, summary: { type: 'string' },
+          matrix: { type: 'object' }, triz: { type: 'object' },
+          episodes: { type: 'number' }, summary: { type: 'string' },
         },
         required: ['goalId', 'summary'],
         additionalProperties: true,
       },
-      render: (_a, v) => [{ type: 'text', text: JSON.stringify({ summary: v.summary, campaign: v.campaign ? { verdict: v.campaign.verdict, outcome: v.campaign.outcome, detection: v.campaign.detection?.mean } : null, matrix: v.matrix ? { attacks: v.matrix.attacks?.length, validators: v.matrix.validators?.length, cells: v.matrix.cells?.length } : null, claimVerdicts: v.claimVerdicts, artifacts: v.artifacts?.length }, null, 2) }],
+      render: (_a, v) => [{ type: 'text', text: JSON.stringify({ summary: v.summary, campaign: v.campaign ? { verdict: v.campaign.verdict, outcome: v.campaign.outcome, detection: v.campaign.detection?.mean } : null, matrix: v.matrix ? { attacks: v.matrix.attacks?.length, validators: v.matrix.validators?.length, cells: v.matrix.cells?.length } : null, triz: v.triz ? { source: v.triz.source, contradiction: v.triz.contradiction, entries: (v.triz.entries ?? []).map((e) => `#${e.principleNo} ${e.principleName}(${e.kind})`) } : null, claimVerdicts: v.claimVerdicts, artifacts: v.artifacts?.length }, null, 2) }],
     },
     async execute(args) {
       const input = args as { topic: string; hypothesis?: string; paperTitle?: string; env?: 'frr' | 'vpp' | 'sim'; repetitions?: number; validator?: 'none' | 'rov' | 'bgpsec' | 'rov+bgpsec' | 'aspa' | 'rov+aspa'; supportThreshold?: number; seed?: number; matrix?: boolean; memoryDir?: string };
@@ -546,6 +547,7 @@ function registerTools(
         slides: report.slides,
         campaign: report.campaign ? { verdict: report.campaign.verdict, outcome: report.campaign.outcome, detection: { mean: report.campaign.detection.mean, falsePositive: report.campaign.detection.falsePositive.mean }, results: report.campaign.results.length } : undefined,
         matrix: report.matrix ? { attacks: report.matrix.attacks, validators: report.matrix.validators, cells: report.matrix.cells } : undefined,
+        triz: report.triz ? { problem: report.triz.problem, source: report.triz.source, contradiction: report.triz.contradiction, entries: report.triz.entries } : undefined,
         episodes: report.episodes,
         summary: report.summary,
       };
@@ -676,16 +678,18 @@ function registerTools(
   register({
     name: 'research_triz',
     description:
-      'TRIZ（发明问题解决理论）矛盾分析：把研究问题形式化为「改善↔恶化」技术矛盾，'
-      + '查 40 发明原理 / 精选矛盾矩阵给出机制方向假说、IFR 理想解与分离/进化视角。'
-      + '输出皆为待核验 Hypothesis（source=triz, confidence=0.5），须经 research_verify / '
-      + 'research_campaign 核验后才能成为 claim；record 时写入 artifact + 情景记忆。',
+      'TRIZ（发明问题解决理论）：①矛盾分析——把研究问题形式化为「改善↔恶化」技术矛盾，'
+      + '查 40 发明原理 / 精选矛盾矩阵给出机制方向假说、IFR 理想解与分离/进化视角；'
+      + '②结果→发明原理映射（可选 resultText）——把已有研究结果反演对应到其体现的发明原理并按'
+      + '特征词打分补足。输出皆为待核验 Hypothesis（source=triz, confidence=0.5），须经 '
+      + 'research_verify / research_campaign 核验后才能成为 claim；record 时写入 artifact + 情景记忆。',
     parameters: {
       type: 'object',
       properties: {
         problem: { type: 'string', description: '要解决的研究问题 / 机制矛盾（如「ROV 提升劫持检测率但跨长收敛」）' },
         improving: { type: 'string', description: '想改善的方面：中英皆可（reliability / 检测 / 抗劫持 / 收敛 / 自动化…）' },
         worsening: { type: 'string', description: '可接受的恶化方面（latency / 复杂度 / 开销 / CPU / 部署成本…）' },
+        resultText: { type: 'string', description: '可选：已有研究结果文本（问题/假设/claim/实验结论），映射其体现的发明原理' },
         record: { type: 'boolean', description: '是否写入 artifact + 情景记忆（默认 true）' },
       },
       required: ['problem'],
@@ -703,6 +707,7 @@ function registerTools(
           evolution: { type: 'array', items: { type: 'object' } },
           ideality: { type: 'object' },
           hypotheses: { type: 'array', items: { type: 'object' } },
+          mapping: { type: 'object', description: '结果→发明原理映射（传 resultText 时给出）' },
           artifactId: { type: 'string' },
         },
         required: ['problem', 'source', 'candidates', 'hypotheses'],
@@ -716,25 +721,30 @@ function registerTools(
           contradiction: v.contradiction,
           candidates: (v.candidates ?? []).map((c) => `#${c.no} ${c.name} — ${c.routingHint}`),
           hypotheses: (v.hypotheses ?? []).map((h) => h.statement),
+          mapping: v.mapping ? { source: v.mapping.source, contradiction: v.mapping.contradiction, entries: (v.mapping.entries ?? []).map((e) => `#${e.principleNo} ${e.principleName}(${e.kind}) — ${e.reason}`) } : null,
           artifactId: v.artifactId,
         }, null, 2),
       }],
     },
     async execute(args) {
-      const input = args as { problem: string; improving?: string; worsening?: string; record?: boolean };
+      const input = args as { problem: string; improving?: string; worsening?: string; resultText?: string; record?: boolean };
       const analysis = runtime.triz.analyzeProblem({ problem: input.problem, improving: input.improving, worsening: input.worsening });
       const ideality = runtime.triz.idealityFraming({ problem: input.problem });
       const hypotheses = runtime.triz.toHypotheses(analysis);
+      // 结果→发明原理映射：传 resultText 时反演结果体现的原理（didactic 矛盾分析优先 + 特征词补足）
+      const mapping = input.resultText ? runtime.triz.mapResult({ problem: input.problem, improving: input.improving, worsening: input.worsening, resultText: input.resultText }) : undefined;
       let artifactId: string | undefined;
       if (input.record !== false) {
-        const body = hypotheses.map((h) => `[原理${h.principleNo} ${h.principleName}] ${h.statement}`).join('\n');
+        const body = mapping
+          ? mapping.entries.map((e) => `[原理${e.principleNo} ${e.principleName}] ${e.reason}`).join('\n')
+          : hypotheses.map((h) => `[原理${h.principleNo} ${h.principleName}] ${h.statement}`).join('\n');
         artifactId = researchCore.artifacts.put({
           kind: 'note',
           title: `triz: ${input.problem.slice(0, 40)}`,
           body,
-          meta: { source: analysis.source, candidates: analysis.candidates.map((c) => c.no) },
+          meta: { source: analysis.source, candidates: analysis.candidates.map((c) => c.no), mapping: mapping?.entries.length },
         }).id;
-        runtime.memory.episodic.record({ kind: 'triz', summary: `triz: ${input.problem.slice(0, 40)}`, outcome: analysis.source });
+        runtime.memory.episodic.record({ kind: 'triz', summary: `triz: ${input.problem.slice(0, 40)}` + (mapping ? ` → ${mapping.entries.length} 条原理映射` : ''), outcome: analysis.source });
       }
       return {
         problem: analysis.problem,
@@ -745,6 +755,7 @@ function registerTools(
         evolution: analysis.evolution,
         ideality,
         hypotheses,
+        mapping,
         artifactId,
       };
     },

@@ -546,3 +546,40 @@ bundle 插件 = **8 个**（host 7 + preset tools 1）；阶段 8 快照里的 6
 用法（用户口径）：`dsh research` 启动 Web UI 后，右侧栏打开「TRIZ 发明原理」面板即可看到
 本次研究过程里 `research_triz` 分析出的发明原理与推理链；配合 `skills/triz/SKILL.md` 把候选
 方向接 research_verify / research_campaign 核验。
+
+---
+
+## 阶段 8.6 · 默认调用 TRIZ + 每次研究结果 ↔ 发明原理映射（2026-10-14）
+
+需求（用户，三条）：
+1. **git 每轮收尾完整提交一次**并说明本次改了什么（本文档 §10.1 文档卫生已含提交纪律，本阶段
+   起代码/文档改动一轮一提交）。
+2. **research 时默认就调用 TRIZ**（不是可选步骤）——`runAutonomousResearch` 新增 **2.6 默认
+   TRIZ 步骤**（`input.triz !== false` 即默认开启；`triz:false` 可关）。
+3. **每次给出的结果都要对应到 TRIZ 发明原理**（不是 TRIZ skill，而是"结果 → 原理"反演映射）：
+   研究产出（问题 / 假设 / claim / 实验结论）反演映射回其体现的发明原理并给出理由，右侧栏一栏
+   解释「最终结果用了 TRIZ 的什么原理 / 为什么这么做」。
+
+改动（全部在 `dsh-research/` 自身层，`deepseek-harness/` 零改动）：
+- **`src/triz/result-map.ts`（新）**：`mapResultToTriz` 双通道映射——`didactic`（矛盾分析候选，
+  永远在场）＋ `retrospective`（结果文本对原理 name/aliases（中英）特征词打分补足，最多 5 条、
+  无命中不硬凑）。每条 = `[原理N Name] + kind + 理由`；输出全为**待核验假说**（source=triz,
+  confidence=0.5），须经 research_verify / research_campaign 验证后才成结论。
+- **`src/triz/index.ts`**：`ResearchTrizService.mapResult`；缺省矛盾 `detection ↔ complexity`
+  （命中精选矩阵 (28,36) → #23/2/24），可 override。
+- **`src/autonomous/index.ts`**：2.6 默认 TRIZ（topic+hypothesis+claim+campaign+矩阵 → mapResult →
+  `kind=note title^="triz: "` artifact（右侧栏可见）+ episodic）；`AutonomousReport.triz`；
+  summary 统计「N 条 TRIZ 原理映射（待核验）」。
+- **`src/writer/paper.ts`**：§6 TRIZ 发明原理映射（问题/来源/矛盾/原理表，标待核验）；局限顺延
+  §7；无 TRIZ 映射时局限回退 §6（编号不跳号）。**`src/writer/slides.ts`**：新增 5c «TRIZ 发明
+  原理映射（本结果对应）» 页。
+- **`src/plugin-tools.ts`**：`research_triz` 入参 `resultText` → 输出 `mapping` 并写入 artifact
+  body；`research_autonomous` 输出新增 `triz`（render 展示 source/contradiction/entries）。
+
+实测（沙箱，`DSH_HOME=/tmp/dsh-home`）：
+- `node --test "src/**/*.test.ts"` = **162/162 全绿**（含 `result-map.test.ts` 7）。
+- runtime-smoke → **SMOKE PASS**：`autonomous verdict: verified | slides pages: 10 | triz
+  entries: 3 | artifacts: 8`（默认流水线即自动产出 3 条 TRIZ 原理映射）。
+
+用法（用户口径）：`dsh research` 跑 research_autonomous / 任一会话后，右侧栏「TRIZ 发明原理」
+面板即显示本次**最终结果的原理映射行**（`[原理N Name] 理由`）；论文 §6 与幻灯片 5c 同步带映射表。
