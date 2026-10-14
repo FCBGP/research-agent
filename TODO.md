@@ -126,6 +126,11 @@
 
 - [x] 阶段 8 完成（`ce94b68`）= TRIZ 方法论接入（research_triz 工具 + triz skill）；146/146 单测 + SMOKE PASS（tools 14/14, engineering 7/7, triz=true）
 - [x] 阶段 8.5 完成 = 右侧栏「TRIZ 发明原理」面板（host `/api/research.triz.notes` + client bundle `lib/client.js`）；151/151 单测 + SMOKE PASS（trizUi=true），暂无未完成子项
+- [x] 阶段 8.7 完成（本轮）= 右侧栏面板可见性根因修复（client-modules 只认裸包名/两段 scope，
+  首行改裸包名 `@basil/dsh-research` → 浏览器半边进 __DSH_BOOT__）+ 新增 research-triz-auto
+  （每个最终回答 → session/event → mapResult → triz note → 右侧栏面板自动更新，每轮去重）+
+  persona 每答自带 TRIZ 映射小节；168/168 单测 + SMOKE PASS（clientGraph=true, trizAuto=true），
+  用户侧需重启 `dsh research` 生效
 - [x] 阶段 8.6 完成 = 默认调用 TRIZ + 每次研究结果 ↔ 发明原理映射（`src/triz/result-map.ts` 双通道
   didactic/retrospective；autonomous 2.6 默认步骤写 triz note（右侧栏可见）；论文 §6 + 幻灯片 5c
   + research_triz resultText）；162/162 单测 + SMOKE PASS（autonomous triz entries: 3），暂无未完成子项

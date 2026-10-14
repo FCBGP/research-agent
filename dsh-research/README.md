@@ -102,17 +102,18 @@
 
 | 文件 | 平面 | 内容 |
 |---|---|---|
-| `cordis.patch.yml` | host | 7 行：`research-core` / `research-triz` / `research-triz-ui` / `research-director` / `research-experiment` / `research-writer` / `research-operations`（行序 = 依赖顺序；阶段 8.5 起新增 `research-triz-ui`） |
+| `cordis.patch.yml` | host | 8 行：`research-core`（裸包名 `@basil/dsh-research`）/ `research-triz` / `research-triz-ui` / `research-triz-auto` / `research-director` / `research-experiment` / `research-writer` / `research-operations`（行序 = 依赖顺序；阶段 8.5 加 `research-triz-ui`、阶段 8.7 加 `research-triz-auto`；**首行必须用裸包名**——client-modules 只识别裸包名/两段 scope，子路径无法发现 `dsh.client`，右侧栏面板因此「看不到」） |
 | `presets/research.patch.yml` | preset | `preset-research`（`@deepseek-ai/dsh-agent-preset`，id=research, order=2）：persona + research-tools + skill-filesystem + tool-skill + standard 基础工具集 |
 
-**8 个插件**（包 `exports` 显式子路径 `./core` `./triz` `./triz-ui` `./director` `./experiment`
-`./writer` `./operations` `./tools`；另有浏览器半边 `./client`，见阶段 8.5）：
+**9 个插件**（包 `exports` 显式子路径 `./core` `./triz` `./triz-ui` `./triz-auto` `./director`
+`./experiment` `./writer` `./operations` `./tools`；另有浏览器半边 `./client`，见阶段 8.5）：
 
 | 插件 | 入口 | 平面 | 提供 |
 |---|---|---|---|
 | `dsh-research-core` | `src/plugin-core.ts` | host | `researchCore` / `researchMemory` / `researchAgents` |
 | `dsh-research-triz` | `src/plugin-triz.ts` | host | `researchTriz`（TRIZ 知识基 + 矛盾分析 / IFR / 假说生成） |
 | `dsh-research-triz-ui` | `src/plugin-triz-ui.ts` | host | 右侧栏「TRIZ 发明原理」面板数据源：`connection.fetch` 挂 `/api/research.triz.notes`（只读，不注册工具） |
+| `dsh-research-triz-auto` | `src/plugin-triz-auto.ts` | host | **每个最终回答自动映射到 TRIZ**：订阅 `session/event`（user/message→assistant/message→turn/end），`mapResult` 写 `triz: ` note artifact + episodic → 右侧栏面板自动更新（不注册工具，不 provide 服务） |
 | `dsh-research-director` | `src/plugin-director.ts` | host | `researchDirector`（DAG 调度） |
 | `dsh-research-experiment` | `src/plugin-experiment.ts` | host | `researchExperiment`（自动实验战役） |
 | `dsh-research-writer` | `src/plugin-writer.ts` | host | `researchWriter`（论文 / 幻灯片） |
@@ -134,10 +135,12 @@
 
 ### 运行时插件（阶段 5 · 6 插件分片，Cordis 形态）— ✅ 已端到端挂载实测
 
-- 原 `src/plugin.ts` 巨型插件已拆为 8 个职责单一插件（服务名 / 工具 schema 语义零变化；
-  阶段 8 起新增 `dsh-research-triz`、阶段 8.5 起新增 `dsh-research-triz-ui`），挂载分两个平面：
-  - **host 平面**（`cordis.patch.yml` 7 行，行序 = 依赖顺序）提供 13 个服务（`research-triz-ui`
-    不 provide 服务，只挂右栏面板数据源 route）——
+- 原 `src/plugin.ts` 巨型插件已拆为 9 个职责单一插件（服务名 / 工具 schema 语义零变化；
+  阶段 8 起新增 `dsh-research-triz`、阶段 8.5 起新增 `dsh-research-triz-ui`、阶段 8.7 起新增
+  `dsh-research-triz-auto`），挂载分两个平面：
+  - **host 平面**（`cordis.patch.yml` 8 行，行序 = 依赖顺序）提供 13 个服务
+    （`research-triz-ui` / `research-triz-auto` 不 provide 服务：前者只挂右栏面板数据源 route，
+    后者只订阅 session/event 自动写 TRIZ note）——
     `researchCore` / `researchMemory` / `researchAgents`（core）；`researchTriz`（triz）；`researchDirector`（director）；
     `researchExperiment`（experiment）；`researchWriter`（writer）；`researchPolicy` /
     `researchAutonomous` / `researchJobs` / `researchScheduler` / `researchSelfImprove` /
@@ -345,6 +348,47 @@ patch 栈，冒烟时断言 `policy rules: 12`（L1）与 `chain defaults-only c
   autonomous 默认 TRIZ + triz:false 2）。
 - runtime-smoke → **SMOKE PASS**：`autonomous ... | triz entries: 3`（默认流水线即产出 3 条映射，
   论文含 §6、幻灯片 10 页、summary 统计映射条数）。
+
+### 阶段 8.7 · 面板可见性根因修复 + 每个最终回答自动映射 TRIZ（2026-10-14：✅ 已实现并自测）
+
+> 需求（用户）：部署后**右侧栏看不到「TRIZ 发明原理」面板**；且不要「写进文件才算解释」——
+> **每次研究给出的每个最终回答都要在右侧栏解释它对应了 TRIZ 的什么发明原理**。
+> 本阶段两件事：① 根因修复让面板真正可见；② 新增 `research-triz-auto` 让「每个最终回答
+> 自动落一条 TRIZ 映射」进右侧栏面板，persona 层再要求回答正文自带映射小节。
+
+- **面板可见性根因（为什么部署后看不到）**：`@deepseek-ai/dsh-client-modules` 扫描 host
+  Loader 条目、用 `exactPackageSpecifier()` 找声明了 `dsh.client` 的包——它**只认裸包名或
+  两段 `@scope/name`**，三段子路径（如 `@basil/dsh-research/core`）一律返回 `void 0`。修复前
+  `cordis.patch.yml` 首行用子路径 specifier → `@basil/dsh-research` 的 `package.json`
+  （含 `dsh.client` 声明）**永远发现不了** → 浏览器半边 `client/index.ts`（右侧栏 TRIZ Tab）
+  从未进入 `window.__DSH_BOOT__` 组合图 → 右侧栏面板必然不存在。
+- **修复**：`cordis.patch.yml` 首行 `research-core` 的 `name` 由 `@basil/dsh-research/core`
+  改为**裸包名 `@basil/dsh-research`**（`main`=src/plugin-core.ts，与 `./core` 同一入口，
+  host 行为不变）；其余 6 行子路径不动（各自拿到缓存的 negative 判定，安全）。
+  `lib/client.js` 重新 build（含 `keepMounted:true`，面板打开后会话切换/隐藏不销毁）。
+- **`research-triz-auto`（新 host 插件，`exports ./triz-auto`）**：订阅公开的
+  `session/event` 事件总线——`user/message` 缓存问题、`assistant/message` 缓存答案
+  （同轮多 step 覆盖，`interrupted:true` 的半截答案跳过）、`turn/end` 判定**最终答案**
+  → `researchTriz.mapResult`（缺省矛盾 改善 detection ↔ 恶化 complexity → #23/2/24）→
+  写 `researchCore.artifacts`（`kind=note, title^='triz: ', meta.auto=true`）+ 
+  `researchMemory.episodic` → 右侧栏「TRIZ 发明原理」面板**自动可见**；每轮至多 1 条
+  （turn/end 清缓存，天然去重）。依赖经 `ctx.get` 惰性读取、缺失安全跳过；不注册工具。
+- **persona 纪律**（`presets/research.patch.yml`）：EVERY final answer 必须以标题
+  **`### 本回答对应的 TRIZ 发明原理映射`** 收尾，逐条 `「原理#N Name — 一句理由」`，
+  优先矛盾推理（改善 detection ↔ 恶化 complexity → 精选矩阵 cell (28,36) → #23/#2/#24），
+  一律标注 `source=triz, confidence=0.5`（待核验假说，不声称事实），**不需要额外调用工具**。
+- **面板位置**：Web UI 右侧栏 → guide 页 → **「TRIZ 发明原理」** 条目；打开一次后
+  `keepMounted` 常驻。**改完必须重启 `dsh research`**（client-modules 对「非 client 包」的
+  negative 判定按 source 缓存，重启前旧进程仍看不到面板）。
+
+**验证（沙箱，`DSH_HOME=/tmp/dsh-home`）：**
+- 单测 **168/168 全绿**（基线 162 + `plugin-triz-auto.test.ts` 6：extractMessageText 双形状 /
+  isFinalAnswerText 阈值 / recordAnswerMapping 落 artifact+episodic / 依赖缺失安全 / 轮末去重 /
+  中断半截答案不作数）。
+- runtime-smoke → **SMOKE PASS**：新增 `client-graph`（graph.entries 含 `@basil/dsh-research`
+  → 浏览器半边进 __DSH_BOOT__，面板可见性根因回归断言，entries=66）+ `triz-auto`
+  （真实 services 驱动 createAutoTrizMiddleware：user→assistant→turn/end 恰好落 1 条
+  `meta.auto=true` 的 triz note，source=curated-matrix, entries=3）。
 
 ## npm 打包与一键部署（2026-10-09：TODO「一键部署」✅）
 

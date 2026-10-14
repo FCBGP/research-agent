@@ -33,6 +33,8 @@ export function trizExplainerDefinition(): SidebarRightTabDefinition {
     kind: TRIZ_EXPLAINER_KIND,
     patterns: [TRIZ_EXPLAINER_ADDRESS],
     priority: 'extension',
+    // 打开后保持挂载：会话切换/隐藏后不销毁，用户再次打开右侧栏立即可见。
+    keepMounted: true,
     title: () => 'TRIZ 发明原理',
     guide: trizExplainerGuide(),
   }

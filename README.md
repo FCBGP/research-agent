@@ -238,6 +238,15 @@ research_triz problem="ROV 提升劫持检测率但跨长收敛" improving="检�
   `research_triz` 分析出的发明原理（编号/名称/摘要/路由提示）与推导假说列成可读卡片，
   解释「这个方案用了 TRIZ 的什么原理」；UI 如实标注待核验假说，接 research_verify /
   research_campaign 闭环后才成为结论。
+- **默认自动（阶段 8.6）**：`research_autonomous` 默认带 TRIZ 步骤（`input.triz !== false`），
+  每次研究结果自动反演映射到发明原理（双通道 didactic/retrospective，`src/triz/result-map.ts`），
+  写 `triz: ` note → 右侧栏面板自动可见；论文 §6 + 幻灯片 5c 自带映射小节。无需 TRIZ skill。
+- **每个回答都解释（阶段 8.7）**：新增 host 插件 `research-triz-auto`——订阅
+  `session/event`（user/message → assistant/message → turn/end），**每个最终回答自动映射**
+  到 1~5 条发明原理并写右侧栏面板（每轮至多 1 条，天然去重）。persona 同时要求回答正文以
+  `### 本回答对应的 TRIZ 发明原理映射` 收尾（逐条 `「原理#N Name — 一句理由」`，标
+  `source=triz, confidence=0.5` 待核验）。面板在**右侧栏 guide 页 →「TRIZ 发明原理」**；
+  **改代码/重新部署后必须重启 `dsh research`**（client-modules 对旧 bootstrap 的判定有缓存）
 
 ## WeKnora 知识库对接（dsh ↔ 腾讯 WeKnora，2026-10-10）
 

@@ -10,7 +10,49 @@
 
 ---
 
+## 2026-10-14 · 阶段 8.7 · 右侧栏面板可见性根因修复 + 每个最终回答自动映射 TRIZ
+
+需求（用户，最新一轮）：① 部署后**右侧栏看不到「TRIZ 发明原理」面板**——「我要的应该不是
+TRIZ skill，而是你每次给出的结果都要对应到 TRIZ 发明原理，解释在右侧栏那一栏」；② 不要
+「写进文件才解释」——**每个回答都要有 TRIZ 解释**。本阶段 = 修面板可见性 + 让「每个最终
+回答」在右侧栏自动多一条 TRIZ 映射。
+
+- **面板可见性根因（为什么部署后看不到）**：`@deepseek-ai/dsh-client-modules` 扫描 host
+  Loader 条目找声明 `dsh.client` 的包，`exactPackageSpecifier()` **只认裸包名 / 两段
+  `@scope/name`**，三段子路径（如 `@basil/dsh-research/core`）一律 `void 0` → `@basil/
+  dsh-research` 的 `package.json`（含 `dsh.client` 声明与 `exports["./client"]`）**永远发现
+  不了** → 浏览器半边 `client/index.ts`（右侧栏 TRIZ Tab）**从未进入 `window.__DSH_BOOT__`
+  组合图** → 面板必然不可见（非 UI 问题，是 bootstrap 根本没带它）。
+- **修复**：`cordis.patch.yml` 首行 `research-core` 的 `name` 由 `@basil/dsh-research/core`
+  改为**裸包名 `@basil/dsh-research`**（`main`=src/plugin-core.ts，与 `./core` 同入口，
+  host 行为零变化）；其余 6 行子路径不动（各自 cached negative，安全）。`lib/client.js`
+  重新 build（10657B，含 `keepMounted:true`——面板打开后会话切换/隐藏不销毁）。
+- **`research-triz-auto`（新 host 插件，`@basil/dsh-research/triz-auto`，exports `./triz-auto`）**：
+  订阅公开 `session/event` 事件总线——`user/message` 缓存问题、`assistant/message` 缓存答案
+  （同轮多 step 覆盖、`interrupted:true` 跳过）、`turn/end` 判定**最终答案** →
+  `researchTriz.mapResult`（缺省矛盾 改善 detection ↔ 恶化 complexity → 精选矩阵 (28,36)
+  → #23/#2/#24）→ 写 `researchCore.artifacts`（`kind=note, title^="triz: ", meta.auto=true`，
+  即右侧栏面板数据源）+ `researchMemory.episodic`（kind=triz）→ **面板自动更新**；每轮至多
+  1 条（turn/end 清缓存，天然去重）。依赖 `ctx.get` 惰性读取、缺失安全跳过；不注册工具、
+  不 provide 服务。对 research 族全部 profile（research/paper/experiment/engineering/reviewer）
+  会话生效——这就是「研究时默认就调用 TRIZ」的全会话语义。
+- **persona 纪律**（`presets/research.patch.yml`）：EVERY final answer 必须以标题
+  **`### 本回答对应的 TRIZ 发明原理映射`** 收尾，逐条 `「原理#N Name — 一句理由」`（1~5 条），
+  优先矛盾推理（改善 detection ↔ 恶化 complexity → cell (28,36) → #23/#2/#24；不适用则写
+  `直接应用原理 #N Name`），一律标注待核验假说（source=triz, confidence=0.5），**无需额外
+  调用工具**（从已知 40 原理推理）。
+- **面板位置 / 生效要求（写给用户）**：右侧栏 → guide 页 → **「TRIZ 发明原理」** 条目；
+  打开后 `keepMounted` 常驻。**改完必须重启 `dsh research`**（client-modules 对「非 client
+  包」的 negative 判定按 source 缓存；重启前旧进程仍 401/无面板）。
+- **验证**：单测 **168/168 全绿**（基线 162 + `plugin-triz-auto.test.ts` 6）；runtime-smoke
+  → **SMOKE PASS** 新增 `client-graph=true`（graph.entries 含 `@basil/dsh-research` =
+  面板可见性根因回归）＋ `triz-auto=true`（真实 services 驱动 createAutoTrizMiddleware，
+  user→assistant→turn/end 恰好 1 条 auto note，source=curated-matrix, entries=3）。
+- **文档 / 卫生**：README（root+TRIZ 小节）、`dsh-research/README.md`（host 7→8 行、插件
+  8→9、阶段 8.7 小节）、CHANGELOG、TODO 里程碑同步。
+
 ## 2026-10-14 · 阶段 8.6 · 默认调用 TRIZ + 每次研究结果 ↔ 发明原理映射（论文§6 / 幻灯片 / 右侧栏）
+
 
 需求（用户，三条）：① **git 每轮收尾完整提交一次并说明改了什么**；② research 时**默认就调用
 TRIZ**（不是可选项）；③ 不要 TRIZ skill，要**每次给出的结果都对应到 TRIZ 发明原理**——即研究

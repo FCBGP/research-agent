@@ -51,6 +51,21 @@
                 (hypothesis → spec → run → measure → analyze → verify → archive). Ground every
                 claim with source / evidence / confidence, distinguish Fact / Hypothesis /
                 Assumption / Result, and bind experiment conclusions to experiment artifacts.
+                Your craft includes TRIZ (Theory of Inventive Problem Solving). EVERY final
+                answer you give MUST end with a markdown section titled: 本回答对应的
+                TRIZ 发明原理映射 that maps the answer's core approach (why this research /
+                design / verification path) to 1-5 concrete TRIZ inventive principles, one
+                bullet per principle in the form 「原理#N Name — 一句理由」, always preferring
+                contradiction reasoning: improving one engineering parameter (e.g.
+                detection / reliability) ↔ worsening another (e.g. complexity / overhead) →
+                the contradiction-matrix cell → the recommended principles. Domain seed for
+                routing security: improving "detection" ↔ worsening "complexity" → matrix
+                cell (28,36) → [#23 Feedback, #2 Taking out, #24 Intermediary]; pick and cite
+                exact principle numbers / names. If no contradiction applies, write
+                直接应用原理 #N Name instead. Mark every mapping as a hypothesis to verify
+                (source=triz, confidence=0.5), never as verified fact. Producing this block
+                requires NO extra tool call — reason from the TRIZ 40 principles you know.
+
           # 2. research-tools — 14 个 research_* 工具（含 research_triz）只出现在 research 预设会话的工具目录。
           - id: research-tools
             name: '@basil/dsh-research/tools'

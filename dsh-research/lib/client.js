@@ -22,16 +22,16 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// client/index.ts
-var client_exports = {};
-__export(client_exports, {
+// dsh-research/client/index.ts
+var index_exports = {};
+__export(index_exports, {
   apply: () => apply,
   inject: () => inject,
   name: () => name
 });
-module.exports = __toCommonJS(client_exports);
+module.exports = __toCommonJS(index_exports);
 
-// client/definition.ts
+// dsh-research/client/definition.ts
 var TRIZ_EXPLAINER_KIND = "triz-explainer";
 var TRIZ_EXPLAINER_ID = "@basil/dsh-research-triz-explainer";
 var TRIZ_EXPLAINER_ADDRESS = "dsh-resource://triz-explainer/**";
@@ -49,15 +49,17 @@ function trizExplainerDefinition() {
     kind: TRIZ_EXPLAINER_KIND,
     patterns: [TRIZ_EXPLAINER_ADDRESS],
     priority: "extension",
+    // 打开后保持挂载：会话切换/隐藏后不销毁，用户再次打开右侧栏立即可见。
+    keepMounted: true,
     title: () => "TRIZ \u53D1\u660E\u539F\u7406",
     guide: trizExplainerGuide()
   };
 }
 
-// client/TrizTab.tsx
+// dsh-research/client/TrizTab.tsx
 var import_react = require("react");
 
-// client/route.ts
+// dsh-research/client/route.ts
 var TRIZ_NOTES_PATH = "/api/research.triz.notes";
 var TRIZ_NOTES_ROUTE = TRIZ_NOTES_PATH.slice(1);
 function isRecord(value) {
@@ -93,7 +95,7 @@ var SOURCE_LABEL = {
   "unresolved": "\u53C2\u6570\u672A\u89E3\u6790"
 };
 
-// client/TrizTab.tsx
+// dsh-research/client/TrizTab.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
 var styles = {
   root: {
@@ -235,7 +237,7 @@ function TrizTab(props) {
   ] });
 }
 
-// client/index.ts
+// dsh-research/client/index.ts
 var name = "dsh-research-triz-explainer";
 var inject = ["slots", "sidebarRightTabs"];
 function apply(ctx) {

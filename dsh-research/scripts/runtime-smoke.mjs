@@ -368,10 +368,58 @@ const trizUiEntryOk = [...(ctx.get('loader')?.entries?.() ?? [])]
 const trizUiOk = trizUiEntryOk && !!ctx.get('connection')?.fetch?.register;
 console.log('triz-ui:', trizUiOk ? 'OK (right-sidebar TRIZ explainer route source mounted)' : 'FAIL');
 
+// 阶段 8.6 冒烟（面板可见性根因回验）：client-modules 必须真的把 @basil/dsh-research 的
+// 浏览器半边（lib/client.js → 右侧栏 TRIZ Tab）解析进 window.__DSH_BOOT__ 组合图。
+// stage 8.5 面板「看不到」的根因 = cordis.patch.yml 首行用子路径 '@basil/dsh-research/core'
+// 当 plugin loader entry，client-modules.exactPackageSpecifier 只认裸包名 / 两段 @scope/name，
+// 三段子路径一律 void 0 → dsh.client 永远发现不了 → 浏览器半边不进组合图 → 面板必然不可见。
+// 修复：首行 name 改为裸包名 '@basil/dsh-research'（main=plugin-core.ts 与 ./core 同入口，
+// host 行为不变）。此处断言 graph.entries 里存在 id === '@basil/dsh-research'。
+const clientModules = ctx.get('clientModules');
+const clientGraph = clientModules?.graph?.();
+const clientGraphEntries = Array.isArray(clientGraph?.entries) ? clientGraph.entries : [];
+const clientOk = clientGraphEntries.some((row) => row?.id === '@basil/dsh-research');
+console.log('client-graph:', clientOk
+  ? `OK (browser side @basil/dsh-research -> right-sidebar TRIZ Tab in __DSH_BOOT__ graph, entries=${clientGraphEntries.length})`
+  : 'FAIL (client half NOT in graph — panel cannot appear)');
+
+// 阶段 8.6 冒烟：research-triz-auto（每个最终回答自动 TRIZ 映射）——插件行在装配树 +
+// 用真实 services 驱动 createAutoTrizMiddleware：user/message → assistant/message →
+// turn/end 应恰好写入 1 条 title^='triz: '、meta.auto===true 的 note（右侧栏面板数据源
+// 正是从这里取数），且最新 notes 里能看到它。
+const trizAutoEntryOk = [...(ctx.get('loader')?.entries?.() ?? [])]
+  .some((entry) => entry?.options?.name === '@basil/dsh-research/triz-auto');
+let trizAutoOk = false;
+if (trizAutoEntryOk && trizSvc?.mapResult && core?.artifacts) {
+  try {
+    const { createAutoTrizMiddleware } = await import('../src/plugin-triz-auto.ts');
+    const handle = createAutoTrizMiddleware(() => ({
+      triz: trizSvc,
+      core: { artifacts: core.artifacts },
+      memory: ctx.get('researchMemory'),
+      logger: console,
+    }));
+    const SMOKE_SID = 'smoke-triz-auto-session';
+    handle({ id: SMOKE_SID }, { type: 'user/message', data: { role: 'user', content: [{ type: 'text', text: 'RPKI 劫持检测率 vs 系统复杂度' }] } });
+    handle({ id: SMOKE_SID }, { type: 'assistant/message', data: { turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: 'ROV 逐前缀校验宣告来源并反馈给传播决策；BGPsec 提供路径级完整性与来源验证。'.repeat(4) }] }, stream: [] } });
+    handle({ id: SMOKE_SID }, { type: 'turn/end', data: { turn: 1, reason: 'complete' } });
+    const autoNotes = core.artifacts.list().filter((a) => a.title.startsWith('triz: ') && a.meta?.auto === true);
+    trizAutoOk = autoNotes.length === 1;
+    console.log('triz-auto:', trizAutoOk
+      ? `OK (every final answer -> TRIZ mapping persisted; source=${autoNotes[0].meta.source}, entries=${autoNotes[0].meta.mapping})`
+      : 'FAIL (auto TRIZ note not persisted)', '| loader entry:', trizAutoEntryOk ? 'present' : 'MISSING');
+  } catch (err) {
+    trizAutoOk = false;
+    console.log('triz-auto: FAIL (driver error)', String(err?.message ?? err));
+  }
+} else {
+  console.log('triz-auto:', trizAutoEntryOk ? 'FAIL (services missing)' : 'FAIL (loader entry missing)');
+}
+
 const servicesOk = ['researchCore', 'researchMemory', 'researchAgents', 'researchDirector', 'researchExperiment', 'researchWriter', 'researchPolicy', 'researchAutonomous', 'researchJobs', 'researchScheduler', 'researchSelfImprove', 'researchSubagents', 'researchTriz'].every((s) => ctx.get(s) !== undefined);
-const ok = servicesOk && toolOk && standardClean && rolesOk && verdict === 'verified' && domainOk && searchOk && campaignOk && policyOk && autoOk && jobOk && schedOk && reflectOk && subagentsOk && chainDefaultsOk && trizOk && trizUiOk;
+const ok = servicesOk && toolOk && standardClean && rolesOk && verdict === 'verified' && domainOk && searchOk && campaignOk && policyOk && autoOk && jobOk && schedOk && reflectOk && subagentsOk && chainDefaultsOk && trizOk && trizUiOk && clientOk && trizAutoOk;
 await ctx.fiber.dispose();
 console.log('disposed OK');
 console.log(ok ? 'SMOKE PASS' : 'SMOKE FAIL');
-console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} standard=${standardClean} roles=${rolesOk} verdict=${verdict} domain=${domainOk} search=${searchOk} campaign=${campaignOk} policy=${policyOk} autonomous=${autoOk} job=${jobOk} schedule=${schedOk} reflect=${reflectOk} subagents=${subagentsOk} chainDefaults=${chainDefaultsOk} triz=${trizOk} trizUi=${trizUiOk}`);
+console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} standard=${standardClean} roles=${rolesOk} verdict=${verdict} domain=${domainOk} search=${searchOk} campaign=${campaignOk} policy=${policyOk} autonomous=${autoOk} job=${jobOk} schedule=${schedOk} reflect=${reflectOk} subagents=${subagentsOk} chainDefaults=${chainDefaultsOk} triz=${trizOk} trizUi=${trizUiOk} clientGraph=${clientOk} trizAuto=${trizAutoOk}`);
 process.exit(ok ? 0 : 2);

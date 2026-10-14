@@ -76,6 +76,10 @@
       "types": "./src/plugin-triz-ui.ts",
       "default": "./src/plugin-triz-ui.ts"
     },
+    "./triz-auto": {
+      "types": "./src/plugin-triz-auto.ts",
+      "default": "./src/plugin-triz-auto.ts"
+    },
     "./tools": {
       "types": "./src/plugin-tools.ts",
       "default": "./src/plugin-tools.ts"
@@ -85,5 +89,8 @@
     },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

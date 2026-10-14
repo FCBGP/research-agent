@@ -22,7 +22,7 @@
     # 承接原 dsh-research-core 行的记忆配置：config.memory.dir 开启记忆 JSON 落盘
     # （默认全内存），多轮/跨会话持久化需由 profile overlay 整行覆盖本行给出 dir。
     - id: research-core
-      name: '@basil/dsh-research/core'
+      name: '@basil/dsh-research'
       config:
         agents:
           enabled: true
@@ -44,6 +44,16 @@
     # （web 基座）+ researchCore（ctx.get 惰性读取）；不注册任何 research_* 工具。
     - id: research-triz-ui
       name: '@basil/dsh-research/triz-ui'
+
+    # research-triz-auto ── 每个最终回答自动生成 TRIZ 解释（宿主半边）。
+    # 订阅 session/event：user/message 缓存问题、assistant/message 缓存答案、
+    # turn/end 轮结束判定最终答案 → researchTriz.mapResult（缺省改善 detection ↔
+    # 恶化 complexity）→ 写 researchCore.artifacts 的 kind=note、title^='triz: '
+    # artifact + researchMemory.episodic → 右侧栏「TRIZ 发明原理」面板自动更新。
+    # 依赖 research-triz（researchTriz）+ research-core（researchCore/researchMemory），
+    # 经 ctx.get 惰性读取、缺失安全跳过；不注册任何 research_* 工具。
+    - id: research-triz-auto
+      name: '@basil/dsh-research/triz-auto'
 
     # research-director ── 研究 DAG 调度（消费 core 的 memory/agents，按「依赖满足 +
     # 信息增益最高」分派任务）。provides researchDirector。
