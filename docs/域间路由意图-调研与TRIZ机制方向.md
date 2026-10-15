@@ -26,7 +26,7 @@
 按「意图语义粒度」从低到高、及其各自的**可验证性**现状：
 
 1. **起源位意图（Origin intent）**：谁有权宣告某前缀。→ **可验证且轻量**：ROV + ROA（RFC 6811/6483），PKI 签名、运行期查表。这是目前唯一「权威可信」且工程可行的意图位。
-2. **邻居/通路授权意图（Provider/neighbor authorization）**：允许谁作为上游/对等。→ **半可验证**：ASPA（RFC 9319 路径政策验证）逐步落地，验证链简单但覆盖仍低。
+2. **邻居/通路授权意图（Provider/neighbor authorization）**：允许谁作为上游/对等。→ **半可验证**：ASPA（ASPA 验证算法 `draft-ietf-sidrops-aspa-verification` + 对象 profile `draft-ietf-sidrops-aspa-profile`，均为活跃 I-D、**尚未 RFC 化**；与 RFC 9319 maxLength BCP 无关）逐步落地，验证链简单但覆盖仍低。
 3. **路径完整性意图（Path integrity）**：路径确实按宣告走过。→ **半可验证、代价高**：BGPsec（RFC 8205）逐跳签名，部署激励弱（见 SIGCOMM'13「partial deployment juice」、CACM'14）。
 4. **完整策略意图（Full policy intent）**：业务关系（客户/对等/上游）、选路偏好、流量工程、动态条件。→ **几乎不可验证**：RPSL/IRR（RFC 2622/1786）表达力强但无认证、易伪造、跨域不可信。
 5. **行为推断意图（Inferred intent）**：从行为稳定性与 AS 关系推断「应然」。→ **可观测但非认证**：用于 RPKI 盲区（约 40% 前缀），是当前研究（项目5-3课题2）的主要探索方向，权威性低于密码学认证。

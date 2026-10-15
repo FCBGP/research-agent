@@ -247,7 +247,7 @@ Research Agent OS
   `deployment^pathLen`），`research/sim-grid.ts` 扩展为 120 格（基线 16 + coverage 56 +
   deployment 48），联网锚点（NIST ≈91.4%、BGPsec ≈0）代入端点，V4/V5 升级为 verified（条件性），
   art-12 全文归档。
-- 仍在跟进：联网测量 / ASPA·RFC 9319 场景 / FRR·VPP 实时指标采集（vtysh/vppctl）
+- 仍在跟进：联网测量 / ASPA 场景（双 I-D：`draft-ietf-sidrops-aspa-{verification,profile}`，未 RFC 化）/ FRR·VPP 实时指标采集（vtysh/vppctl）
   （详见 TODO「在研」节）。
 
 ---

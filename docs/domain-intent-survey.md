@@ -40,7 +40,7 @@ RFC 9315 由 IRTF NMRG 发布（Informational），给出意图（Intent）作�
 
 RFC 9234（Standards Track）把对等关系意图带进 BGP 本身：AS 在 OPEN 中协商各自 Role（Provider/Customer/Peer/Route-Server），宣告的 UPDATE 携带 Only to Customer（OTC）属性（属性码 35），供下游识别并丢弃违反角色约定的路由，用于**路由泄露的预防与检测**[2]。它是「角色/关系意图」的机制化载体，但与 RPKI 对象分属不同信令平面（BGP 属性 vs 证书库），角色与起源/上游授权三类意图不存在统一对象。
 
-## 2.3 上游授权意图：ASPA（草案阶段，RFC 9319 路线）
+## 2.3 上游授权意图：ASPA（草案阶段，双 I-D，非 RFC）
 
 ASPA 草案（draft-ietf-sidrops-aspa-verification-28）定义自治系统提供商授权对象：ASPA 对象显式声明「哪些 AS 有权作为本 AS 的 provider」，验证方据 AS_PATH + ASPA 关系给出 Valid / Invalid / Unknown 判定，识别**路由泄露与恶意中转（path manipulation）**[3]。设计上刻意只编码 provider 关系，换取 O(1) 可判定性与最小对象集——这一「表达力 ↔ 可判定性」取舍是后续统一化设计的关键约束（见 §四反证）。
 
@@ -62,7 +62,7 @@ FC-BGP（Forwarding Commitment BGP）是 IETF SIDR/IDR 方向的活跃工作项�
 | --- | --- | --- | --- | --- |
 | 起源 | ROA / ROV[4][5] | RPKI 证书库 + BGP | 前缀-起源归属 | RFC，已部署 |
 | 角色 | BGP Roles + OTC[2] | BGP OPEN/UPDATE 属性 | 对等关系合法性 | RFC，渐进部署 |
-| 上游授权 | ASPA[3] | RPKI 证书库 + BGP | AS_PATH 授权 | 草案，RFC 9319 路线 |
+| 上游授权 | ASPA[3] | RPKI 证书库 + BGP | AS_PATH 授权 | I-D（验证算法 + 对象 profile，均未 RFC 化） |
 | 转发承诺 | FC-BGP[6] | 待定（声明 + 验证） | 声明与转发一致 | 工作项/研究 |
 
 **穷尽式检索证据**：IETF datatracker 名称检索 `name__icontains=asintent` → 命中 0 项；`as-intent` → 仅 1 条命中，为 **draft-li-teas-intent-based-routing**（TEAS 工作组，2022-04-28 过期）——其内容是**分组携带意图的流量工程/段路由路径选择**，属域内流量工程，**非**路由安全验证[7][8]；`intent` 全量检索 206 项中均为 agent/SDV/DMSC 等非路由安全领域[7]。结论：**IETF 无「统一 AS 路由意图对象」工作项**，该空白真实存在。

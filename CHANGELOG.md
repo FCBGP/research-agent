@@ -8,6 +8,41 @@
 
 ---
 
+## 2026-10-15 · 域间路由意图综合调研（三线合并 + 交叉缺口 G1–G5）（提交见本轮）
+
+需求（用户）：Web GUI 发起「域间路由意图调研」，经确认选择**综合调研** = 三条调研线 + 交叉缺口
+分析：① 意图驱动域间路由 / IBN；② 路由·策略意图语义与合规（含 ASPA / ROV 路径意图）；③ 域间路由
+安全中的意图（来源 / 所有权意图）。交付物 = 中文调研报告（`research-report-word` 规范，纯表格、
+零 media 图片），不做幻灯片、不做 research_paper 输出。
+
+- **关键产物**（`dsh-intent-survey/`，本会话新建）：
+  - `域间路由意图综合调研报告.md` —— 摘要 → 引言（术语表 / 速览表）→ Track A/B/C → 交叉缺口
+    G1–G5 + 全景对照（含「性质」列）→ 课题建议 5 条 → 结论（核心 Claim 表）→ 局限 7 条 →
+    证据可追溯（E1–E16）→ 参考文献 29 条（首现顺序严格一致）。
+  - `sources/rfc-status-notes.md` —— 定稿口径表 + 20 条逐条外部核验 + 纠错历史 + docx 修正记录。
+  - `sources/survey-evidence-log.md` —— E1–E16 证据→claim 映射表（ID/claim/Type/置信/来源/核验方法）
+    + 使用说明（WeKnora 未命中声明 + E15 窄证据限定）。
+- **关键判定（已落报告表 5-2-1-1，含「性质」列）**：RPKI / ASPA / BGP Roles = 密码授权事实（强锚）；
+  BGP Community / RPSL = 策略信令（弱载体、碎片化、劫持者可注入，RFC 1997/7999/8092，无 9047）；
+  BGPsec = 运行时证明非意图语言（RFC 8205/8206，明示排除）；SCION path-authorization = 唯一数据面
+  路径意图载体（IRTF PANRG I-D）；RFC 9871 BGP CAR = 最近似域间 IBN 但受限（AIGP/RFC 7311 参与
+  bestpath）；RFC 9774 = AS_SET 弃用新证据（Track B）。缺口 G1（声明盲区：ROA 声明 ≥60% vs 有效
+  ROV ≈6.5%）、G2（单侧 vs 双向意图边）、G3（广义 IBN 意图不支持）、G4（无保证闭环 SHOULD vs IS）、
+  G5（权威层级混合：RPKI 认证 vs IRR 未认证 vs Community 可注入）。
+- **口径纠错（本轮，4 处 edit）**：`docs/` 三文件（domain-intent-survey / 域间路由意图-调研与TRIZ
+  机制方向 / research-agent-migration-plan）中「ASPA≈RFC 9319」误标全部更正 —— ASPA 验证算法 =
+  `draft-ietf-sidrops-aspa-verification-28`、对象 profile = `draft-ietf-sidrops-aspa-profile-29`，
+  双组件均为活跃 I-D、**无 RFC**、与 RFC 9319（maxLength 承载 BCP 185）无关；RFC 9047 剔除
+  （EVPN ARP/ND，勿列 BGP community）。`reports/` 两份报告本身无此误标，未动。
+- **验证**：`check_references.py` → **REFERENCE CHECK OK（citations: 29 unique / bibliography
+  entries: 29，未触发 --fix）**；证据层级拆分 A=标准原文事实 / B=部署测量与检索 / C=实验窄证据
+  （全部 disputed，不支撑广泛 claim）。
+- **附注**：RFC 9315 / ASPA 双 I-D / RFC 9871 / SCION overview 未全在 WeKnora RFC KB（检索 None），
+  报告 §8 已如实声明，判定以标准原文 + IETF datatracker + LARUS/APNIC 线索立证；`deepseek-harness/`
+  submodule 零改动；profiles/*/cordis.patch.yml 为模型层 contextWindow/maxTokens 调参（web GUI 保存），一并提交保留。
+
+---
+
 ## 2026-10-15 · 问答 TRIZ 下线 · 侧边栏唯一化：TRIZ 只留右侧栏「发明原理说明」面板（提交 `e2f767c`）
 
 需求（用户）：侧边栏与问答中的 TRIZ 表现不一致——问答的「本回答对应的 TRIZ 发明原理映射」是

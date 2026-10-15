@@ -35,6 +35,8 @@
         models:
           - id: dsv4flash
             name: dsv4flash
+            contextWindow: 131072
+            maxTokens: 32000
 - id: agent-default-model
   name: "@deepseek-ai/dsh-agent-default-model"
   config:
