@@ -8,6 +8,36 @@
 
 ---
 
+## 2026-10-15 · H-UNI 最小原型：统一意图对象 vs 分散载体代价对比（提交 `5d3d08d`）
+
+需求（承接「域间路由意图综合调研」在研项）：为设计假说 **V3（disputed）**「H-UNI 统一意图中介层可
+降低一致性维护开销」补最小原型实证——此前仅有文献级可行性论证（`docs/domain-intent-survey.md` §5.1-⑤
+「H-UNI 无直接实验」）。本轮采用**窄口径**：只量化「对象级操作次数」+ 跨家族一致（coherent）+ 漂移
+窗口（drift），明确不覆盖表达力↔可判定性 / 增量部署 / 缓存失效 / 信令等 V3 反证维度 → 仅 **C 级证据，
+V3 维持 disputed，不升级**。
+
+- **关键产物**（`dsh-research/src/intent/`，纯 TS、确定性、未接插件）：
+  - `types.ts` —— CanonicalIntent / IntentEvent（7 种，可带 `failAfterWrite` 演示多写部分生效）/
+    CostCounters / RouteVerdict（coherent=`!(forwarding=committed && origin≠valid)` 自相矛盾检测）/
+    IntentRepo 接口 / `totalWriteSteps` / `isPartialFailure`。
+  - `dispersed.ts` —— 分散载体基线（ROA/ASPA/Roles/FC 四独立对象）；本轮修正 revokeAll：只有「被
+    take 的步骤」真正落库（原删除无条件落库、漂移只计不演示），与 splitPrefix 一致后部分失败才真实
+    产生陈旧跨家族引用。
+  - `unified.ts` —— 每 AS 单一 AsIntentObject 四面共居，变更原子 1 write+1 signOp，audit 对象内核查。
+  - `compare.ts` —— S1（4-AS / 7 事件 / 2 处部分失败 / 3 条路由）三态（分散含失败 / 分散无失败基线 /
+    统一）同脚本对比 + `evaluateV3Narrow` + `toReportMarkdown`。
+  - `intent.test.ts` —— 6 用例：种子等价 / S1 漂移与 coherent / splitPrefix 替换与悬空 FC /
+    revokeAll 部分失败陈旧引用 / addRole 角色判定 / 步骤口径。
+- **关键数值（S1）**：验证+审计 lookups 23→8（0.35×）、验签 verifyOps 6→3（0.5×）、审计 lookups
+  3→1、drift 2→0、审计违规 2→0；事件阶段写放大（无失败基线）11→8（0.73×）；writes/signOps 打平 14。
+  R2 直接演示分散态自相矛盾（ROA 已迁移、FC 仍引用旧前缀 → origin notFound 却 forwarding committed）。
+  V3 窄口径六维全过 → **supported，方向性支持**（C 级）；报告 `dsh-intent-survey/huni-min-proto-report.md`。
+- **行为变更**：无（新模块未接线任何插件/host；只读文档口径不动）。
+- **测试**：`node --test "src/**/*.test.ts"` = **194/194 全绿**（基线 188 + intent 6）。
+- **TODO 同步**：H-UNI 最小原型检掉，转记「H-UNI 规模化扫描（AS×事件网格 + ASPA 可判定性纪律）」。
+
+---
+
 ## 2026-10-15 · TRIZ 侧边栏广度 + 矛盾来源标注（1+2+3 轮）（提交 `d5ea578`）
 
 需求（用户，承接「问答 TRIZ 下线 · 侧边栏唯一化」e2f767c）：侧边栏「TRIZ 发明原理说明」调研半天只
