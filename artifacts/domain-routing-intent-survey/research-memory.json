@@ -1,0 +1,953 @@
+{
+  "semantic": [],
+  "episodic": [
+    {
+      "kind": "decision",
+      "summary": "phase:plan role:director",
+      "meta": {
+        "model": "local-interval-dsv4/dsv4flash"
+      },
+      "id": "ep-1",
+      "ts": "2026-10-15T03:18:18.632Z"
+    },
+    {
+      "kind": "decision",
+      "summary": "执行任务 t1（域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察 文献与背景调研）",
+      "claimId": "c-lit",
+      "id": "ep-2",
+      "ts": "2026-10-15T03:18:18.632Z",
+      "meta": {}
+    },
+    {
+      "kind": "read",
+      "summary": "阅读文献以支撑 t1",
+      "claimId": "c-lit",
+      "source": "literature",
+      "id": "ep-3",
+      "ts": "2026-10-15T03:18:18.632Z",
+      "meta": {}
+    },
+    {
+      "kind": "search",
+      "summary": "检索: 域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察 文献与背景调研",
+      "source": "literature",
+      "outcome": "3 条命中",
+      "meta": {
+        "query": "域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察 文献与背景调研",
+        "hits": 3
+      },
+      "id": "ep-4",
+      "ts": "2026-10-15T03:18:18.633Z"
+    },
+    {
+      "kind": "decision",
+      "summary": "执行任务 t2（验证机制（ROV/BGPsec/ASPA）叠加可提升前缀劫持检测率与路径可信度，但受部署覆盖率、子前缀/AS 路径操纵攻击与意图表达缺失限制，存在『检测(↑)⟷复杂性/覆盖(↓)』的能力上界；单一机制无法闭环，需组合 + 意图表达层补位）",
+      "claimId": "c-h",
+      "id": "ep-5",
+      "ts": "2026-10-15T03:18:18.633Z",
+      "meta": {}
+    },
+    {
+      "kind": "hypothesis",
+      "summary": "提出假设 验证机制（ROV/BGPsec/ASPA）叠加可提升前缀劫持检测率与路径可信度，但受部署覆盖率、子前缀/AS 路径操纵攻击与意图表达缺失限制，存在『检测(↑)⟷复杂性/覆盖(↓)』的能力上界；单一机制无法闭环，需组合 + 意图表达层补位",
+      "claimId": "c-h",
+      "id": "ep-6",
+      "ts": "2026-10-15T03:18:18.633Z",
+      "meta": {}
+    },
+    {
+      "kind": "decision",
+      "summary": "执行任务 t3（验证机制（ROV/BGPsec/ASPA）叠加可提升前缀劫持检测率与路径可信度，但受部署覆盖率、子前缀/AS 路径操纵攻击与意图表达缺失限制，存在『检测(↑)⟷复杂性/覆盖(↓)』的能力上界；单一机制无法闭环，需组合 + 意图表达层补位 实验验证）",
+      "id": "ep-7",
+      "ts": "2026-10-15T03:18:18.634Z",
+      "meta": {}
+    },
+    {
+      "kind": "decision",
+      "summary": "执行任务 t4（验证机制（ROV/BGPsec/ASPA）叠加可提升前缀劫持检测率与路径可信度，但受部署覆盖率、子前缀/AS 路径操纵攻击与意图表达缺失限制，存在『检测(↑)⟷复杂性/覆盖(↓)』的能力上界；单一机制无法闭环，需组合 + 意图表达层补位 验证闭环）",
+      "id": "ep-8",
+      "ts": "2026-10-15T03:18:18.634Z",
+      "meta": {}
+    },
+    {
+      "kind": "decision",
+      "summary": "执行任务 t5（域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察 论文写作）",
+      "id": "ep-9",
+      "ts": "2026-10-15T03:18:18.634Z",
+      "meta": {}
+    },
+    {
+      "kind": "verify",
+      "summary": "验证 c-1 → disputed",
+      "claimId": "c-1",
+      "outcome": "disputed",
+      "id": "ep-10",
+      "ts": "2026-10-15T03:18:18.634Z",
+      "meta": {}
+    },
+    {
+      "kind": "verify",
+      "summary": "验证 c-2 → disputed",
+      "claimId": "c-2",
+      "outcome": "disputed",
+      "id": "ep-11",
+      "ts": "2026-10-15T03:18:18.634Z",
+      "meta": {}
+    },
+    {
+      "kind": "decision",
+      "summary": "phase:director role:director",
+      "meta": {
+        "model": "local-interval-dsv4/dsv4flash"
+      },
+      "id": "ep-12",
+      "ts": "2026-10-15T03:18:18.634Z"
+    },
+    {
+      "kind": "decision",
+      "summary": "phase:experiment role:experimenter",
+      "meta": {
+        "model": "local-interval-dsv4/dsv4flash"
+      },
+      "id": "ep-13",
+      "ts": "2026-10-15T03:18:18.634Z"
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "support",
+      "source": "route-engine-sim",
+      "id": "ep-14",
+      "ts": "2026-10-15T03:18:18.635Z",
+      "meta": {}
+    },
+    {
+      "kind": "verify",
+      "summary": "c-2 → verified",
+      "claimId": "c-2",
+      "outcome": "verified",
+      "meta": {
+        "rationale": "证据（1条已核验）且实验支持"
+      },
+      "id": "ep-15",
+      "ts": "2026-10-15T03:18:18.635Z"
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "refute",
+      "source": "route-engine-sim",
+      "id": "ep-16",
+      "ts": "2026-10-15T03:18:18.635Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "inconclusive",
+      "source": "route-engine-sim",
+      "id": "ep-17",
+      "ts": "2026-10-15T03:18:18.635Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "support",
+      "source": "route-engine-sim",
+      "id": "ep-18",
+      "ts": "2026-10-15T03:18:18.635Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "support",
+      "source": "route-engine-sim",
+      "id": "ep-19",
+      "ts": "2026-10-15T03:18:18.636Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "refute",
+      "source": "route-engine-sim",
+      "id": "ep-20",
+      "ts": "2026-10-15T03:18:18.636Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "inconclusive",
+      "source": "route-engine-sim",
+      "id": "ep-21",
+      "ts": "2026-10-15T03:18:18.636Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "support",
+      "source": "route-engine-sim",
+      "id": "ep-22",
+      "ts": "2026-10-15T03:18:18.636Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "support",
+      "source": "route-engine-sim",
+      "id": "ep-23",
+      "ts": "2026-10-15T03:18:18.636Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "refute",
+      "source": "route-engine-sim",
+      "id": "ep-24",
+      "ts": "2026-10-15T03:18:18.636Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "inconclusive",
+      "source": "route-engine-sim",
+      "id": "ep-25",
+      "ts": "2026-10-15T03:18:18.636Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "support",
+      "source": "route-engine-sim",
+      "id": "ep-26",
+      "ts": "2026-10-15T03:18:18.636Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "support",
+      "source": "route-engine-sim",
+      "id": "ep-27",
+      "ts": "2026-10-15T03:18:18.636Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "refute",
+      "source": "route-engine-sim",
+      "id": "ep-28",
+      "ts": "2026-10-15T03:18:18.636Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "refute",
+      "source": "route-engine-sim",
+      "id": "ep-29",
+      "ts": "2026-10-15T03:18:18.636Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "support",
+      "source": "route-engine-sim",
+      "id": "ep-30",
+      "ts": "2026-10-15T03:18:18.636Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验 fp-2095287236（route-hijack × 3）",
+      "claimId": "c-2",
+      "outcome": "support",
+      "source": "route-engine-sim",
+      "id": "ep-31",
+      "ts": "2026-10-15T03:18:18.636Z",
+      "meta": {}
+    },
+    {
+      "kind": "experiment",
+      "summary": "实验矩阵 prefix-hijack+subprefix-hijack+as-set-injection+path-manipulation × none+rov+bgpsec+rov+bgpsec = 16 格（claim c-2）",
+      "claimId": "c-2",
+      "outcome": "support",
+      "source": "campaign-matrix",
+      "id": "ep-32",
+      "ts": "2026-10-15T03:18:18.636Z",
+      "meta": {}
+    },
+    {
+      "kind": "decision",
+      "summary": "phase:triz role:reviewer",
+      "meta": {
+        "model": "local-interval-dsv4/dsv4flash"
+      },
+      "id": "ep-33",
+      "ts": "2026-10-15T03:18:18.636Z"
+    },
+    {
+      "kind": "triz",
+      "summary": "triz(默认): 域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BG → 3 条原理映射",
+      "outcome": "curated-matrix",
+      "id": "ep-34",
+      "ts": "2026-10-15T03:18:18.637Z",
+      "meta": {}
+    },
+    {
+      "kind": "decision",
+      "summary": "phase:verify role:reviewer",
+      "meta": {
+        "model": "local-interval-dsv4/dsv4flash"
+      },
+      "id": "ep-35",
+      "ts": "2026-10-15T03:18:18.637Z"
+    },
+    {
+      "kind": "decision",
+      "summary": "phase:write role:writer",
+      "meta": {
+        "model": "local-interval-dsv4/dsv4flash"
+      },
+      "id": "ep-36",
+      "ts": "2026-10-15T03:18:18.637Z"
+    },
+    {
+      "kind": "decision",
+      "summary": "phase:review role:reviewer",
+      "meta": {
+        "model": "local-interval-dsv4/dsv4flash"
+      },
+      "id": "ep-37",
+      "ts": "2026-10-15T03:18:18.639Z"
+    }
+  ],
+  "evidence": [],
+  "hypothesis": [
+    {
+      "id": "h-1",
+      "claimId": "c-h",
+      "statement": "验证机制（ROV/BGPsec/ASPA）叠加可提升前缀劫持检测率与路径可信度，但受部署覆盖率、子前缀/AS 路径操纵攻击与意图表达缺失限制，存在『检测(↑)⟷复杂性/覆盖(↓)』的能力上界；单一机制无法闭环，需组合 + 意图表达层补位",
+      "status": "proposed",
+      "confidence": 0,
+      "history": [],
+      "createdAt": "2026-10-15T03:18:18.633Z",
+      "updatedAt": "2026-10-15T03:18:18.633Z"
+    }
+  ],
+  "artifacts": [
+    {
+      "kind": "report",
+      "title": "域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察 论文写作",
+      "body": "Goal g-auto 的写作任务产出",
+      "meta": {
+        "task": "t5"
+      },
+      "id": "art-1",
+      "createdAt": "2026-10-15T03:18:18.634Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "verdict: c-1",
+      "body": "无可靠证据支撑，暂不能判定",
+      "claimId": "c-1",
+      "meta": {
+        "verdict": "disputed"
+      },
+      "id": "art-2",
+      "createdAt": "2026-10-15T03:18:18.634Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "verdict: c-2",
+      "body": "无可靠证据支撑，暂不能判定",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "disputed"
+      },
+      "id": "art-3",
+      "createdAt": "2026-10-15T03:18:18.634Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+aspa\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.83,\"false_positive_rate\":0.023,\"convergence_time\":102.89,\"verification_latency\":2.19},\"archivedAt\":\"2026-10-15T03:18:18.634Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+aspa\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.858,\"false_positive_rate\":0.022,\"convergence_time\":95.12,\"verification_latency\":2.48},\"archivedAt\":\"2026-10-15T03:18:18.634Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+aspa\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.807,\"false_positive_rate\":0.02,\"convergence_time\":68.77,\"verification_latency\":1.89},\"archivedAt\":\"2026-10-15T03:18:18.635Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.8317,\"stddev\":0.0255,\"ci95\":[0.8028,0.8606]},\"false_positive_rate\":{\"mean\":0.0217,\"stddev\":0.0015,\"ci95\":[0.0199,0.0234]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":2.1867,\"stddev\":0.295,\"ci95\":[1.8528,2.5205]}},\"detection\":{\"n\":3,\"mean\":0.8317,\"stddev\":0.0255,\"ci95\":[0.8028,0.8606],\"falsePositive\":{\"n\":3,\"mean\":0.0217,\"stddev\":0.0015,\"ci95\":[0.0199,0.0234]},\"effectiveScore\":0.81}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "support",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-4",
+      "createdAt": "2026-10-15T03:18:18.635Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "证据（1条已核验）且实验支持",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "verified",
+        "outcome": "support"
+      },
+      "id": "art-5",
+      "createdAt": "2026-10-15T03:18:18.635Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "verdict: c-2",
+      "body": "证据（1条已核验）且实验支持",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "verified"
+      },
+      "id": "art-6",
+      "createdAt": "2026-10-15T03:18:18.635Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"none\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.085,\"false_positive_rate\":0.003,\"convergence_time\":102.89,\"verification_latency\":0.04},\"archivedAt\":\"2026-10-15T03:18:18.635Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"none\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.113,\"false_positive_rate\":0.003,\"convergence_time\":95.12,\"verification_latency\":0.06},\"archivedAt\":\"2026-10-15T03:18:18.635Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"none\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.082,\"false_positive_rate\":0.002,\"convergence_time\":68.77,\"verification_latency\":0.03},\"archivedAt\":\"2026-10-15T03:18:18.635Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.0933,\"stddev\":0.0171,\"ci95\":[0.074,0.1127]},\"false_positive_rate\":{\"mean\":0.0027,\"stddev\":0.0006,\"ci95\":[0.002,0.0033]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":0.0433,\"stddev\":0.0153,\"ci95\":[0.026,0.0606]}},\"detection\":{\"n\":3,\"mean\":0.0933,\"stddev\":0.0171,\"ci95\":[0.074,0.1127],\"falsePositive\":{\"n\":3,\"mean\":0.0027,\"stddev\":0.0006,\"ci95\":[0.002,0.0033]},\"effectiveScore\":0.0906}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "refute",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-7",
+      "createdAt": "2026-10-15T03:18:18.635Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "实验证伪：fp-2095287236 反证 claim（c-4）",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "rejected",
+        "outcome": "refute"
+      },
+      "id": "art-8",
+      "createdAt": "2026-10-15T03:18:18.635Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"inconclusive\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.79,\"false_positive_rate\":0.02,\"convergence_time\":102.89,\"verification_latency\":1.34},\"archivedAt\":\"2026-10-15T03:18:18.635Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.818,\"false_positive_rate\":0.019,\"convergence_time\":95.12,\"verification_latency\":1.59},\"archivedAt\":\"2026-10-15T03:18:18.635Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"inconclusive\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.767,\"false_positive_rate\":0.017,\"convergence_time\":68.77,\"verification_latency\":1.08},\"archivedAt\":\"2026-10-15T03:18:18.635Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.7917,\"stddev\":0.0255,\"ci95\":[0.7628,0.8206]},\"false_positive_rate\":{\"mean\":0.0187,\"stddev\":0.0015,\"ci95\":[0.0169,0.0204]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":1.3367,\"stddev\":0.255,\"ci95\":[1.0481,1.6252]}},\"detection\":{\"n\":3,\"mean\":0.7917,\"stddev\":0.0255,\"ci95\":[0.7628,0.8206],\"falsePositive\":{\"n\":3,\"mean\":0.0187,\"stddev\":0.0015,\"ci95\":[0.0169,0.0204]},\"effectiveScore\":0.773}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "inconclusive",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-9",
+      "createdAt": "2026-10-15T03:18:18.635Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "无可靠证据支撑，暂不能判定",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "disputed",
+        "outcome": "inconclusive"
+      },
+      "id": "art-10",
+      "createdAt": "2026-10-15T03:18:18.635Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"bgpsec\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.911,\"false_positive_rate\":0.006,\"convergence_time\":102.89,\"verification_latency\":0.94},\"archivedAt\":\"2026-10-15T03:18:18.635Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"bgpsec\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.939,\"false_positive_rate\":0.006,\"convergence_time\":95.12,\"verification_latency\":1.19},\"archivedAt\":\"2026-10-15T03:18:18.635Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"bgpsec\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.903,\"false_positive_rate\":0.005,\"convergence_time\":68.77,\"verification_latency\":0.68},\"archivedAt\":\"2026-10-15T03:18:18.635Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.9177,\"stddev\":0.0189,\"ci95\":[0.8963,0.9391]},\"false_positive_rate\":{\"mean\":0.0057,\"stddev\":0.0006,\"ci95\":[0.005,0.0063]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":0.9367,\"stddev\":0.255,\"ci95\":[0.6481,1.2252]}},\"detection\":{\"n\":3,\"mean\":0.9177,\"stddev\":0.0189,\"ci95\":[0.8963,0.9391],\"falsePositive\":{\"n\":3,\"mean\":0.0057,\"stddev\":0.0006,\"ci95\":[0.005,0.0063]},\"effectiveScore\":0.912}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "support",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-11",
+      "createdAt": "2026-10-15T03:18:18.635Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "证据（1条已核验）且实验支持",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "verified",
+        "outcome": "support"
+      },
+      "id": "art-12",
+      "createdAt": "2026-10-15T03:18:18.635Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+bgpsec\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.949,\"false_positive_rate\":0.008,\"convergence_time\":102.89,\"verification_latency\":2.31},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+bgpsec\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.977,\"false_positive_rate\":0.008,\"convergence_time\":95.12,\"verification_latency\":2.68},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+bgpsec\",\"attackClass\":\"prefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.95,\"false_positive_rate\":0.007,\"convergence_time\":68.77,\"verification_latency\":1.92},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.9587,\"stddev\":0.0159,\"ci95\":[0.9407,0.9766]},\"false_positive_rate\":{\"mean\":0.0077,\"stddev\":0.0006,\"ci95\":[0.007,0.0083]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":2.3033,\"stddev\":0.38,\"ci95\":[1.8733,2.7334]}},\"detection\":{\"n\":3,\"mean\":0.9587,\"stddev\":0.0159,\"ci95\":[0.9407,0.9766],\"falsePositive\":{\"n\":3,\"mean\":0.0077,\"stddev\":0.0006,\"ci95\":[0.007,0.0083]},\"effectiveScore\":0.951}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "support",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-13",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "证据（1条已核验）且实验支持",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "verified",
+        "outcome": "support"
+      },
+      "id": "art-14",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"none\",\"attackClass\":\"subprefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.061,\"false_positive_rate\":0.003,\"convergence_time\":102.89,\"verification_latency\":0.04},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"none\",\"attackClass\":\"subprefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.089,\"false_positive_rate\":0.003,\"convergence_time\":95.12,\"verification_latency\":0.06},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"none\",\"attackClass\":\"subprefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.053,\"false_positive_rate\":0.002,\"convergence_time\":68.77,\"verification_latency\":0.03},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.0677,\"stddev\":0.0189,\"ci95\":[0.0463,0.0891]},\"false_positive_rate\":{\"mean\":0.0027,\"stddev\":0.0006,\"ci95\":[0.002,0.0033]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":0.0433,\"stddev\":0.0153,\"ci95\":[0.026,0.0606]}},\"detection\":{\"n\":3,\"mean\":0.0677,\"stddev\":0.0189,\"ci95\":[0.0463,0.0891],\"falsePositive\":{\"n\":3,\"mean\":0.0027,\"stddev\":0.0006,\"ci95\":[0.002,0.0033]},\"effectiveScore\":0.065}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "refute",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-15",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "实验证伪：fp-2095287236 反证 claim（c-8）",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "rejected",
+        "outcome": "refute"
+      },
+      "id": "art-16",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"inconclusive\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov\",\"attackClass\":\"subprefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.555,\"false_positive_rate\":0.02,\"convergence_time\":102.89,\"verification_latency\":1.34},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"inconclusive\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov\",\"attackClass\":\"subprefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.582,\"false_positive_rate\":0.019,\"convergence_time\":95.12,\"verification_latency\":1.59},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"inconclusive\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov\",\"attackClass\":\"subprefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.513,\"false_positive_rate\":0.017,\"convergence_time\":68.77,\"verification_latency\":1.08},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.55,\"stddev\":0.0348,\"ci95\":[0.5107,0.5893]},\"false_positive_rate\":{\"mean\":0.0187,\"stddev\":0.0015,\"ci95\":[0.0169,0.0204]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":1.3367,\"stddev\":0.255,\"ci95\":[1.0481,1.6252]}},\"detection\":{\"n\":3,\"mean\":0.55,\"stddev\":0.0348,\"ci95\":[0.5107,0.5893],\"falsePositive\":{\"n\":3,\"mean\":0.0187,\"stddev\":0.0015,\"ci95\":[0.0169,0.0204]},\"effectiveScore\":0.5313}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "inconclusive",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-17",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "无可靠证据支撑，暂不能判定",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "disputed",
+        "outcome": "inconclusive"
+      },
+      "id": "art-18",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"bgpsec\",\"attackClass\":\"subprefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.858,\"false_positive_rate\":0.006,\"convergence_time\":102.89,\"verification_latency\":0.94},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"bgpsec\",\"attackClass\":\"subprefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.886,\"false_positive_rate\":0.006,\"convergence_time\":95.12,\"verification_latency\":1.19},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"bgpsec\",\"attackClass\":\"subprefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.844,\"false_positive_rate\":0.005,\"convergence_time\":68.77,\"verification_latency\":0.68},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.8627,\"stddev\":0.0214,\"ci95\":[0.8385,0.8869]},\"false_positive_rate\":{\"mean\":0.0057,\"stddev\":0.0006,\"ci95\":[0.005,0.0063]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":0.9367,\"stddev\":0.255,\"ci95\":[0.6481,1.2252]}},\"detection\":{\"n\":3,\"mean\":0.8627,\"stddev\":0.0214,\"ci95\":[0.8385,0.8869],\"falsePositive\":{\"n\":3,\"mean\":0.0057,\"stddev\":0.0006,\"ci95\":[0.005,0.0063]},\"effectiveScore\":0.857}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "support",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-19",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "证据（1条已核验）且实验支持",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "verified",
+        "outcome": "support"
+      },
+      "id": "art-20",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+bgpsec\",\"attackClass\":\"subprefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.911,\"false_positive_rate\":0.008,\"convergence_time\":102.89,\"verification_latency\":2.31},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+bgpsec\",\"attackClass\":\"subprefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.939,\"false_positive_rate\":0.008,\"convergence_time\":95.12,\"verification_latency\":2.68},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+bgpsec\",\"attackClass\":\"subprefix-hijack\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.903,\"false_positive_rate\":0.007,\"convergence_time\":68.77,\"verification_latency\":1.92},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.9177,\"stddev\":0.0189,\"ci95\":[0.8963,0.9391]},\"false_positive_rate\":{\"mean\":0.0077,\"stddev\":0.0006,\"ci95\":[0.007,0.0083]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":2.3033,\"stddev\":0.38,\"ci95\":[1.8733,2.7334]}},\"detection\":{\"n\":3,\"mean\":0.9177,\"stddev\":0.0189,\"ci95\":[0.8963,0.9391],\"falsePositive\":{\"n\":3,\"mean\":0.0077,\"stddev\":0.0006,\"ci95\":[0.007,0.0083]},\"effectiveScore\":0.91}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "support",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-21",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "证据（1条已核验）且实验支持",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "verified",
+        "outcome": "support"
+      },
+      "id": "art-22",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"none\",\"attackClass\":\"as-set-injection\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.101,\"false_positive_rate\":0.003,\"convergence_time\":102.89,\"verification_latency\":0.04},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"none\",\"attackClass\":\"as-set-injection\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.129,\"false_positive_rate\":0.003,\"convergence_time\":95.12,\"verification_latency\":0.06},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"none\",\"attackClass\":\"as-set-injection\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.093,\"false_positive_rate\":0.002,\"convergence_time\":68.77,\"verification_latency\":0.03},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.1077,\"stddev\":0.0189,\"ci95\":[0.0863,0.1291]},\"false_positive_rate\":{\"mean\":0.0027,\"stddev\":0.0006,\"ci95\":[0.002,0.0033]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":0.0433,\"stddev\":0.0153,\"ci95\":[0.026,0.0606]}},\"detection\":{\"n\":3,\"mean\":0.1077,\"stddev\":0.0189,\"ci95\":[0.0863,0.1291],\"falsePositive\":{\"n\":3,\"mean\":0.0027,\"stddev\":0.0006,\"ci95\":[0.002,0.0033]},\"effectiveScore\":0.105}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "refute",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-23",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "实验证伪：fp-2095287236 反证 claim（c-12）",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "rejected",
+        "outcome": "refute"
+      },
+      "id": "art-24",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"inconclusive\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov\",\"attackClass\":\"as-set-injection\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.603,\"false_positive_rate\":0.02,\"convergence_time\":102.89,\"verification_latency\":1.34},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"inconclusive\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov\",\"attackClass\":\"as-set-injection\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.63,\"false_positive_rate\":0.019,\"convergence_time\":95.12,\"verification_latency\":1.59},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"inconclusive\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov\",\"attackClass\":\"as-set-injection\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.57,\"false_positive_rate\":0.017,\"convergence_time\":68.77,\"verification_latency\":1.08},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.601,\"stddev\":0.03,\"ci95\":[0.567,0.635]},\"false_positive_rate\":{\"mean\":0.0187,\"stddev\":0.0015,\"ci95\":[0.0169,0.0204]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":1.3367,\"stddev\":0.255,\"ci95\":[1.0481,1.6252]}},\"detection\":{\"n\":3,\"mean\":0.601,\"stddev\":0.03,\"ci95\":[0.567,0.635],\"falsePositive\":{\"n\":3,\"mean\":0.0187,\"stddev\":0.0015,\"ci95\":[0.0169,0.0204]},\"effectiveScore\":0.5823}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "inconclusive",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-25",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "无可靠证据支撑，暂不能判定",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "disputed",
+        "outcome": "inconclusive"
+      },
+      "id": "art-26",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"bgpsec\",\"attackClass\":\"as-set-injection\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.83,\"false_positive_rate\":0.006,\"convergence_time\":102.89,\"verification_latency\":0.94},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"bgpsec\",\"attackClass\":\"as-set-injection\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.858,\"false_positive_rate\":0.006,\"convergence_time\":95.12,\"verification_latency\":1.19},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"bgpsec\",\"attackClass\":\"as-set-injection\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.807,\"false_positive_rate\":0.005,\"convergence_time\":68.77,\"verification_latency\":0.68},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.8317,\"stddev\":0.0255,\"ci95\":[0.8028,0.8606]},\"false_positive_rate\":{\"mean\":0.0057,\"stddev\":0.0006,\"ci95\":[0.005,0.0063]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":0.9367,\"stddev\":0.255,\"ci95\":[0.6481,1.2252]}},\"detection\":{\"n\":3,\"mean\":0.8317,\"stddev\":0.0255,\"ci95\":[0.8028,0.8606],\"falsePositive\":{\"n\":3,\"mean\":0.0057,\"stddev\":0.0006,\"ci95\":[0.005,0.0063]},\"effectiveScore\":0.826}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "support",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-27",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "证据（1条已核验）且实验支持",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "verified",
+        "outcome": "support"
+      },
+      "id": "art-28",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+bgpsec\",\"attackClass\":\"as-set-injection\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.884,\"false_positive_rate\":0.008,\"convergence_time\":102.89,\"verification_latency\":2.31},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+bgpsec\",\"attackClass\":\"as-set-injection\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.912,\"false_positive_rate\":0.008,\"convergence_time\":95.12,\"verification_latency\":2.68},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+bgpsec\",\"attackClass\":\"as-set-injection\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.866,\"false_positive_rate\":0.007,\"convergence_time\":68.77,\"verification_latency\":1.92},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.8873,\"stddev\":0.0232,\"ci95\":[0.8611,0.9136]},\"false_positive_rate\":{\"mean\":0.0077,\"stddev\":0.0006,\"ci95\":[0.007,0.0083]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":2.3033,\"stddev\":0.38,\"ci95\":[1.8733,2.7334]}},\"detection\":{\"n\":3,\"mean\":0.8873,\"stddev\":0.0232,\"ci95\":[0.8611,0.9136],\"falsePositive\":{\"n\":3,\"mean\":0.0077,\"stddev\":0.0006,\"ci95\":[0.007,0.0083]},\"effectiveScore\":0.8796}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "support",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-29",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "证据（1条已核验）且实验支持",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "verified",
+        "outcome": "support"
+      },
+      "id": "art-30",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"none\",\"attackClass\":\"path-manipulation\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.081,\"false_positive_rate\":0.003,\"convergence_time\":102.89,\"verification_latency\":0.04},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"none\",\"attackClass\":\"path-manipulation\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.109,\"false_positive_rate\":0.003,\"convergence_time\":95.12,\"verification_latency\":0.06},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"none\",\"attackClass\":\"path-manipulation\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.073,\"false_positive_rate\":0.002,\"convergence_time\":68.77,\"verification_latency\":0.03},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.0877,\"stddev\":0.0189,\"ci95\":[0.0663,0.1091]},\"false_positive_rate\":{\"mean\":0.0027,\"stddev\":0.0006,\"ci95\":[0.002,0.0033]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":0.0433,\"stddev\":0.0153,\"ci95\":[0.026,0.0606]}},\"detection\":{\"n\":3,\"mean\":0.0877,\"stddev\":0.0189,\"ci95\":[0.0663,0.1091],\"falsePositive\":{\"n\":3,\"mean\":0.0027,\"stddev\":0.0006,\"ci95\":[0.002,0.0033]},\"effectiveScore\":0.085}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "refute",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-31",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "实验证伪：fp-2095287236 反证 claim（c-16）",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "rejected",
+        "outcome": "refute"
+      },
+      "id": "art-32",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov\",\"attackClass\":\"path-manipulation\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.335,\"false_positive_rate\":0.02,\"convergence_time\":102.89,\"verification_latency\":1.34},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov\",\"attackClass\":\"path-manipulation\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.362,\"false_positive_rate\":0.019,\"convergence_time\":95.12,\"verification_latency\":1.59},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"refute\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov\",\"attackClass\":\"path-manipulation\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.293,\"false_positive_rate\":0.017,\"convergence_time\":68.77,\"verification_latency\":1.08},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.33,\"stddev\":0.0348,\"ci95\":[0.2907,0.3693]},\"false_positive_rate\":{\"mean\":0.0187,\"stddev\":0.0015,\"ci95\":[0.0169,0.0204]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":1.3367,\"stddev\":0.255,\"ci95\":[1.0481,1.6252]}},\"detection\":{\"n\":3,\"mean\":0.33,\"stddev\":0.0348,\"ci95\":[0.2907,0.3693],\"falsePositive\":{\"n\":3,\"mean\":0.0187,\"stddev\":0.0015,\"ci95\":[0.0169,0.0204]},\"effectiveScore\":0.3113}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "refute",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-33",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "实验证伪：fp-2095287236 反证 claim（c-17）",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "rejected",
+        "outcome": "refute"
+      },
+      "id": "art-34",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"bgpsec\",\"attackClass\":\"path-manipulation\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.931,\"false_positive_rate\":0.006,\"convergence_time\":102.89,\"verification_latency\":0.94},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"bgpsec\",\"attackClass\":\"path-manipulation\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.959,\"false_positive_rate\":0.006,\"convergence_time\":95.12,\"verification_latency\":1.19},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"bgpsec\",\"attackClass\":\"path-manipulation\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.923,\"false_positive_rate\":0.005,\"convergence_time\":68.77,\"verification_latency\":0.68},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.9377,\"stddev\":0.0189,\"ci95\":[0.9163,0.9591]},\"false_positive_rate\":{\"mean\":0.0057,\"stddev\":0.0006,\"ci95\":[0.005,0.0063]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":0.9367,\"stddev\":0.255,\"ci95\":[0.6481,1.2252]}},\"detection\":{\"n\":3,\"mean\":0.9377,\"stddev\":0.0189,\"ci95\":[0.9163,0.9591],\"falsePositive\":{\"n\":3,\"mean\":0.0057,\"stddev\":0.0006,\"ci95\":[0.005,0.0063]},\"effectiveScore\":0.932}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "support",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-35",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "证据（1条已核验）且实验支持",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "verified",
+        "outcome": "support"
+      },
+      "id": "art-36",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "experiment",
+      "title": "campaign: fp-2095287236",
+      "body": "{\"results\":[{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+bgpsec\",\"attackClass\":\"path-manipulation\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.945,\"false_positive_rate\":0.008,\"convergence_time\":102.89,\"verification_latency\":2.31},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+bgpsec\",\"attackClass\":\"path-manipulation\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.973,\"false_positive_rate\":0.008,\"convergence_time\":95.12,\"verification_latency\":2.68},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"},{\"experiment\":\"fp-2095287236\",\"claim\":\"c-2\",\"outcome\":\"support\",\"data\":{\"engine\":\"route-engine-sim\",\"engineKind\":\"topology-executor\",\"validator\":\"rov+bgpsec\",\"attackClass\":\"path-manipulation\",\"steps\":5,\"env\":\"sim\",\"simulated\":true,\"detection_rate\":0.942,\"false_positive_rate\":0.007,\"convergence_time\":68.77,\"verification_latency\":1.92},\"archivedAt\":\"2026-10-15T03:18:18.636Z\"}],\"stats\":{\"detection_rate\":{\"mean\":0.9533,\"stddev\":0.0171,\"ci95\":[0.934,0.9727]},\"false_positive_rate\":{\"mean\":0.0077,\"stddev\":0.0006,\"ci95\":[0.007,0.0083]},\"convergence_time\":{\"mean\":88.9267,\"stddev\":17.8833,\"ci95\":[68.6898,109.1635]},\"verification_latency\":{\"mean\":2.3033,\"stddev\":0.38,\"ci95\":[1.8733,2.7334]}},\"detection\":{\"n\":3,\"mean\":0.9533,\"stddev\":0.0171,\"ci95\":[0.934,0.9727],\"falsePositive\":{\"n\":3,\"mean\":0.0077,\"stddev\":0.0006,\"ci95\":[0.007,0.0083]},\"effectiveScore\":0.9456}}",
+      "claimId": "c-2",
+      "meta": {
+        "env": "sim",
+        "outcome": "support",
+        "n": 3,
+        "engine": "route-engine-sim"
+      },
+      "id": "art-37",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "campaign verdict: c-2",
+      "body": "证据（1条已核验）且实验支持",
+      "claimId": "c-2",
+      "meta": {
+        "verdict": "verified",
+        "outcome": "support"
+      },
+      "id": "art-38",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "result",
+      "title": "experiment matrix: c-2",
+      "body": "{\"attacks\":[\"prefix-hijack\",\"subprefix-hijack\",\"as-set-injection\",\"path-manipulation\"],\"validators\":[\"none\",\"rov\",\"bgpsec\",\"rov+bgpsec\"],\"cells\":[{\"attack\":\"prefix-hijack\",\"validator\":\"none\",\"detection\":0.0933,\"falsePositive\":0.0027,\"outcome\":\"refute\",\"verdict\":\"rejected\"},{\"attack\":\"prefix-hijack\",\"validator\":\"rov\",\"detection\":0.7917,\"falsePositive\":0.0187,\"outcome\":\"inconclusive\",\"verdict\":\"disputed\"},{\"attack\":\"prefix-hijack\",\"validator\":\"bgpsec\",\"detection\":0.9177,\"falsePositive\":0.0057,\"outcome\":\"support\",\"verdict\":\"verified\"},{\"attack\":\"prefix-hijack\",\"validator\":\"rov+bgpsec\",\"detection\":0.9587,\"falsePositive\":0.0077,\"outcome\":\"support\",\"verdict\":\"verified\"},{\"attack\":\"subprefix-hijack\",\"validator\":\"none\",\"detection\":0.0677,\"falsePositive\":0.0027,\"outcome\":\"refute\",\"verdict\":\"rejected\"},{\"attack\":\"subprefix-hijack\",\"validator\":\"rov\",\"detection\":0.55,\"falsePositive\":0.0187,\"outcome\":\"inconclusive\",\"verdict\":\"disputed\"},{\"attack\":\"subprefix-hijack\",\"validator\":\"bgpsec\",\"detection\":0.8627,\"falsePositive\":0.0057,\"outcome\":\"support\",\"verdict\":\"verified\"},{\"attack\":\"subprefix-hijack\",\"validator\":\"rov+bgpsec\",\"detection\":0.9177,\"falsePositive\":0.0077,\"outcome\":\"support\",\"verdict\":\"verified\"},{\"attack\":\"as-set-injection\",\"validator\":\"none\",\"detection\":0.1077,\"falsePositive\":0.0027,\"outcome\":\"refute\",\"verdict\":\"rejected\"},{\"attack\":\"as-set-injection\",\"validator\":\"rov\",\"detection\":0.601,\"falsePositive\":0.0187,\"outcome\":\"inconclusive\",\"verdict\":\"disputed\"},{\"attack\":\"as-set-injection\",\"validator\":\"bgpsec\",\"detection\":0.8317,\"falsePositive\":0.0057,\"outcome\":\"support\",\"verdict\":\"verified\"},{\"attack\":\"as-set-injection\",\"validator\":\"rov+bgpsec\",\"detection\":0.8873,\"falsePositive\":0.0077,\"outcome\":\"support\",\"verdict\":\"verified\"},{\"attack\":\"path-manipulation\",\"validator\":\"none\",\"detection\":0.0877,\"falsePositive\":0.0027,\"outcome\":\"refute\",\"verdict\":\"rejected\"},{\"attack\":\"path-manipulation\",\"validator\":\"rov\",\"detection\":0.33,\"falsePositive\":0.0187,\"outcome\":\"refute\",\"verdict\":\"rejected\"},{\"attack\":\"path-manipulation\",\"validator\":\"bgpsec\",\"detection\":0.9377,\"falsePositive\":0.0057,\"outcome\":\"support\",\"verdict\":\"verified\"},{\"attack\":\"path-manipulation\",\"validator\":\"rov+bgpsec\",\"detection\":0.9533,\"falsePositive\":0.0077,\"outcome\":\"support\",\"verdict\":\"verified\"}]}",
+      "claimId": "c-2",
+      "meta": {
+        "kind": "matrix",
+        "attacks": [
+          "prefix-hijack",
+          "subprefix-hijack",
+          "as-set-injection",
+          "path-manipulation"
+        ],
+        "validators": [
+          "none",
+          "rov",
+          "bgpsec",
+          "rov+bgpsec"
+        ],
+        "cells": 16
+      },
+      "id": "art-39",
+      "createdAt": "2026-10-15T03:18:18.636Z",
+      "archived": false
+    },
+    {
+      "kind": "note",
+      "title": "triz: 域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BG",
+      "body": "[原理23 Feedback] 矛盾分析（改善「Measurement accuracy」↔ 恶化「Device complexity」）命中 #23：劫持检测结果反馈到策略/传播：自动收敛、隔离与协商（blackhole 联动）。\n[原理2 Taking out] 矛盾分析（改善「Measurement accuracy」↔ 恶化「Device complexity」）命中 #2：分离控制面与数据面；把验证逻辑抽离为旁路组件（RPKI 缓存、sidecar 验证器）。\n[原理24 Intermediary] 矛盾分析（改善「Measurement accuracy」↔ 恶化「Device complexity」）命中 #24：RPKI 依赖方/缓存、第三方验证服务、可信中介简化验证拓扑。",
+      "meta": {
+        "source": "curated-matrix",
+        "candidates": [
+          23,
+          2,
+          24
+        ],
+        "mapping": 3
+      },
+      "id": "art-40",
+      "createdAt": "2026-10-15T03:18:18.637Z",
+      "archived": false
+    },
+    {
+      "kind": "report",
+      "title": "域间路由安全全景调研：机制能力边界、部署现状与研究缺口（意图视角）",
+      "body": "# 域间路由安全全景调研：机制能力边界、部署现状与研究缺口（意图视角）\n\n> 生成时间：2026-10-15T03:18:18.638Z\n\n## 摘要\n\n针对「域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察」，本文沿 research-loop 提出假设「验证机制（ROV/BGPsec/ASPA）叠加可提升前缀劫持检测率与路径可信度，但受部署覆盖率、子前缀/AS 路径操纵攻击与意图表达缺失限制，存在『检测(↑)⟷复杂性/覆盖(↓)』的能力上界；单一机制无法闭环，需组合 + 意图表达层补位」，经文献沉淀、假设构造与实验验证，共形成 2 条 claim（已核验 1 / 存疑 1 / 证伪 0）与 17 项战役（含 16 格实验矩阵）、3 条 TRIZ 发明原理映射（待核验，§6）。核心机制的判定见 §5 结论与判定，全部证据可经附录逐条追溯。\n\n## 1. 背景与研究问题\n\n研究问题：**域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察**\n\n中心假设：**验证机制（ROV/BGPsec/ASPA）叠加可提升前缀劫持检测率与路径可信度，但受部署覆盖率、子前缀/AS 路径操纵攻击与意图表达缺失限制，存在『检测(↑)⟷复杂性/覆盖(↓)』的能力上界；单一机制无法闭环，需组合 + 意图表达层补位**\n\n背景要点：\n- 域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察 文献与背景调研（基于 3 条命中沉淀）\n\n## 2. 文献与现有工作\n\n| Claim | 事实要点 | 来源 | 置信 |\n|-------|-----------------------------------------------------------------------------------------------------------------------------------------------|------------|----|\n| c-1 | 域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察 文献与背景调研（基于 3 条命中沉淀） | literature | 0% |\n\n## 3. 方法与假设\n\n- **c-2**（假设，置信 85%）：验证机制（ROV/BGPsec/ASPA）叠加可提升前缀劫持检测率与路径可信度，但受部署覆盖率、子前缀/AS 路径操纵攻击与意图表达缺失限制，存在『检测(↑)⟷复杂性/覆盖(↓)』的能力上界；单一机制无法闭环，需组合 + 意图表达层补位\n\n## 4. 实验与结果\n\n| Claim | 场景 | 配置指纹 | 执行源 | outcome | verdict |\n|-------|--------------|---------------|------------------|---------|----------|\n| c-2 | route-hijack | fp-2095287236 | route-engine-sim | support | verified |\n\n四口径统计摘要（均值）：\n\n| Claim | detection | false_positive | convergence_ms | latency_ms |\n|-------|-----------|----------------|----------------|------------|\n| c-2 | 0.83 | 0.02 | 88.93 | 2.19 |\n\n### 4.1 实验矩阵（检测率 × 验证策略）\n\n每格 = 检测率均值 + 判定标记（✅ 已核验 / ⚠️ 存疑 / ❌ 被证伪）：\n\n| 攻击 \\ 验证 | none | rov | bgpsec | rov+bgpsec |\n|-------------------|-------|--------|--------|------------|\n| prefix-hijack | 9% ❌ | 79% ⚠️ | 92% ✅ | 96% ✅ |\n| subprefix-hijack | 7% ❌ | 55% ⚠️ | 86% ✅ | 92% ✅ |\n| as-set-injection | 11% ❌ | 60% ⚠️ | 83% ✅ | 89% ✅ |\n| path-manipulation | 9% ❌ | 33% ❌ | 94% ✅ | 95% ✅ |\n\n## 5. 结论与判定\n\n| Claim | 类型 | 表述 | 置信 | verdict |\n|-------|----|-----------------------------------------------------------------------------------------------------------------------------------------------|-----|---------|\n| c-1 | 事实 | 域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察 文献与背景调研（基于 3 条命中沉淀） | 0% | ⚠️ 存疑 |\n| c-2 | 假设 | 验证机制（ROV/BGPsec/ASPA）叠加可提升前缀劫持检测率与路径可信度，但受部署覆盖率、子前缀/AS 路径操纵攻击与意图表达缺失限制，存在『检测(↑)⟷复杂性/覆盖(↓)』的能力上界；单一机制无法闭环，需组合 + 意图表达层补位 | 85% | ✅ 已核验 |\n\n## 6. TRIZ 发明原理映射\n\n**问题**：域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察\n\n**映射来源**：命中精选矛盾矩阵（矛盾分析：改善「Measurement accuracy」↔ 恶化「Device complexity」）\n\n下表将本研究结果对应到 TRIZ（发明问题解决理论）的发明原理。每条对应为**待核验假说**（source=triz, confidence=0.5），须经 research_verify / research_campaign 实验与证据核验后才能成为结论，不作为事实断言。\n\n| # | 原理 | 类型 | 对应理由 |\n|----|--------------|--------|---------------------------------------------------------------------------------------------------------|\n| 23 | Feedback | 矛盾分析正演 | 矛盾分析（改善「Measurement accuracy」↔ 恶化「Device complexity」）命中 #23：劫持检测结果反馈到策略/传播：自动收敛、隔离与协商（blackhole 联动）。 |\n| 2 | Taking out | 矛盾分析正演 | 矛盾分析（改善「Measurement accuracy」↔ 恶化「Device complexity」）命中 #2：分离控制面与数据面；把验证逻辑抽离为旁路组件（RPKI 缓存、sidecar 验证器）。 |\n| 24 | Intermediary | 矛盾分析正演 | 矛盾分析（改善「Measurement accuracy」↔ 恶化「Device complexity」）命中 #24：RPKI 依赖方/缓存、第三方验证服务、可信中介简化验证拓扑。 |\n\n## 7. 局限与后续\n\n- 1 条 claim 仍处存疑态，需补充证据或反证实验。\n\n## 附录 A · 证据追溯\n\n### c-1 — 域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察 文献与背景调研（基于 3 条命中沉淀）\n（无证据记录）\n\n### c-2 — 验证机制（ROV/BGPsec/ASPA）叠加可提升前缀劫持检测率与路径可信度，但受部署覆盖率、子前缀/AS 路径操纵攻击与意图表达缺失限制，存在『检测(↑)⟷复杂性/覆盖(↓)』的能力上界；单一机制无法闭环，需组合 + 意图表达层补位\n- [已核验] experiment:fp-2095287236 · conf 85%：campaign 3 轮：detection=0.8317，fp=0.0217\n",
+      "meta": {
+        "kind": "paper"
+      },
+      "id": "art-41",
+      "createdAt": "2026-10-15T03:18:18.639Z",
+      "archived": false
+    },
+    {
+      "kind": "report",
+      "title": "域间路由安全全景调研：机制能力边界、部署现状与研究缺口（意图视角） · slides",
+      "body": "# 域间路由安全全景调研：机制能力边界、部署现状与研究缺口（意图视角）\n\n域间路由安全 · research agent 自动流水线产出\n\n研究问题：域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察\n\n---\n\n## 研究问题与动机\n\n**域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察**\n\n中心假设：**验证机制（ROV/BGPsec/ASPA）叠加可提升前缀劫持检测率与路径可信度，但受部署覆盖率、子前缀/AS 路径操纵攻击与意图表达缺失限制，存在『检测(↑)⟷复杂性/覆盖(↓)』的能力上界；单一机制无法闭环，需组合 + 意图表达层补位**\n\n背景要点：\n- 域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察 文献与背景调研（基于 3 条命中沉淀）\n\n---\n\n## 方法与假设\n\n2 条 claim（1 已核验）\n\n- c-1（Fact，0% · disputed）：域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察 文献与背景调研（基于 3 条命中沉淀）\n- c-2（Hypothesis，85% · verified）：验证机制（ROV/BGPsec/ASPA）叠加可提升前缀劫持检测率与路径可信度，但受部署覆盖率、子前缀/AS 路径操纵攻击与意图表达缺失限制，存在『检测(↑)⟷复杂性/覆盖(↓)』的能力上界；单一机制无法闭环，需组合 + 意图表达层补位\n\n> 完整判定表见论文 §5。\n\n---\n\n## 实验设计\n\n- c-2｜route-hijack｜fingerprint `fp-2095287236` → support（verified）\n\n流水线：deploy → run(×repetitions) → collect → analyze → verify → archive\n\n---\n\n## 结果（四口径统计均值）\n\n| claim | detection | false_pos | converge(ms) | latency(ms) |\n|---|---|---|---|---|\n| c-2 | 0.83 | 0.02 | 88.93 | 2.19 |\n\n> detection − false_positive 即 effectiveScore，越大越优。\n\n---\n\n## 实验矩阵（检测率对照）\n\n| 验证策略 \\ 攻击 | prefix-hijack | subprefix-hijack | as-set-injection | path-manipulation |\n|---|---|---|---|\n| none | 9% | 7% | 11% | 9% |\n| rov | 79% | 55% | 60% | 33% |\n| bgpsec | 92% | 86% | 83% | 94% |\n| rov+bgpsec | 96% | 92% | 89% | 95% |\n\n> 单元格 = 检测率均值（%）。逐格 verdict 见论文 §4.1。\n\n---\n\n## TRIZ 发明原理映射（本结果对应）\n\n问题：**域间路由安全全景调研：BGP 生态的安全威胁面、验证机制（RPKI/ROV/BGPsec/ASPA/VRO/FC-BGP）能力边界、部署覆盖现状与研究缺口；含对『路由意图』（AS 路由策略意图/BGP 社区与路由策略表达）与安全关系的宽泛考察**\n来源：命中精选矛盾矩阵（改善「Measurement accuracy」↔ 恶化「Device complexity」）\n\n- **#23 Feedback**（矛盾分析正演）：矛盾分析（改善「Measurement accuracy」↔ 恶化「Device complexity」）命中 #23：劫持检测结果反馈到策略/传播：自动收敛、隔离与协商（blackhole 联动）。\n- **#2 Taking out**（矛盾分析正演）：矛盾分析（改善「Measurement accuracy」↔ 恶化「Device complexity」）命中 #2：分离控制面与数据面；把验证逻辑抽离为旁路组件（RPKI 缓存、sidecar 验证器）。\n- **#24 Intermediary**（矛盾分析正演）：矛盾分析（改善「Measurement accuracy」↔ 恶化「Device complexity」）命中 #24：RPKI 依赖方/缓存、第三方验证服务、可信中介简化验证拓扑。\n\n> 每条对应为待核验假说（source=triz, confidence=0.5）；经 research_verify / research_campaign 验证后才成结论。\n\n---\n\n## 结论与判定\n\n- c-1 → **disputed**（0%）\n- c-2 → **verified**（85%）\n\n汇总：1 已核验 / 1 存疑 / 0 证伪。\n\n---\n\n## 局限与反证\n\n（未记录明显局限）\n\n---\n\n## 下一步\n\n- 对存疑 claim 补充反证实验（research_campaign）\n- 扩展真实 FRR/VPP 执行源取代确定性模拟\n- 按 ReviewerAgent 8 步清单迭代论文\n",
+      "meta": {
+        "kind": "slides"
+      },
+      "id": "art-42",
+      "createdAt": "2026-10-15T03:18:18.639Z",
+      "archived": false
+    }
+  ]
+}

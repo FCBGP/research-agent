@@ -8,7 +8,38 @@
 
 ---
 
+## 2026-10-15 · 域间路由意图全景调研 · 结论速览（简报式交付）（提交号由下游 docs(changelog) 提交回填）
+
+需求（用户）：原请求「域间路由意图调研」；消歧后确认 scope=**全景调研**、deliverable=**简报式结论速览**
+（判定表 + 关键缺口 + 课题建议，**不做**全流水线论文/幻灯片/实验）。已取消选型未执行。
+
+- **做了什么**：把「路由意图」从 RFC 9315（IRTF NMRG 2022，intent=声明式期望结果 vs policy=约束行为的规则）
+  口径出发，逐机制判定其是否承载 IBN 式意图：ROA/ROV ✅（强·单侧授权事实）、ASPA 🟡（I-D·顾客→上游
+  传播路径授权·无偏好）、BGPsec ❌（运行期逐跳证明非意图语言，RFC 8205/8206）、IRR/RPSL 🟡（声明型弱权威）、
+  BGP community 🟡（本地语义·可被劫持者注入，RFC 1997/2622/7999）、SLURM 🟡（RP 本地定制 RPKI 视图=本地意图
+  例外层，RFC 8416）、SCION ✅（数据面 hop-field+MAC 链·唯一真路径意图）、IBN 域间线 ⚠️（无标准意图语言/
+  assurance 环，Princeton BGP 配置验证佐证）、RFC 9871 BGP CAR 🟡（最接近 IBN 域间落点·场景受限）、
+  课题「多源共识三视图」✅（补缺口接缝）。
+- **关键缺口 G1–G5**：G1 声明盲区 40–50% + partial deployment；G2 单侧 vs 双向（ASPA 顾客→上游，无接收偏好）
+  往语义；G3 广义意图（偏好/优化/时变/条件）结构性不支持（快照式签名+慢更新，maxLength 授权粒度↔伪造子前缀
+  面张力，RFC 6480 §3.2/§4.1、RFC 7115、RFC 9319）；G4 缺 SHOULD↔IS assurance 闭环（RFC 9315 assurance 五部件，
+  RFC 7908 仅事后行为告警）；G5 权威层级混排（RPKI 强/IRR 弱/community 无语义）→ 多源共识为自然解法。
+- **课题建议 5 条**：① 锚点分级 + 盲区显式 `UNKNOWN` 态兜底；② 补双向意图边；③ assurance 闭环指标
+  （intent-compliance/drift）；④ community 注入攻击面列入异常视图；⑤ 表达模型可翻译（对接 ASPA/RFC 9871/SCION）。
+- **关键产物**：
+  - `reports/域间路由意图全景调研-结论速览.md` —— 交付物（§0 一句话结论 + §1 RFC 9315 口径表 + §2 逐机制
+    判定表 11 行 + §3 G1–G5 + §4 课题建议 5 条 + §5 证据追溯 12 条，各条标来源属性与复核口径）。
+  - artifact store（kind=evidence-log）：**art-1** RFC 8416 SLURM=本地化意图载体 / **art-2** community+RPSL=
+    运营信号型弱意图载体 / **art-3** SCION 路径意图 + RFC 9871 CAR + APNIC IRV；落盘
+    `artifacts/domain-routing-intent-survey/research-memory.json`。
+  - 证据底座复用既有 `reports/RPKI承载域间路由意图-调研报告.md`（RW 全表，terabytes 形态无需重复检索）。
+- **证据约束（如实标注）**：RFC 9315 / ASPA I-D / RFC 9871 不在 WeKnora RFC 知识库检索命中范围内，判定以
+  「既有报告 + RFC 原文 + 外网线索」立证，简报 §0 顶部显式声明，未冒充 KB 检索；「更新 RFC 4271 默认不导入
+  导出」未挂编号。
+- **测试与 SMOKE**：文件已写入并复核结构（§0–§5 齐全）；无代码改动、无测试。提交号 SHA 提交后回填。
+
 ---
+
 ## 2026-10-15 · 联网搜索切换：弃用 dsh 内置 web 搜索 → `dsh-web-search-plugin`（提交 `86b730f`）
 
 需求（用户）：不再使用 dsh 内置的 web 搜索（base 的 `web-search-deepseek` host 插件，DeepSeek

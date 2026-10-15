@@ -200,3 +200,19 @@
   返回真实结果且 `~/.dsh/logs` 无官方搜索模型调用（省官方 token）
 - [ ] 恢复/切换验证：设置卡片切回 DeepSeek（官方）再切第三方，卡片保存即生效（无需重启插件）；
   宿主重置场景确认部署重跑后插件仍在（bundle 声明来自模板）
+
+## 在研 · 域间路由意图调研 · 后续课题线（2026-10-15 全景速览后，可选）
+
+> 已完成全景视角：`reports/域间路由意图全景调研-结论速览.md`（判定表 + G1–G5 + 课题建议 5 条，
+> 归档于 CHANGELOG）。以下为本调研留出的可选深化线，勾选任一前接对应 claim 的关注证据。
+
+- [ ] 跟踪 ASPA 状态：`draft-ietf-sidrops-aspa-*` 是否转 RFC，补「顾客 AS→上游传播授权」双向
+  意图边（G2），并复核 RFC 9774 与 BCP 状态
+- [ ] 对照 RFC 9871 BGP CAR / SCION path-authorization：把课题「三视图共识」表达模型做成可映射
+  标准落点的 open schema（G3/G5）
+- [ ] community 注入攻击面实验：恶意注入 well-known / NO_EXPORT / 自定义 community 对多源共识
+  判定影响（G5/G4，可接 research_campaign 模拟验证）
+- [ ] assurance 闭环指标：intent-compliance / drift 的输出口径加入课题建议 ③（G4，对齐 RFC 9315
+  assurance 五部件）
+- [ ] 轻核 claim：「RPKI 结构性不支持 RFC 9315 广义 IBN 意图（偏好/优化/时变/条件）」——
+  research_verify 一票（G3 主线）
