@@ -243,10 +243,15 @@ research_triz problem="ROV 提升劫持检测率但跨长收敛" improving="检�
   写 `triz: ` note → 右侧栏面板自动可见；论文 §6 + 幻灯片 5c 自带映射小节。无需 TRIZ skill。
 - **每个回答都解释（阶段 8.7）**：新增 host 插件 `research-triz-auto`——订阅
   `session/event`（user/message → assistant/message → turn/end），**每个最终回答自动映射**
-  到 1~5 条发明原理并写右侧栏面板（每轮至多 1 条，天然去重）。persona 同时要求回答正文以
-  `### 本回答对应的 TRIZ 发明原理映射` 收尾（逐条 `「原理#N Name — 一句理由」`，标
-  `source=triz, confidence=0.5` 待核验）。面板在**右侧栏 guide 页 →「TRIZ 发明原理」**；
-  **改代码/重新部署后必须重启 `dsh research`**（client-modules 对旧 bootstrap 的判定有缓存）
+  到 1~5 条发明原理并写右侧栏面板（每轮至多 1 条，天然去重），不侵入回答正文。
+- **TRIZ 只在侧边栏（2026-10-15 修订）**：曾要求 persona 让每个回答正文以
+  `### 本回答对应的 TRIZ 发明原理映射` 收尾 → 已移除（问答不再出现 TRIZ 小节）。
+  TRIZ 的**唯一展示面 = 右侧栏「TRIZ 发明原理说明」面板**（research_triz 工具/自动映射
+  写入的 note，来源 = curated-matrix / heuristic-fallback / unresolved，待核验假说
+  source=triz, confidence=0.5）。persona 改为：可用 `research_triz` 工具产假说（进侧边栏），
+  但**不得在回答正文追加 TRIZ 小节**——避免「侧边栏（确定性分析）与问答（模型自写）不一致」。
+  面板在**右侧栏 guide 页 →「TRIZ 发明原理」**；**改代码/重新部署后必须重启 `dsh research`**
+  （client-modules 对旧 bootstrap 的判定有缓存）
 
 ## WeKnora 知识库对接（dsh ↔ 腾讯 WeKnora，2026-10-10）
 

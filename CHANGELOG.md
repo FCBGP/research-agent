@@ -8,6 +8,36 @@
 
 ---
 
+## 2026-10-15 · 问答 TRIZ 下线 · 侧边栏唯一化：TRIZ 只留右侧栏「发明原理说明」面板（提交 `4dabf2b`）
+
+需求（用户）：侧边栏与问答中的 TRIZ 表现不一致——问答的「本回答对应的 TRIZ 发明原理映射」是
+persona 让**模型自写**（从记忆中的 40 原理脑补，可能与确定性分析冲突）；侧边栏是**确定性代码**
+（`mapResult`：精选矩阵 + 特征词，来源徽标三态）。用户明确：**问答可以不要 TRIZ，侧边栏必须有**。
+修改后口径：TRIZ 唯一展示面 = 右侧栏「TRIZ 发明原理说明」面板（展示 research_triz 工具分析出的
+发明原理与推理链，全部为待核验假说 source=triz, confidence=0.5，须经 research_verify /
+research_campaign 验证后才成为结论），问答正文不再出现 TRIZ 小节。
+
+- **关键产物**：
+  - `dsh-research/presets/research.patch.yml` —— persona 移除「EVERY final answer MUST end
+    with 本回答对应的 TRIZ 发明原理映射」（含矛盾种子 (28,36)→#23/#2/#24、逐条理由格式），改为
+    「可用 `research_triz` 工具产假说（进右侧栏面板，source=triz, confidence=0.5 待核验），
+    但**不得在回答正文追加 TRIZ 小节**——TRIZ 的唯一展示面 = 右侧栏面板」。
+  - 侧边栏零改动：`client/TrizTab.tsx` 标题「TRIZ 发明原理说明」+ 文案「展示本次研究过程中
+    research_triz 工具分析出的发明原理与推理链。所有推荐均为待核验假说（source=triz,
+    confidence=0.5），须经 research_verify / research_campaign 验证后才成为结论」即用户口径；
+    `research-triz-auto`（每轮自动落 note）/ `research_triz` 工具 / `/api/research.triz.notes`
+    均未动——侧边栏仍每轮自动/手动更新。
+  - `README.md`（「TRIZ 方法论接入」第 8.7 条改写 + 新增修订说明）；`dsh-research/README.md`
+    （阶段 8.7 追加 2026-10-15 修订段落，历史实现保留、行为口径现改为侧边栏唯一）。
+- **验证（沙箱，dsh 0.2.0-rc.2 / Node 24）**：单测 **183/183 全绿（无回归**，persona 不在任何
+  单测/冒烟断言中）；persona 折叠标量（`>-`）缩进一致（全部 16 空格），问答强制 TRIZ 指令残留
+  计数 = 0。persona 属 profile 配置（boot 时载入），沙箱与既有 runtime-smoke 口径一致。
+- **待办（真机，已列 TODO「在研 · 问答 TRIZ 下线 · 侧边栏唯一化」）**：重启 `dsh research` 后
+  确认问答正文不再出现 TRIZ 映射小节、右侧栏「TRIZ 发明原理说明」面板仍在且每轮更新、手动
+  `research_triz` 仍能落 note——两套 TRIZ 不再冲突。
+
+---
+
 ## 2026-10-15 · 域间路由意图全景调研 · 结论速览（简报式交付）（提交 `6f9b5fe`）
 
 需求（用户）：原请求「域间路由意图调研」；消歧后确认 scope=**全景调研**、deliverable=**简报式结论速览**

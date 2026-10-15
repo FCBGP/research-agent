@@ -377,6 +377,14 @@ patch 栈，冒烟时断言 `policy rules: 12`（L1）与 `chain defaults-only c
   **`### 本回答对应的 TRIZ 发明原理映射`** 收尾，逐条 `「原理#N Name — 一句理由」`，
   优先矛盾推理（改善 detection ↔ 恶化 complexity → 精选矩阵 cell (28,36) → #23/#2/#24），
   一律标注 `source=triz, confidence=0.5`（待核验假说，不声称事实），**不需要额外调用工具**。
+- **2026-10-15 修订（问答 TRIZ 下线，侧边栏唯一化）**：用户指出「侧边栏与问答中的 TRIZ 还不
+  一样」——问答的映射是 persona 让**模型自写**（从记忆中的 40 原理脑补，可能与确定性分析冲突），
+  侧边栏是**确定性代码**（`mapResult`：精选矩阵 + 特征词）。修改：**persona 不再要求回答正文
+  追加 TRIZ 小节**（问答不再出现「本回答对应的 TRIZ 发明原理映射」），改为「可用
+  `research_triz` 工具产假说（进右侧栏面板），**但不得在回答正文追加 TRIZ 小节**——
+  TRIZ 的唯一展示面 = 右侧栏 `TRIZ 发明原理说明` 面板（展示 research_triz 工具分析出的
+  发明原理与推理链，全部为待核验假说 source=triz, confidence=0.5）」。`research-triz-auto`
+  与 `research_triz` 工具不变——侧边栏仍每轮自动/手动落 note。
 - **面板位置**：Web UI 右侧栏 → guide 页 → **「TRIZ 发明原理」** 条目；打开一次后
   `keepMounted` 常驻。**改完必须重启 `dsh research`**（client-modules 对「非 client 包」的
   negative 判定按 source 缓存，重启前旧进程仍看不到面板）。

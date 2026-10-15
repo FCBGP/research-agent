@@ -124,6 +124,10 @@
 ## 里程碑
 
 
+- [x] 问答 TRIZ 下线 · 侧边栏唯一化（2026-10-15）= 不再要求每个回答正文带「本回答对应的 TRIZ
+  发明原理映射」（persona 原强制指令已移除），TRIZ 唯一展示面 = 右侧栏「TRIZ 发明原理说明」面板
+  （research_triz 工具/自动映射 note，source=triz, confidence=0.5 待核验）；183/183 单测 + SMOKE
+  PASS 无回归；真机「问答无 TRIZ 小节 + 侧栏面板正常」待用户确认
 - [x] 阶段 9 完成（本轮）= TRIZa 闭环治理层（冻结评估契约+协议指纹 / 类型化变换契约 / FI-Ideality
   / 四类硬门晋升 / 可追溯记录 + 负证据保留，论文 docs/2610.04555v1.pdf）；183/183 单测 + SMOKE
   PASS（services 14/14, tools 15/15, engineering 8/8, triza=true）+ PACK OK；真机部署待用户
@@ -146,6 +150,23 @@
   报告跟进
 - [x] 全部完成 = `dsh research`（web 会话）一条指令跑完整科研流水线
   （RPKI+BGPsec 缺口 → 实验矩阵 → 核验 → 论文/幻灯片），且阶段 4/5 + 报告跟进全部关闭
+
+## 在研 · 问答 TRIZ 下线 · 侧边栏唯一化（2026-10-15 起；沙箱已自测）
+
+> 部署侧已落地（2026-10-15，本轮）：persona 不再要求每个回答正文带
+> `### 本回答对应的 TRIZ 发明原理映射`（问答无 TRIZ 小节）；改为「可用 research_triz 工具产
+> 假说（进右侧栏面板），但不得在回答正文追加 TRIZ 小节」，TRIZ 唯一展示面 = 右侧栏
+> 「TRIZ 发明原理说明」面板（展示 research_triz 工具分析出的发明原理与推理链，全部为待核验
+> 假说 source=triz, confidence=0.5）。`research-triz-auto` / `research_triz` 工具逻辑未动
+> （侧边栏仍每轮自动/手动落 note）。沙箱已证：183/183 单测无回归；persona 块语法折叠正确。
+> 以下真机验证依赖用户重启 `dsh research`（profile 配置 boot 时载入），沙箱无法开浏览器。
+
+- [ ] 重启 `dsh research` 后，会话里跑一次普通问答，确认回答正文**不再出现**
+  `本回答对应的 TRIZ 发明原理映射` 小节（问答干净，无 TRIZ 样板）
+- [ ] 同一会话右侧栏「TRIZ 发明原理说明」面板**仍在且正常更新**：问一个研究问题 → 轮结束后
+  面板出现该轮的 triz note（来源徽标 curated-matrix / heuristic-fallback + 候选原理 + 推导
+  假说）；手动调用 `research_triz`（含 resultText）也能落 note 进面板
+- [ ] 一致性确认：面板条目与问答正文不再「两套 TRIZ」冲突（问答不再自造 TRIZ 映射）
 
 ## 在研 · TRIZa 真机部署验证（2026-10-15 起；沙箱已自测 183/183 + SMOKE PASS + PACK OK）
 
