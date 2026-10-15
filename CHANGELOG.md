@@ -9,6 +9,42 @@
 ---
 
 ---
+## 2026-10-15 · 联网搜索切换：弃用 dsh 内置 web 搜索 → `dsh-web-search-plugin`（提交 `86b730f`）
+
+需求（用户）：不再使用 dsh 内置的 web 搜索（base 的 `web-search-deepseek` host 插件，DeepSeek
+官方后端），改用社区插件 `dsh-web-search-plugin`（v0.5.x，9 个后端：DeepSeek 官方默认 / Tavily /
+Brave / Serper / SerpApi / Exa / SearXNG / Scavio / Firecrawl），且**在 deploy 时与
+`@wxg-prc-cpg/dsh-weknora` 一样自动检测并安装**。`web_search` 工具沿用不变，只换底层 provider；
+插件 bundle 自带 patch 覆盖 `web` 行 `searchProvider=dsh-web-search` + 禁用内置
+`web-search-deepseek` + 插入插件行（默认 `provider: deepseek-official`，第三方后端在
+Web UI → 设置 → 网页搜索 卡片运行时切换，免改 YAML/免重启）。
+
+- **关键产物**：
+  - `profiles/research/package.json` —— `dsh.profile.bundles` 与 `dependencies` 追加
+    `dsh-web-search-plugin`（`^0.5.1`），description 同步（重跑 deploy 不丢插件）。
+  - `profiles/research/cordis.patch.yml` —— 追加 `- id: dsh-web-search-plugin` 配置行
+    （默认 `provider: deepseek-official`；插件未装时该行被静默丢弃，非致命，装上即生效）。
+  - `dsh-research/scripts/deploy-profile.sh` —— weknora 单块补装改为**通用插件循环**
+    `for plugin_spec in "@wxg-prc-cpg/dsh-weknora" "dsh-web-search-plugin"`：grep package.json
+    声明 → node_modules 缺失自动 `dsh plugin add` → 已装跳过 → 失败仅 warn；
+    `DEPLOY_AUTO_PLUGINS=0` 打印手动命令。
+  - `README.md` 新增「联网搜索切换」章节（deploy 生命周期 / 选后端 / 排查表 / 兼容性）；
+    `profiles/README.md` bundle 清单补两插件。
+- **验证（沙箱，dsh 0.2.0-rc.2 / Node 24，DSH_HOME=/tmp/dsh-home）**：
+  - Fresh deploy 自动补装 weknora + dsh-web-search-plugin；重跑打 `already installed`；
+    `DEPLOY_AUTO_PLUGINS=0` 打两条手动命令；`bash -n` 通过。
+  - `--dump-config`：组合树 `web.searchProvider=dsh-web-search` + `fetchProvider=http`、
+    内置 `web-search-deepseek` `disabled: true`、插件行 `provider: deepseek-official`。
+  - 未装场景仅非致命 `skipping profile bundle ... cannot resolve` / `patch: entry not found`，
+    boot 正常退出（exit=0）。
+  - runtime-smoke → **SMOKE PASS**（services 15/15, tools 15/15, standard=0, roles 10/10/8/8）；
+    单测 **183/183 全绿**（无回归）。
+- **待办（真机，已列 TODO「在研 · 联网搜索切换」）**：浏览器侧栏插件页可见、设置→网页搜索卡片
+  选第三方后端、`web_search` 不再耗官方搜索模型 token。沙箱无法开浏览器，留待用户
+  `DSH_HOME="$HOME/.dsh" ./dsh-research/scripts/deploy-profile.sh && dsh research` 确认。
+
+---
+
 ## 2026-10-15 · 阶段 9 · TRIZa 闭环：冻结契约 → 类型化变换 → FI/Ideality → 硬门晋升 → 可追溯（提交 `566bd7c`）
 
 需求（用户）：继续读论文 `docs/2610.04555v1.pdf`（TRIZa: Guiding Agent Evolution from Pattern
