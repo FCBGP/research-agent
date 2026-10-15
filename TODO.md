@@ -127,6 +127,10 @@
 - [x] 阶段 9 完成（本轮）= TRIZa 闭环治理层（冻结评估契约+协议指纹 / 类型化变换契约 / FI-Ideality
   / 四类硬门晋升 / 可追溯记录 + 负证据保留，论文 docs/2610.04555v1.pdf）；183/183 单测 + SMOKE
   PASS（services 14/14, tools 15/15, engineering 8/8, triza=true）+ PACK OK；真机部署待用户
+- [x] 联网搜索切换完成（部署侧，2026-10-15）= 弃用 dsh 内置 web 搜索，改 `dsh-web-search-plugin`
+  （9 后端）；模板声明 + `deploy-profile.sh` 自动补装（与 weknora 同机制）+ 沙箱 SMOKE
+  PASS（fresh deploy 自动装两插件 / 组合树 web.searchProvider=dsh-web-search +
+  web-search-deepseek 禁用）；真机浏览器选后端待用户
 - [x] 阶段 8 完成（`ce94b68`）= TRIZ 方法论接入（research_triz 工具 + triz skill）；146/146 单测 + SMOKE PASS（tools 14/14, engineering 7/7, triz=true）
 - [x] 阶段 8.5 完成 = 右侧栏「TRIZ 发明原理」面板（host `/api/research.triz.notes` + client bundle `lib/client.js`）；151/151 单测 + SMOKE PASS（trizUi=true），暂无未完成子项
 - [x] 阶段 8.7 完成（本轮）= 右侧栏面板可见性根因修复（client-modules 只认裸包名/两段 scope，
@@ -177,3 +181,22 @@
 - [ ] dsh 0.2.0-rc.2 兼容性真机回归：沙箱已证插件在 0.2.0-rc.2 加载 + 4 工具注册；端到端检索
   仍需真机 WeKnora 服务确认（官方验证口径为 dsh 0.1.0-rc.8）；若工具契约破坏性变更，
   记录到 README / 反馈上游
+
+## 在研 · 联网搜索切换 dsh-web-search-plugin（2026-10-15 起）
+
+> 部署侧已落地（2026-10-15，本轮）：不再用 dsh 内置 web 搜索，改用插件
+> `dsh-web-search-plugin`（v0.5.x，9 个后端）。仓库模板已声明
+> `profiles/research/package.json` bundles/dependencies + `cordis.patch.yml` 配置行，
+> `deploy-profile.sh` 首次自动装插件（weknora + web-search-plugin 同机制）、重跑不丢
+> （`DEPLOY_AUTO_PLUGINS=0` 可关）。沙箱已证：fresh deploy 自动装两插件、已装跳过、
+> 未装非致命警告不阻塞 boot；组合树 `web.searchProvider=dsh-web-search` +
+> `web-search-deepseek` 禁用 + `dsh-web-search-plugin` 行就位；runtime-smoke SMOKE PASS。
+> 以下真机验证依赖用户在浏览器操作，沙箱无法完成。
+
+- [ ] 真机一键 deploy 后确认 `dsh research` 里 `web_search` 走插件后端：侧栏**插件**页可见
+  `dsh-web-search-plugin` 组合包；**设置 → 网页搜索**卡片存在 9 个后端
+  （DeepSeek 官方 / Tavily / Brave / Serper / SerpApi / Exa / SearXNG / Scavio / Firecrawl）
+- [ ] 选定第三方后端（如 Tavily keyless 或 Exa）并保存后，会话里跑一次 `web_search`，确认
+  返回真实结果且 `~/.dsh/logs` 无官方搜索模型调用（省官方 token）
+- [ ] 恢复/切换验证：设置卡片切回 DeepSeek（官方）再切第三方，卡片保存即生效（无需重启插件）；
+  宿主重置场景确认部署重跑后插件仍在（bundle 声明来自模板）

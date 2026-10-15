@@ -18,7 +18,10 @@
 在 **web 基座**上实现（与 `dsh --profile web` 同构，仅多叠 `@basil/dsh-research` 领域层）：
 
 `dsh.profile.bundles` = `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app` +
-`@basil/dsh-research`（顺序即叠加顺序）。
+`@basil/dsh-research` + `@wxg-prc-cpg/dsh-weknora`（知识库）+ `dsh-web-search-plugin`
+（联网搜索，替代内置 web 搜索）（顺序即叠加顺序）。两个第三方插件已并入 deploy 生命周期：
+`deploy-profile.sh` 首次部署**自动补装**、已装跳过、重跑不丢（见仓库 README「WeKnora」与
+「联网搜索切换」）。
 
 - `@deepseek-ai/dsh-web-app`：Web UI 前端基座（web-startup / webserver / web-runtime），
   `dsh research` 启动浏览器会话（默认 `http://127.0.0.1:3080/`），**不接受位置参数任务**。

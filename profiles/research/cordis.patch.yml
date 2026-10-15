@@ -59,3 +59,17 @@
       search: true
       readDocument: true
       ask: true
+
+# web search — 联网搜索改用插件 dsh-web-search-plugin（不再用 dsh 内置 web 搜索）。
+# 插件 bundle 自带 patch 已完成三件事（本 profile 无需重复）：
+#   - `web` 行覆盖：searchProvider=dsh-web-search（沿用 web_search 工具，底层换插件后端）
+#   - `web-search-deepseek` 行禁用（dsh 内置 DeepSeek 官方搜索 host 插件下线，单一配置面）
+#   - 插入 `dsh-web-search-plugin` 行（provider 默认 deepseek-official）
+# 本行只显式声明该插件并钉死默认后端；9 个后端（DeepSeek 官方默认 / Tavily / Brave /
+# Serper / SerpApi / Exa / SearXNG / Scavio / Firecrawl）在 Web UI 设置 → 网页搜索 卡片
+# 运行时切换，无需重启插件或改 YAML；插件未装时本行被静默丢弃（非致命警告 entry not found），
+# 装上即生效 → 模板可长期保留（见 README「联网搜索切换」）。
+- id: dsh-web-search-plugin
+  name: dsh-web-search-plugin
+  config:
+    provider: deepseek-official

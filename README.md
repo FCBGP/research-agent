@@ -321,6 +321,58 @@ Node 24。插件**零运行时依赖**、只用 `ctx.tools.register`（与仓库
 `inject: ['tools']`），预期兼容；若本机 dsh 工具契约有破坏性变更，加载阶段会报错。npm 侧如遇
 `~/.npm` 写权限问题，用 `NPM_CONFIG_CACHE=/tmp/xxx`（或 `--cache /tmp/xxx`）绕开。
 
+## 联网搜索切换（dsh ↔ dsh-web-search-plugin，2026-10-15）
+
+`dsh research` **不再使用 dsh 内置的 web 搜索**（base 的 `web-search-deepseek` host 插件，
+DeepSeek 官方后端），改由社区插件 `dsh-web-search-plugin`（v0.5.x）统一提供 **9 个搜索后端**：
+DeepSeek（官方，默认）/ Tavily / Brave / Serper / SerpApi / Exa / SearXNG / Scavio / Firecrawl。
+`web_search` 工具沿用不变，只换底层 provider；插件 bundle 自带 patch 会覆盖 `web` 行的
+`searchProvider=dsh-web-search`，并**禁用内置的 `web-search-deepseek`**（单一 DeepSeek 配置面）。
+
+插件已并入 **deploy 生命周期**（与 weknora 完全同机制）：仓库模板 `profiles/research/package.json`
+声明了 bundle + dependencies，模板 `cordis.patch.yml` 带 `- id: dsh-web-search-plugin` 配置行，
+`deploy-profile.sh` 首次部署**自动补装**（`DEPLOY_AUTO_PLUGINS=0` 可关，改打印手动命令）。
+**升级 dsh-research 后重跑 deploy 不会丢插件**（bundle 声明来自模板）。你只需：
+
+```bash
+# 部署 research profile（自动装 weknora + dsh-web-search-plugin；已装则跳过）
+DSH_HOME="$HOME/.dsh" ./dsh-research/scripts/deploy-profile.sh
+
+#（可选）确认组合就位：web 行 searchProvider + 内置 host 插件禁用 + 插件行
+DSH_HOME="$HOME/.dsh" dsh --profile research --dump-config | grep -E "searchProvider|web-search-deepseek|id: dsh-web-search-plugin"
+```
+
+**选后端**：默认 `provider = deepseek-official`（仍走 DeepSeek 官方搜索，会耗费模型 token）。
+要省官方模型调用，在 **Web UI → 设置 → 网页搜索** 卡片选第三方引擎（Tavily keyless 免账号，
+或 Brave / Serper / SerpApi / Exa / SearXNG / Scavio / Firecrawl，各自对应 `*_API_KEY` 环境变量
+或卡片内直填）并保存即可，**无需重启插件或改 YAML**；保存后下一次搜索即生效。要固定默认后端，
+改模板 `profiles/research/cordis.patch.yml` 的 `- id: dsh-web-search-plugin` 行 `provider:`，
+重跑 deploy 生效。
+
+> **配置从哪来**：`web` 行覆盖、`web-search-deepseek` 禁用、插件行默认 provider 由插件 bundle
+> 自带 patch 提供；profile 模板只显式声明该插件（行 id `dsh-web-search-plugin`），插件未装时该行
+> 在 patch 层被**静默丢弃**（dsh 打印非致命 `skipping profile bundle ... cannot resolve` /
+> `patch: entry "dsh-web-search-plugin" not found`），不阻塞启动，装上即自动生效——所以模板可长期
+> 保留。若某天想恢复 dsh 内置搜索，在侧栏**插件**页停用 `dsh-web-search-plugin` 组合包即可
+> （README.zh.md，插件随包自带）。
+
+### 排查
+
+| 现象 | 检查 |
+|---|---|
+| `web_search` 报 401/超时 | `dsh-web-search-plugin` 是否在 bundles（`dsh plugin --profile research add dsh-web-search-plugin`）；选的是官方还是第三方后端、key 是否生效 |
+| 官方 DeepSeek 搜索域名不通 | 会话模型走 `local-interval-dsv4`，**搜索**后端独立于会话模型；官方搜索需公网可达 `api.deepseek.com`，或该插件配置里换第三方后端 |
+| 搜索仍走 DeepSeek 官方 | provider 默认即官方；在设置卡片选第三方引擎并保存 |
+| 想改默认后端 | 模板 `provider:` 改值 -> 重跑 deploy（卡片改动会覆盖模板默认） |
+
+### 兼容性
+
+插件 `dsh-web-search-plugin@0.5.1` 目标 dsh 0.2.x（peer `@deepseek-ai/dsh-web@^0.2.0-rc.2`、
+`@deepseek-ai/dsh-credentials` / `dsh-settings` / `dsh-launch-environment`），本机运行时
+dsh 0.2.0-rc.2 / Node 24。沙箱已实测：deploy 自动补装、组合树 `searchProvider=dsh-web-search` +
+`web-search-deepseek` 禁用 + 插件行就位、runtime-smoke **SMOKE PASS**（services 15/15 等，无回落）；
+真机浏览器端配置（设置卡片选后端）待用户确认。
+
 ## 开发约定（黄金规则）
 
 1. **不 fork、不修改 `deepseek-harness/`**，只当只读 submodule 参考。
