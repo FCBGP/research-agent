@@ -8,6 +8,30 @@
 
 ---
 
+## 2026-10-15 · TRIZ 侧边栏广度 + 矛盾来源标注（1+2+3 轮）（提交 `d5ea578`）
+
+需求（用户，承接「问答 TRIZ 下线 · 侧边栏唯一化」e2f767c）：侧边栏「TRIZ 发明原理说明」调研半天只
+涉及 3 个发明原理，质疑是否要换更强模型。结论：**非模型问题**——起因是 `mapResultToTriz` 只展示
+didactic（矛盾分析命中），而默认矛盾恒为 detection↔complexity，精选矩阵 cell (28,36) 固定返回
+[23,2,24] 三个。本轮三管齐下，侧边栏在不换模型的前提下展示随内容变化的更多原理：
+
+- **矛盾不再固定**（`src/triz/index.ts`）：新增 `extractContradiction()` 规则词表
+  （`CONTRADICTION_LEXICON`，收益类→improving / 代价类→worsening）+ 精选矩阵优先匹配——可靠性↔收敛、
+  抗劫持↔延迟、吞吐↔开销…不再恒为 detection↔complexity。
+- **特征词反演放宽**（`src/triz/result-map.ts`）：`matchedTerms()` 增加英文规范名词干分片 +
+  `TERM_SYNONYMS` 中文同义扩充表（预计算→#10、闭环→#23、旁路→#2、蜜罐→#22、纵深→#40、冗余路径→#14…），
+  didactic+retrospective 补足至 **5 条上限**。
+- **矛盾来源如实标注**：`contradictionOrigin` 三态（tool=显式参数 / extracted=文本规则提取 /
+  default=默认检测↔复杂度）经 `plugin-triz-auto.ts`/`plugin-triz-ui.ts`/`plugin-tools.ts`/
+  `autonomous/index.ts`/`client/route.ts`/`client/TrizTab.tsx` 全链路透传，侧边栏卡片显示「矛盾来源」；
+  `meta.candidates` 全量收录（didactic+retrospective）使卡片条数与正文一致；旧 note 无字段回落 default
+  兼容不破坏。
+- **修复 2 条错误测试断言**（先复现再改，均非代码 bug）：`(27,25)` 精选矩阵 cell 本就含 #23 →
+  改断言结果文本「旁路」反演 #2 以 retrospective 入卡；样例「参数化可调」致 #35 双词命中（score 2）
+  抢占 #14 名额 → 调整样例文本使 #11/#14 均在 5 条上限内。
+- **测试与 SMOKE**：`node --test "src/**/*.test.ts"` = **188/188 全绿**（基线 186 修复 → 188）；
+  runtime-smoke 复核见本轮（SMOKE PASS 确认中）。提交号 `d5ea578`。
+
 ## 2026-10-15 · 域间路由意图综合调研（三线合并 + 交叉缺口 G1–G5）（提交见本轮）
 
 需求（用户）：Web GUI 发起「域间路由意图调研」，经确认选择**综合调研** = 三条调研线 + 交叉缺口
