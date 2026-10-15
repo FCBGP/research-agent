@@ -9,7 +9,7 @@
 ---
 
 ---
-## 2026-10-15 · 阶段 9 · TRIZa 闭环：冻结契约 → 类型化变换 → FI/Ideality → 硬门晋升 → 可追溯
+## 2026-10-15 · 阶段 9 · TRIZa 闭环：冻结契约 → 类型化变换 → FI/Ideality → 硬门晋升 → 可追溯（提交 `566bd7c`）
 
 需求（用户）：继续读论文 `docs/2610.04555v1.pdf`（TRIZa: Guiding Agent Evolution from Pattern
 Recognition to Solution Invention，arXiv:2610.04555v1），把 TRIZa 从「理念」落成 `dsh research`
