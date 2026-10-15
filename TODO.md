@@ -123,6 +123,9 @@
 
 ## 里程碑
 
+- [ ] Paperclip dsh_local adapter 决策项（2026-10-15 备忘，未动工）= 可行性调研已完成：
+  external adapter 插件机制 + `dsh --profile headless --json` 实测通过；推进路径与待核实点
+  见文末「决策备忘 · Paperclip 接入」小节。用户明确本轮仅备忘、不做。
 
 - [x] 问答 TRIZ 下线 · 侧边栏唯一化（2026-10-15）= 不再要求每个回答正文带「本回答对应的 TRIZ
   发明原理映射」（persona 原强制指令已移除），TRIZ 唯一展示面 = 右侧栏「TRIZ 发明原理说明」面板
@@ -240,3 +243,38 @@
   assurance 五部件）
 - [ ] 轻核 claim：「RPKI 结构性不支持 RFC 9315 广义 IBN 意图（偏好/优化/时变/条件）」——
   research_verify 一票（G3 主线）
+
+## 决策备忘 · Paperclip 接入（dsh_local adapter）可行性调研（2026-10-15 起；仅备忘，未动工）
+
+> 需求：能否把 https://github.com/paperclipai/paperclip 在 dsh 中用起来（本质 multi-agent 交互）。
+> 结论（证据分级：Paperclip 源码已读 + dsh headless 沙箱实测）：**可以，且是正统路线**——
+> Paperclip = agent 团队编排/组织层（"公司"），dsh = 被管理的 agent runtime（"OS/运行时"），
+> 两者互补不冲突，无需改 deepseek-harness / dsh-research 核心。
+> - Paperclip 接入点 = **external adapter 插件**（独立 npm 包，启动自动加载，无需改其源码）：
+>   `docs/adapters/creating-an-adapter.md` / `external-adapters.md`；注册与存储 =
+>   `server/src/adapters/registry.ts`（buildExternalAdapters 并入内置表）+
+>   `plugin-loader.ts` + `services/adapter-plugin-store.ts`（`~/.paperclip/adapter-plugins.json`）；
+>   必实现 `src/index.ts(type/label/models/createServerAdapter)` +
+>   `src/server/execute.ts(AdapterExecutionContext→AdapterExecutionResult)` + `test.ts`，可选 sessionCodec。
+> - dsh 对应接口 = `dsh --profile headless [--json] [--session-id <id>] [<task>… | -]`：任务走 stdin、
+>   `--json` 逐行事件流（session/status/text/thinking/tool_call/tool_result/error/final，
+>   退出码随 turn_end.reason，usage 在 step_end），`--session-id` 续接持久化会话（cwd 须一致、
+>   无日志报错不静默开新会话）——正好对上 Paperclip execute() 的 usage/sessionParams/clearSession。
+>   沙箱实测：`--json -` 首行 session 事件 + turn_end.reason + final + stderr 只承载 `dsh:` 诊断。
+> - 推荐路径 A：写独立 `dsh_local` adapter npm 包（约 150–300 行 TS，以 `codex_local`
+>   `packages/adapters/codex-local/src/server/execute.ts` 为模板）+ profile 层组合
+>   `base + dsh-headless + @basil/dsh-research`（= 阶段 3.5 时期 research profile 的 headless 形态，
+>   research_*/TRIZ/preset-research 随 bundle patch 自动带上）→ Paperclip 管理多个 dsh research
+>   会话（heartbeat 续聊/预算/治理/仪表盘）。路径 B（不引入 Paperclip）：multi-agent 交互 dsh 内部
+>   已有（Research Director + 角色子 agent + 多 Profile），增量价值仅在跨 agent 组织/治理层。
+> - 待核实（真的动工时一次实测即可）：① headless 复合 profile 下 preset 会话 resume 放行
+>   （headless bundle 仅拒"无 preset roster"组合下的 preset 会话）；② headless profile 需叠加
+>   `llm-pi-ai / local-interval-dsv4` 模型 overlay（否则默认 deepseek-official 缺 key 报错）；
+>   ③ 真实模型下 step_end.usage 采样口径。
+> 状态：本轮**未改动任何代码/仓库功能文件**，仅在 TODO.md 追加本条备忘（用户明确"先只添加这个，
+> 先不做"）。
+
+- [ ] 决策项：是否推进 Paperclip dsh_local adapter（路径 A）。若推进，顺序 =
+  ① 本机装 Paperclip server 并跑通自带 codex_local 闭环 → ② profile 层建 headless+research 复合
+  profile 验证会话 resume + 模型 overlay（不碰核心）→ ③ 写独立 `dsh_local` adapter 包并接入
+  `~/.paperclip/adapter-plugins.json`

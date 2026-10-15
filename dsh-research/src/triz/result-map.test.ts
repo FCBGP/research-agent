@@ -72,14 +72,64 @@ test('result-map: toTrizMappingLine 渲染一条可读行（[原理N Name] reaso
   assert.ok(line.includes(m.entries[0].reason));
 });
 
-test('result-map: service.mapResult 端到端——缺省矛盾 detection↔complexity、常量 override 生效', () => {
+test('result-map: service.mapResult 端到端——矛盾从文本提取、显式参数优先、缺省兜底', () => {
+  // 问题+结果文本含「劫持/检测 + 收敛」→ 提取 (30 抗劫持, 25 收敛) → 命中精选矩阵，
+  // 而非永远固化为 detection↔complexity（2026-10-15 用户诉求）。
   const m = svc.mapResult({ problem: 'ROV 提升劫持检测率', resultText: '应用反馈并联动收敛' });
   assert.equal(m.source, 'curated-matrix');
-  assert.equal(m.contradiction.improving, 'Measurement accuracy');
-  assert.equal(m.contradiction.worsening, 'Device complexity');
+  assert.equal(m.contradictionOrigin, 'extracted');
+  assert.equal(m.contradiction.improving, 'Object-affected harmful factors');
+  assert.equal(m.contradiction.worsening, 'Loss of time');
   assert.ok(m.entries.length >= 1);
+  // 显式 improving/worsening 覆盖提取 → origin='tool'
+  const explicit = svc.mapResult({ problem: 'x', improving: '检测', worsening: '复杂度' });
+  assert.equal(explicit.contradictionOrigin, 'tool');
+  assert.equal(explicit.contradiction.improving, 'Measurement accuracy');
+  assert.equal(explicit.contradiction.worsening, 'Device complexity');
+  assert.ok(explicit.entries.length > 0);
+  // 无可提取词 → 默认 detection↔complexity，origin='default'
+  const fallback = svc.mapResult({ problem: 'x' });
+  assert.equal(fallback.contradictionOrigin, 'default');
+  assert.equal(fallback.contradiction.improving, 'Measurement accuracy');
+  assert.equal(fallback.contradiction.worsening, 'Device complexity');
+  assert.ok(fallback.entries.length > 0);
   // override 矛盾：想改善收敛（25）× 恶化复杂度 → (25,36) 不在精选矩阵 → heuristic-fallback
   const mo = svc.mapResult({ problem: 'x', improving: '收敛', worsening: '复杂度', resultText: '' });
   assert.equal(mo.source, 'heuristic-fallback');
   assert.ok(mo.entries.length > 0);
 });
+
+test('result-map: contradictionOrigin 贯穿到映射结果（缺省 default、显式透传）', () => {
+  const analysis = defaultAnalysis();
+  assert.equal(mapResultToTriz({ problem: 'x', analysis, resultText: '' }).contradictionOrigin, 'default', '未指定 origin → default');
+  assert.equal(mapResultToTriz({ problem: 'x', analysis, resultText: '', contradictionOrigin: 'tool' }).contradictionOrigin, 'tool');
+  assert.equal(mapResultToTriz({ problem: 'x', analysis, resultText: '', contradictionOrigin: 'extracted' }).contradictionOrigin, 'extracted');
+});
+
+test('result-map: 特征词放宽——英文词干与中文同义扩充（超出精确子串）', () => {
+  const analysis = defaultAnalysis();
+  const m = mapResultToTriz({
+    problem: 'x',
+    analysis,
+    resultText: '研究采用 precompute 预计算验证，配合 ready 冗余机制',
+  });
+  assert.ok(m.entries.some((e) => e.principleNo === 10 && e.kind === 'retrospective'), '「precompute/预计算」→ #10（未含规范名全名也可反演）');
+  const p10 = m.entries.find((e) => e.principleNo === 10)!;
+  assert.ok(p10.reason.includes('预计算') || p10.reason.includes('precompute'), `#10 理由应标注同义词：${p10.reason}`);
+  assert.ok(m.entries.some((e) => e.principleNo === 11 && e.kind === 'retrospective'), '「冗余」→ #11 Beforehand cushioning');
+});
+
+test('result-map: 特征词放宽——多原理同义召回补足至上限且编号唯一', () => {
+  const analysis = defaultAnalysis();
+  const m = mapResultToTriz({
+    problem: 'x',
+    analysis,
+    resultText: '采用蜜罐与纵深防御，配合冗余路径和抽样监测',
+  });
+  // didactic [23,2,24]（3）+ 补足；数序靠前且命中的 retrospective = #11「冗余」、#14「冗余路径」
+  assert.ok(m.entries.length >= 5, `应补足到上限 5（实际 ${m.entries.length}）`);
+  assert.ok(m.entries.some((e) => e.principleNo === 11 && e.kind === 'retrospective'), '「冗余」→ #11');
+  assert.ok(m.entries.some((e) => e.principleNo === 14 && e.kind === 'retrospective'), '「冗余路径」→ #14');
+  assert.equal(new Set(m.entries.map((e) => e.principleNo)).size, m.entries.length, '编号唯一不重复');
+});
+

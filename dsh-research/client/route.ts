@@ -26,6 +26,8 @@ export interface TrizNoteView {
   problem: string
   /** curated-matrix | heuristic-fallback | unresolved */
   source: string
+  /** tool（显式矛盾参数）/ extracted（文本规则提取）/ default（默认检测↔复杂度） */
+  contradictionOrigin: string
   candidates: TrizPrincipleView[]
   hypotheses: string[]
   createdAt: string
@@ -46,7 +48,7 @@ export function parseTrizNotes(value: unknown): TrizNoteView[] {
   const notes: TrizNoteView[] = []
   for (const item of value.notes) {
     if (!isRecord(item)) continue
-    const { artifactId, title, problem, source, hypotheses } = item
+    const { artifactId, title, problem, source, hypotheses, contradictionOrigin } = item
     if (typeof artifactId !== 'string' || typeof title !== 'string' || typeof source !== 'string') continue
     const candidates = Array.isArray(item.candidates) ? item.candidates.filter(isPrincipleView) : []
     const lines = Array.isArray(hypotheses) ? hypotheses.filter((h): h is string => typeof h === 'string') : []
@@ -55,6 +57,7 @@ export function parseTrizNotes(value: unknown): TrizNoteView[] {
       title,
       problem: typeof problem === 'string' && problem.length > 0 ? problem : title,
       source,
+      contradictionOrigin: typeof contradictionOrigin === 'string' ? contradictionOrigin : 'default',
       candidates,
       hypotheses: lines,
       createdAt: typeof item.createdAt === 'string' ? item.createdAt : '',
@@ -68,4 +71,11 @@ export const SOURCE_LABEL: Record<string, string> = {
   'curated-matrix': '命中精选矛盾矩阵',
   'heuristic-fallback': '启发式兜底',
   'unresolved': '参数未解析',
+}
+
+/** 矛盾来源三态的中文标签（sidebar 卡片来源标注用）。 */
+export const CONTRADICTION_ORIGIN_LABEL: Record<string, string> = {
+  'tool': '显式矛盾参数',
+  'extracted': '文本规则提取',
+  'default': '默认（检测↔复杂度）',
 }

@@ -111,9 +111,11 @@ export function recordAnswerMapping(
     body: mapping.entries.map(toTrizMappingLine).join('\n'),
     meta: {
       source: mapping.source,
-      candidates: mapping.entries.filter((e) => e.kind === 'didactic').map((e) => e.principleNo),
+      // 全量收录 didactic + retrospective（上限 5 由 result-map 控制）：右侧栏卡片徽标与正文条数一致
+      candidates: mapping.entries.map((e) => e.principleNo),
       mapping: mapping.entries.length,
       auto: true, // 区分「自动生成（每次回答）」与 research_triz 手动调用
+      contradictionOrigin: mapping.contradictionOrigin, // tool/extracted/default 如实标注
     },
   });
   deps.memory?.episodic?.record({

@@ -19,7 +19,7 @@ import {
   STARTER_PRINCIPLES,
   type TrizPrinciple,
 } from './data.ts';
-import { mapResultToTriz, type TrizResultMapping } from './result-map.ts';
+import { mapResultToTriz, type ContradictionOrigin, type TrizResultMapping } from './result-map.ts';
 
 /** 单一分离原理条目。 */
 export interface SeparationPrinciple {
@@ -241,6 +241,91 @@ function resolveProblemTerms(problem: string): string[] {
   return [...found].slice(0, 4);
 }
 
+/** 矛盾提取词表（规则驱动、确定性）：从问题/结果文本扫描「收益类 → improving、代价类 → worsening」。
+ *  极性按词定（不按参数号）：如 30 号参数，抗劫持/安全=想改善的收益，攻击面=新引入的代价。
+ *  长词务必排在其子串之前无关紧要（逐词独立包含匹配，结果按参数号去重）。
+ */
+const CONTRADICTION_LEXICON: ReadonlyArray<{ term: string; polarity: 'improving' | 'worsening'; param: number }> = [
+  // —— improving（目标/收益）——
+  { term: '可靠性', polarity: 'improving', param: 27 }, { term: 'reliability', polarity: 'improving', param: 27 },
+  { term: '可用性', polarity: 'improving', param: 27 }, { term: '稳定', polarity: 'improving', param: 27 },
+  { term: '检测', polarity: 'improving', param: 28 }, { term: 'detection', polarity: 'improving', param: 28 },
+  { term: '可见性', polarity: 'improving', param: 28 }, { term: '监控', polarity: 'improving', param: 28 },
+  { term: '精度', polarity: 'improving', param: 28 }, { term: '测量', polarity: 'improving', param: 28 },
+  { term: '验证', polarity: 'improving', param: 28 }, { term: 'accuracy', polarity: 'improving', param: 28 },
+  { term: '抗劫持', polarity: 'improving', param: 30 }, { term: '抵御', polarity: 'improving', param: 30 },
+  { term: '抗攻击', polarity: 'improving', param: 30 }, { term: '安全', polarity: 'improving', param: 30 },
+  { term: '劫持', polarity: 'improving', param: 30 }, { term: 'security', polarity: 'improving', param: 30 },
+  { term: '自动化', polarity: 'improving', param: 38 }, { term: 'automation', polarity: 'improving', param: 38 },
+  { term: '吞吐', polarity: 'improving', param: 39 }, { term: 'throughput', polarity: 'improving', param: 39 },
+  { term: '效率', polarity: 'improving', param: 39 }, { term: '生产力', polarity: 'improving', param: 39 },
+  { term: '速度', polarity: 'improving', param: 9 }, { term: 'speed', polarity: 'improving', param: 9 },
+  { term: '完整性', polarity: 'improving', param: 24 }, { term: 'integrity', polarity: 'improving', param: 24 },
+  { term: '灵活', polarity: 'improving', param: 35 }, { term: '适应', polarity: 'improving', param: 35 },
+  // —— worsening（代价/恶化）——
+  { term: '复杂度', polarity: 'worsening', param: 36 }, { term: 'complexity', polarity: 'worsening', param: 36 },
+  { term: '繁琐', polarity: 'worsening', param: 36 },
+  { term: '延迟', polarity: 'worsening', param: 25 }, { term: 'latency', polarity: 'worsening', param: 25 },
+  { term: '时延', polarity: 'worsening', param: 25 }, { term: '拖慢', polarity: 'worsening', param: 25 },
+  { term: '收敛', polarity: 'worsening', param: 25 }, { term: 'convergence', polarity: 'worsening', param: 25 },
+  { term: '开销', polarity: 'worsening', param: 22 }, { term: 'overhead', polarity: 'worsening', param: 22 },
+  { term: '带宽', polarity: 'worsening', param: 22 }, { term: '消息', polarity: 'worsening', param: 22 },
+  { term: '能耗', polarity: 'worsening', param: 22 }, { term: '资源', polarity: 'worsening', param: 22 },
+  { term: '负担', polarity: 'worsening', param: 22 },
+  { term: 'cpu', polarity: 'worsening', param: 21 }, { term: '计算', polarity: 'worsening', param: 21 },
+  { term: '签名开销', polarity: 'worsening', param: 21 }, { term: '加密开销', polarity: 'worsening', param: 21 },
+  { term: '数量', polarity: 'worsening', param: 26 }, { term: '表项', polarity: 'worsening', param: 26 },
+  { term: '部署', polarity: 'worsening', param: 32 }, { term: '成本', polarity: 'worsening', param: 32 },
+  { term: '实施', polarity: 'worsening', param: 32 }, { term: 'cost', polarity: 'worsening', param: 32 },
+  { term: '维护', polarity: 'worsening', param: 34 }, { term: 'repair', polarity: 'worsening', param: 34 },
+  { term: '运维', polarity: 'worsening', param: 33 }, { term: '易用', polarity: 'worsening', param: 33 },
+  { term: 'operation', polarity: 'worsening', param: 33 },
+  { term: '危害', polarity: 'worsening', param: 31 }, { term: '副作用', polarity: 'worsening', param: 31 },
+  { term: '脆弱面', polarity: 'worsening', param: 31 }, { term: 'harm', polarity: 'worsening', param: 31 },
+  { term: '攻击面', polarity: 'worsening', param: 30 }, { term: 'attack surface', polarity: 'worsening', param: 30 },
+];
+
+/** 提取出的参数号 → 能经 resolveParameter 解析的规范别名串。 */
+const CANONICAL_PARAM_ALIAS: Record<number, string> = {
+  9: 'speed', 21: 'cpu', 22: 'overhead', 24: 'integrity', 25: 'convergence',
+  26: 'quantity', 27: 'reliability', 28: 'detection', 30: 'security', 31: 'side effect',
+  32: '部署', 33: 'operation', 34: 'repair', 35: 'adaptability', 36: 'complexity',
+  38: 'automation', 39: 'throughput',
+};
+
+/** 从问题/结果文本规则提取矛盾（确定性）：优先挑能命中精选矛盾矩阵的 (improve, worsen) 组合。 */
+export function extractContradiction(text: string): { improving?: string; worsening?: string } {
+  if (!text) return {};
+  const low = text.toLowerCase();
+  const improving = new Set<number>();
+  const worsening = new Set<number>();
+  for (const { term, polarity, param } of CONTRADICTION_LEXICON) {
+    if (low.includes(term.toLowerCase())) {
+      (polarity === 'improving' ? improving : worsening).add(param);
+    }
+  }
+  let improveNo: number | undefined;
+  let worsenNo: number | undefined;
+  for (const cell of TRIZ_CURATED_MATRIX) {
+    if (improving.has(cell.improve) && worsening.has(cell.worsen)) {
+      improveNo = cell.improve;
+      worsenNo = cell.worsen;
+      break;
+    }
+  }
+  if (improveNo === undefined && improving.size > 0) improveNo = Math.min(...improving);
+  if (worsenNo === undefined && worsening.size > 0) worsenNo = Math.min(...worsening);
+  const res: { improving?: string; worsening?: string } = {};
+  if (improveNo !== undefined) res.improving = CANONICAL_PARAM_ALIAS[improveNo];
+  if (worsenNo !== undefined) res.worsening = CANONICAL_PARAM_ALIAS[worsenNo];
+  return res;
+}
+
+/** 是否给了非空显式矛盾参数。 */
+function hasText(s: string | undefined): boolean {
+  return typeof s === 'string' && s.trim().length > 0;
+}
+
 let seq = 0;
 /** 创建 ResearchTrizService（plugin-triz.ts 用；纯内存、无副作用）。 */
 export function createTrizService(): ResearchTrizService {
@@ -263,13 +348,34 @@ export function createTrizService(): ResearchTrizService {
     idealityFraming,
     toHypotheses,
     mapResult({ problem, improving, worsening, resultText }) {
+      // 矛盾识别优先级（2026-10-15 用户诉求）：显式参数 > 文本规则提取 > 默认检测↔复杂度。
+      //   tool=调用方显式给了矛盾；extracted=从问题/结果文本确定性提取（不再每次同一条矛盾）；
+      //   default=两者皆无才回落「改善 detection ↔ 恶化 complexity」。
+      let origin: ContradictionOrigin = 'default';
+      let improvingRes: string;
+      let worseningRes: string;
+      if (hasText(improving) || hasText(worsening)) {
+        origin = 'tool';
+        improvingRes = hasText(improving) ? improving as string : 'detection';
+        worseningRes = hasText(worsening) ? worsening as string : 'complexity';
+      } else {
+        const extracted = extractContradiction([problem, resultText].filter(Boolean).join('\n'));
+        if (extracted.improving || extracted.worsening) {
+          origin = 'extracted';
+          improvingRes = extracted.improving ?? 'detection';
+          worseningRes = extracted.worsening ?? 'complexity';
+        } else {
+          origin = 'default';
+          improvingRes = 'detection';
+          worseningRes = 'complexity';
+        }
+      }
       const analysis = svc.analyzeProblem({
         problem,
-        // 缺省矛盾：验证/检测精度 ↔ 系统复杂度（路由安全最常用的 TRIZ 入题角度）
-        improving: improving ?? 'detection',
-        worsening: worsening ?? 'complexity',
+        improving: improvingRes,
+        worsening: worseningRes,
       });
-      return mapResultToTriz({ problem, analysis, resultText });
+      return mapResultToTriz({ problem, analysis, resultText, contradictionOrigin: origin });
     },
   };
   return svc;

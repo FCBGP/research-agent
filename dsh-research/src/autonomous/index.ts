@@ -187,8 +187,10 @@ export function runAutonomousResearch(
       body: triz.entries.map(toTrizMappingLine).join('\n'),
       meta: {
         source: triz.source,
-        candidates: triz.entries.filter((e) => e.kind === 'didactic').map((e) => e.principleNo),
+        // 全量收录 didactic + retrospective（上限 5）：侧边栏卡片与正文条数一致
+        candidates: triz.entries.map((e) => e.principleNo),
         mapping: triz.entries.length,
+        contradictionOrigin: triz.contradictionOrigin, // tool/extracted/default 如实标注
       },
     });
     trizArtifact = trizArt.id;

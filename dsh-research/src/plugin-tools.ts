@@ -724,7 +724,7 @@ function registerTools(
           contradiction: v.contradiction,
           candidates: (v.candidates ?? []).map((c) => `#${c.no} ${c.name} — ${c.routingHint}`),
           hypotheses: (v.hypotheses ?? []).map((h) => h.statement),
-          mapping: v.mapping ? { source: v.mapping.source, contradiction: v.mapping.contradiction, entries: (v.mapping.entries ?? []).map((e) => `#${e.principleNo} ${e.principleName}(${e.kind}) — ${e.reason}`) } : null,
+          mapping: v.mapping ? { source: v.mapping.source, contradiction: v.mapping.contradiction, contradictionOrigin: v.mapping.contradictionOrigin, entries: (v.mapping.entries ?? []).map((e) => `#${e.principleNo} ${e.principleName}(${e.kind}) — ${e.reason}`) } : null,
           artifactId: v.artifactId,
         }, null, 2),
       }],
@@ -745,7 +745,14 @@ function registerTools(
           kind: 'note',
           title: `triz: ${input.problem.slice(0, 40)}`,
           body,
-          meta: { source: analysis.source, candidates: analysis.candidates.map((c) => c.no), mapping: mapping?.entries.length },
+          meta: {
+            source: analysis.source,
+            // 有 resultText 映射时全量收录 didactic+retrospective（上限 5）→ 右侧栏卡片与正文条数一致；
+            // 无映射时保持矛盾分析候选（analysis.candidates）。
+            candidates: mapping ? mapping.entries.map((e) => e.principleNo) : analysis.candidates.map((c) => c.no),
+            mapping: mapping?.entries.length,
+            contradictionOrigin: mapping?.contradictionOrigin ?? (('' + (input.improving ?? '')).trim() || ('' + (input.worsening ?? '')).trim() ? 'tool' : 'default'),
+          },
         }).id;
         runtime.memory.episodic.record({ kind: 'triz', summary: `triz: ${input.problem.slice(0, 40)}` + (mapping ? ` → ${mapping.entries.length} 条原理映射` : ''), outcome: analysis.source });
       }

@@ -78,6 +78,7 @@ test('toTrizNoteView：回填 40 原理明细（no/name/summary/routingHint）�
   assert.equal(view.artifactId, note.id);
   assert.equal(view.problem, 'ROV 提升劫持检测率但收敛更慢');
   assert.equal(view.source, 'curated-matrix');
+  assert.equal(view.contradictionOrigin, 'default', '旧 note 无 contradictionOrigin → 回落 default');
   assert.deepEqual(view.hypotheses, [
     '[原理1 Segmentation] 分前缀粒度局部化验证',
     '[原理10 Preliminary action] 预计算验证结果',
@@ -86,6 +87,9 @@ test('toTrizNoteView：回填 40 原理明细（no/name/summary/routingHint）�
   const p1 = view.candidates[0];
   const src1 = TRIZ_PRINCIPLES.find((p) => p.no === 1)!;
   assert.deepEqual(p1, { no: 1, name: src1.name, summary: src1.summary, routingHint: src1.routingHint });
+  // 新 note 带 contradictionOrigin → 透传给 client
+  const withOrigin = trizNote({ meta: { source: 'curated-matrix', candidates: [13], contradictionOrigin: 'extracted' } });
+  assert.equal(toTrizNoteView(withOrigin).contradictionOrigin, 'extracted');
 });
 
 test('collectTrizNotes：降序取最近 N 条、剔除非 TRIZ 与 archived', () => {
@@ -128,4 +132,5 @@ test('apply：在 connection 鉴权栅栏挂 /api/research.triz.notes GET route�
   assert.equal(payload.notes.length, 1);
   assert.equal(payload.notes[0].problem, 'ROV 提升劫持检测率');
   assert.equal((payload.notes[0].candidates as Array<Record<string, unknown>>)[0].no, 13);
+  assert.equal(payload.notes[0].contradictionOrigin, 'default', 'route 负载携带矛盾来源（旧 note 回落 default）');
 });

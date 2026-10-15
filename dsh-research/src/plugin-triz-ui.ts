@@ -42,6 +42,8 @@ export interface TrizNoteView {
   title: string
   problem: string
   source: string
+  /** 矛盾来源：tool（显式参数）/ extracted（文本规则提取）/ default（默认检测↔复杂度）。 */
+  contradictionOrigin: string
   candidates: TrizPrincipleView[]
   hypotheses: string[]
   createdAt: string
@@ -77,6 +79,8 @@ export function toTrizNoteView(a: Artifact): TrizNoteView {
     title: a.title,
     problem: a.title.replace(/^triz:\s*/, ''),
     source: a.meta.source as string,
+    // 旧 note 无 contradictionOrigin 字段 → 回落 'default'，展示端不会被兼容性破坏
+    contradictionOrigin: (a.meta?.contradictionOrigin as string | undefined) ?? 'default',
     candidates,
     hypotheses,
     createdAt: a.createdAt,

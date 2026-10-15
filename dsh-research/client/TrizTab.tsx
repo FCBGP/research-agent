@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { SOURCE_LABEL, TRIZ_NOTES_ROUTE, parseTrizNotes, type TrizNoteView } from './route.ts'
+import { CONTRADICTION_ORIGIN_LABEL, SOURCE_LABEL, TRIZ_NOTES_ROUTE, parseTrizNotes, type TrizNoteView } from './route.ts'
 
 /** 本 type's body 的合成 props：框架 shares（useTabInfo/sessionId）+ 无自定义注入面。 */
 export type TrizTabProps = PropsRuntime<'sidebar.right.pane.tab'>
@@ -68,6 +68,10 @@ const styles = {
     fontWeight: 500,
     background: 'var(--dsw-alias-interactive-bg-subtle, #eef2ff)',
     color: 'var(--dsw-alias-state-business-primary, #4f46e5)',
+  },  originLine: {
+    margin: 0,
+    fontSize: '10px',
+    color: 'var(--dsw-alias-label-tertiary, #6b7280)',
   },
   principle: {
     display: 'flex',
@@ -112,6 +116,7 @@ function TrizNoteCard({ note }: { note: TrizNoteView }): ReactNode {
     <section style={styles.card}>
       <h3 style={styles.cardTitle}>{note.problem}</h3>
       <span style={styles.badge}>{sourceText(note.source)}</span>
+      <p style={styles.originLine}>矛盾来源：{CONTRADICTION_ORIGIN_LABEL[note.contradictionOrigin] ?? note.contradictionOrigin}</p>
       {note.candidates.length > 0 && (
         <ul style={styles.ul}>
           {note.candidates.map((c) => (

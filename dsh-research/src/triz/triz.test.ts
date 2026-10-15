@@ -17,6 +17,7 @@ import {
   toHypotheses,
   idealityFraming,
   createTrizService,
+  extractContradiction,
 } from './index.ts';
 
 test('triz: 知识基完整——40 原理与 39 参数，编号唯一且连续', () => {
@@ -123,13 +124,27 @@ test('triz: mapResult —— 结果→发明原理映射（缺省矛盾 + 结果
   // 无文本/无矛盾：didactic 正演在场；缺省矛盾 detection↔complexity 命中精选矩阵
   const m = svc.mapResult({ problem: 'ROV 提升劫持检测率而不放大误报' });
   assert.equal(m.source, 'curated-matrix');
+  assert.equal(m.contradictionOrigin, 'extracted', '从问题文本提取出「检测」改善侧');
   assert.equal(m.contradiction.improving, 'Measurement accuracy');
   assert.equal(m.contradiction.worsening, 'Device complexity');
   assert.ok(m.entries.length >= 1, '至少 1 条原理');
   assert.ok(m.entries.every((e) => e.kind === 'didactic'), '无结果文本只有 didactic');
+  // 无任何可提取词 → 完全默认（origin=default）
+  assert.equal(svc.mapResult({ problem: 'x' }).contradictionOrigin, 'default');
   // 结果文本特征词补足 → 出现 retrospective 且不超上限
   const m2 = svc.mapResult({ problem: 'x', improving: 'detection', worsening: 'complexity', resultText: '采用分割、抽取与预操作，并把攻击面变害为利' });
   assert.ok(m2.entries.length > m.entries.length, '特征词补足更多原理');
   assert.ok(m2.entries.some((e) => e.kind === 'retrospective'), '出现反演条目');
   assert.ok(m2.entries.length <= 5, '不超 5 条上限');
+});
+
+test('triz: extractContradiction 规则提取矛盾——命中精选矩阵优先、无命中返回空', () => {
+  assert.deepEqual(extractContradiction('ROV 提升劫持检测率而不增加复杂度'), { improving: 'detection', worsening: 'complexity' }, '检测↔复杂度');
+  assert.deepEqual(extractContradiction('提高可靠性而不显著拖慢收敛'), { improving: 'reliability', worsening: 'convergence' }, '可靠↔收敛 → (27,25)');
+  assert.deepEqual(extractContradiction('增强抗劫持能力不增加延迟'), { improving: 'security', worsening: 'convergence' }, '抗劫持↔延迟 → (30,25)');
+  assert.deepEqual(extractContradiction('提升吞吐而不增加消息开销'), { improving: 'throughput', worsening: 'overhead' }, '吞吐↔开销 → (39,22)');
+  assert.equal(extractContradiction('自动化水平越高越好').improving, 'automation', '只有改善侧也能提取');
+  assert.deepEqual(extractContradiction('系统复杂度会上升'), { worsening: 'complexity' }, '只有代价侧也能提取');
+  assert.deepEqual(extractContradiction('没有特征的平淡问题'), {}, '无特征词 → 空（由 mapResult 回落默认）');
+  assert.deepEqual(extractContradiction(''), {}, '空文本 → 空');
 });

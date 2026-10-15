@@ -62,6 +62,9 @@ test('recordAnswerMapping：默认矛盾把「问题+最终答案」映射为 �
   assert.equal(isTrizArtifact(note!), true, '面板 isTrizArtifact 判定应命中');
   assert.equal(note!.meta.auto, true, '标记为自动生成');
   assert.equal((note!.meta.mapping as number), mapping.entries.length);
+  assert.deepEqual(note!.meta.candidates, mapping.entries.map((e) => e.principleNo),
+    'meta.candidates = 全量条目编号（didactic+retrospective 一致，卡片与正文条数对齐）');
+  assert.equal(note!.meta.contradictionOrigin, mapping.contradictionOrigin, '矛盾来源一并落 note');
   assert.equal(episodes.length, 1);
   assert.equal((episodes[0] as { kind: string }).kind, 'triz');
 });
@@ -125,3 +128,25 @@ function applyVia(ctx: { get(n: string): unknown; on(_t: string, h: (s: unknown,
   const handler = createAutoTrizMiddleware(() => deps);
   ctx.on('session/event', handler);
 }
+
+test('recordAnswerMapping：矛盾从问题文本提取（不再固定 detection↔complexity），卡片全量收录反演条目', () => {
+  const { deps, artifacts } = makeDeps();
+  // 问题明确「可靠性 ↔ 收敛」→ 提取 (27,25) → 精选矩阵 [11,10,23]，而非永远 [23,2,24]
+  const mapping = recordAnswerMapping(
+    deps,
+    '如何提高 RPKI 验证可靠性而不拖慢收敛',
+    'BGPsec 提前预签名验证，反馈驱动收敛决策；冗余路径与旁路校验。'.repeat(3),
+  );
+  assert.ok(mapping, '应产出映射');
+  assert.equal(mapping.contradictionOrigin, 'extracted', '矛盾来自文本规则提取');
+  assert.equal(mapping.contradiction.improving, 'Reliability');
+  assert.equal(mapping.contradiction.worsening, 'Loss of time');
+  assert.ok(mapping.entries.some((e) => e.principleNo === 11 && e.kind === 'didactic'), 'didactic 为 (27,25) 命中的 #11');
+  // 卡片全量收录：反演出的 #2（旁路）也进 candidates，而不仅是 didactic。
+  // 注：(27,25) 精选矩阵 cell = [11,10,23]，#23 仍以 didactic 在场；本条验证「结果文本反演能补足卡片」。
+  assert.ok(mapping.entries.some((e) => e.principleNo === 2 && e.kind === 'retrospective'), '结果文本「旁路」反演 #2 Taking out，随卡片全量收录');
+  const note = artifacts.list().find((a) => a.kind === 'note' && a.title.startsWith('triz: '));
+  assert.ok(note, '应写入 note');
+  assert.deepEqual(note!.meta.candidates, mapping.entries.map((e) => e.principleNo), 'meta.candidates = 全量条目');
+  assert.equal(note!.meta.contradictionOrigin, 'extracted');
+});
