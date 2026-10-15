@@ -6,15 +6,15 @@
 # 可对本行做整行覆盖/禁用。
 #
 # 阶段 5 把原先单行 dsh-research-core 巨型插件（11 服务 + 13 工具全在 host 平面）
-# 拆为 7 个职责单一插件：
-#   本文件 = host 平面 6 行（核心服务：core / triz / director / experiment / writer / operations）
+# 拆为 7 个职责单一插件；阶段 8 追加 research-triz / triz-ui / triz-auto（TRIZ 思想层），
+# 阶段 9 追加 research-triza（TRIZa 闭环治理层）。
+#   本文件 = host 平面 7 行（核心服务：core / triz / **triza** / director / experiment / writer / operations）
 #   presets/research.patch.yml = preset 平面（preset-research：research-tools + skill 挂载）
 # research_* 工具不再 host 全局注册，只在 research/engineering 等预设会话可见（消除 always-on 污染）。
-# 阶段 8 追加 research-triz（TRIZ 方法论服务：40 原理/39 参数/精选矩阵/IFR），供 research_triz 工具消费。
 #
 # host 行顺序 = 依赖顺序：research-core 最先（provides researchCore/Memory/Agents，
-# 被 research-triz / research-director / research-experiment / research-writer / research-operations 消费），
-# research-operations 最后（聚合 autonomous，经 writer/experiment/memory 组装）。
+# 被 research-triz / research-triza / research-director / research-experiment / research-writer /
+# research-operations 消费），research-operations 最后（聚合 autonomous，经 writer/experiment/memory 组装）。
 - insert:
     # research-core ── 核心数据模型（claim / verify / plan / artifact）+ 五类记忆
     # （semantic / episodic / artifact / hypothesis / evidence）+ 三角色 agent。
@@ -42,6 +42,18 @@
     # researchCore.artifacts 过滤 research_triz 工具写入的 note，回填 40 原理明细
     # 供浏览器半边（client/index.ts + client/TrizTab.tsx）渲染。依赖 connection
     # （web 基座）+ researchCore（ctx.get 惰性读取）；不注册任何 research_* 工具。
+    # research-triza ── TRIZa 闭环治理（阶段 9，论文 docs/2610.04555v1.pdf）。
+    # provides researchTriza（freezeContract / typedPlans / evaluate / audit）：
+    #   冻结评估契约（协议指纹 SHA-256）→ 类型化变换契约（40 原理整表 + 精选子集详细契约）
+    #   → 功能信息 FI（useful/harmful 位口径分开报告）+ FI/Ideality → 四类硬门 →
+    #   晋升决策（promote/revise/reject/escalate；指标提升是观察、晋升是被治理的决策）
+    #   → 追溯记录（triz_context.json / triz_strategy_plan.md / scores.jsonl / SHA256SUMS），
+    #   负证据保留。复用 research-triz 的矛盾分析推导原理（经 ctx.get 惰性读取，缺失回退内置）。
+    #   消费方 = research_triza 工具（preset 平面）+ skills/triz/SKILL.md 闭环环节。
+    - id: research-triza
+      name: '@basil/dsh-research/triza'
+
+    # research-triz-ui ── Web 右侧栏「TRIZ 发明原理」面板的数据源（host 半边）。
     - id: research-triz-ui
       name: '@basil/dsh-research/triz-ui'
 

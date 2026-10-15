@@ -131,7 +131,7 @@ console.log('researchDirector provided?', ctx.get('researchDirector') !== undefi
 //   3) 工具目录断言（standard 侧 / 反证 always-on 污染已消除）：acquireScope('standard') 读
 //      standard 预设作用域的工具目录，断言其中**不含任何 research_***——research_* 只进
 //      research 会话，standard 等其它预设会话看不到（TODO 阶段 5·D 追加断言）。
-const EXPECTED = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy', 'research_job', 'research_schedule', 'research_reflect', 'research_triz'];
+const EXPECTED = ['research_verify', 'research_record', 'research_search', 'research_review', 'research_experiment', 'research_campaign', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy', 'research_job', 'research_schedule', 'research_reflect', 'research_triz', 'research_triza'];
 const agentPresets = ctx.get('agentPresets');
 const tools = ctx.get('tools');
 let researchTools = [];
@@ -144,7 +144,7 @@ let rolesOk = false;
 const ROLE_TOOLS = {
   paper: ['research_search', 'research_record', 'research_verify', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy', 'research_job', 'research_schedule', 'research_reflect'],
   experiment: ['research_search', 'research_record', 'research_verify', 'research_experiment', 'research_campaign', 'research_autonomous', 'research_policy', 'research_job', 'research_schedule', 'research_reflect'],
-  engineering: ['research_record', 'research_verify', 'research_triz', 'research_policy', 'research_job', 'research_schedule', 'research_reflect'],
+  engineering: ['research_record', 'research_verify', 'research_triz', 'research_triza', 'research_policy', 'research_job', 'research_schedule', 'research_reflect'],
   reviewer: ['research_search', 'research_record', 'research_verify', 'research_review', 'research_policy', 'research_job', 'research_schedule', 'research_reflect'],
 };
 if (agentPresets?.compositionInventory && agentPresets?.acquireScope && tools?.schemas) {
@@ -157,7 +157,7 @@ if (agentPresets?.compositionInventory && agentPresets?.acquireScope && tools?.s
     && !!toolsRow
     && toolsRow.enabled === true
     && (researchPreset.rows?.length ?? 0) > 0;
-  // 2) research 会话工具目录 = research 预设 standing 作用域可见的工具（含 13 个 research_*）
+  // 2) research 会话工具目录 = research 预设 standing 作用域可见的工具（含 15 个 research_*）
   const lease = await agentPresets.acquireScope('research');
   try {
     researchTools = tools.schemas(lease.key)
@@ -360,6 +360,35 @@ if (trizSvc?.analyzeProblem && trizSvc?.toHypotheses) {
   console.log('triz:', a.source, '| candidates:', a.candidates.map((c) => `#${c.no} ${c.name}`).join(', '), '| hypotheses:', hs.length);
 }
 
+// 阶段 9 冒烟：researchTriza 服务（research_triza 的 host 后端）——冻结契约指纹（SHA-256
+// hex）+ 闭环评估（冻结 → 类型化变换 → FI/Ideality → 四类硬门 → 晋升决策 → 追溯记录；
+// 负证据保留）。
+const trizaSvc = ctx.get('researchTriza');
+let trizaOk = false;
+if (trizaSvc?.evaluate && trizaSvc?.freezeContract && trizaSvc?.typedPlans) {
+  const fc = trizaSvc.freezeContract({ problem: 'RPKI 验证可靠性 vs 收敛', improving: 'reliability', worsening: 'latency' });
+  const plans = trizaSvc.typedPlans([1, 11]);
+  const rep = trizaSvc.evaluate({
+    problem: '提高 RPKI 验证可靠性而不显著拖慢收敛',
+    improving: 'reliability',
+    worsening: 'latency',
+    candidateId: 'smoke-cand-1',
+    metrics: { detection_rate: 0.92, false_positive_rate: 0.01 },
+    baselineMetrics: { detection_rate: 0.88, false_positive_rate: 0.02 },
+    referenceUseful: [0.8, 0.85, 0.9],
+    referenceHarmful: [0.02, 0.03, 0.05],
+    gates: { integrity: true, safety: true, reproducibility: true, resource: true },
+    evidenceLevel: 2,
+    certifiedLevel: 2,
+  });
+  trizaOk = fc.fingerprint.length === 64 && rep.fingerprint.length === 64
+    && plans.length >= 2
+    && rep.decision.admissible === true
+    && ['promote', 'revise', 'reject', 'escalate'].includes(rep.decision.promotion)
+    && Object.keys(rep.trace.sha256sums).length >= 3;
+  console.log('triza:', rep.decision.promotion, '| fingerprint:', rep.fingerprint.slice(0, 12), '| FI:', `U=${rep.decision.fi.usefulFI}/H=${rep.decision.fi.harmfulFI}`, '| trace files:', Object.keys(rep.trace.sha256sums).length);
+}
+
 // 阶段 8.5 冒烟：右侧栏「TRIZ 发明原理」面板 —— host 半边插件（research-triz-ui）必须在
 // 组合树里，且 connection.fetch（route 注册依赖）可用；浏览器半边（client bundle）由
 // client-modules 按 package.json 的 dsh.client 声明加载，本冒烟只验 host 数据源挂载。
@@ -416,10 +445,10 @@ if (trizAutoEntryOk && trizSvc?.mapResult && core?.artifacts) {
   console.log('triz-auto:', trizAutoEntryOk ? 'FAIL (services missing)' : 'FAIL (loader entry missing)');
 }
 
-const servicesOk = ['researchCore', 'researchMemory', 'researchAgents', 'researchDirector', 'researchExperiment', 'researchWriter', 'researchPolicy', 'researchAutonomous', 'researchJobs', 'researchScheduler', 'researchSelfImprove', 'researchSubagents', 'researchTriz'].every((s) => ctx.get(s) !== undefined);
-const ok = servicesOk && toolOk && standardClean && rolesOk && verdict === 'verified' && domainOk && searchOk && campaignOk && policyOk && autoOk && jobOk && schedOk && reflectOk && subagentsOk && chainDefaultsOk && trizOk && trizUiOk && clientOk && trizAutoOk;
+const servicesOk = ['researchCore', 'researchMemory', 'researchAgents', 'researchDirector', 'researchExperiment', 'researchWriter', 'researchPolicy', 'researchAutonomous', 'researchJobs', 'researchScheduler', 'researchSelfImprove', 'researchSubagents', 'researchTriz', 'researchTriza'].every((s) => ctx.get(s) !== undefined);
+const ok = servicesOk && toolOk && standardClean && rolesOk && verdict === 'verified' && domainOk && searchOk && campaignOk && policyOk && autoOk && jobOk && schedOk && reflectOk && subagentsOk && chainDefaultsOk && trizOk && trizaOk && trizUiOk && clientOk && trizAutoOk;
 await ctx.fiber.dispose();
 console.log('disposed OK');
 console.log(ok ? 'SMOKE PASS' : 'SMOKE FAIL');
-console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} standard=${standardClean} roles=${rolesOk} verdict=${verdict} domain=${domainOk} search=${searchOk} campaign=${campaignOk} policy=${policyOk} autonomous=${autoOk} job=${jobOk} schedule=${schedOk} reflect=${reflectOk} subagents=${subagentsOk} chainDefaults=${chainDefaultsOk} triz=${trizOk} trizUi=${trizUiOk} clientGraph=${clientOk} trizAuto=${trizAutoOk}`);
+console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} standard=${standardClean} roles=${rolesOk} verdict=${verdict} domain=${domainOk} search=${searchOk} campaign=${campaignOk} policy=${policyOk} autonomous=${autoOk} job=${jobOk} schedule=${schedOk} reflect=${reflectOk} subagents=${subagentsOk} chainDefaults=${chainDefaultsOk} triz=${trizOk} triza=${trizaOk} trizUi=${trizUiOk} clientGraph=${clientOk} trizAuto=${trizAutoOk}`);
 process.exit(ok ? 0 : 2);

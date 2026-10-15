@@ -9,7 +9,7 @@
 # standard 基础工具集），差异只在：
 #   1. persona           —— 角色专用 agent 身份（paper/experiment/engineering/reviewer）
 #   2. research-tools    —— config.tools.only 白名单裁剪 research_* 工具（预设作用域按角色聚焦；
-#                           research 预设不设 only → 保持全量 14 个；engineering 额外含 research_triz）
+#                           research 预设不设 only → 保持全量 15 个；engineering 额外含 research_triz / research_triza）
 # 所有 preset 共享同一 host 平面（research-core/triz/director/experiment/writer/operations），
 # 任意会话可切换 preset（web UI），故角色裁剪不丢平台能力。
 #
@@ -424,6 +424,7 @@
                   - research_record
                   - research_verify
                   - research_triz
+                  - research_triza
                   - research_policy
                   - research_job
                   - research_schedule

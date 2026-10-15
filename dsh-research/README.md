@@ -390,6 +390,58 @@ patch 栈，冒烟时断言 `policy rules: 12`（L1）与 `chain defaults-only c
   （真实 services 驱动 createAutoTrizMiddleware：user→assistant→turn/end 恰好落 1 条
   `meta.auto=true` 的 triz note，source=curated-matrix, entries=3）。
 
+### 阶段 9 · TRIZa 闭环：冻结契约 → 类型化变换 → FI/Ideality → 硬门晋升 → 可追溯（2026-10-15：✅ 已实现并自测）
+
+> **论文对口**：`docs/2610.04555v1.pdf`（TRIZa: TRIZ exponentiated by an agent —— 把 TRIZ
+> 四阶段（矛盾识别 → 原理选择 → 方案生成 → 评估与进化）做成**可执行的闭环**）。
+> 与阶段 8 的 `researchTriz`（**事前 / 正演想法**：矛盾 → 原理 → 假说，confidence=0.5）衔接，
+> 本阶段 `researchTriza`（host 插件 `dsh-research-triza`）+ `research_triza` 工具（第 **15** 个
+> research_* 工具）做**事后 / 治理**：把「这个候选机制方向值不值得晋升」变成被治理的决策——
+> **指标提升是观察，晋升是被治理的决策**。
+
+- **冻结评估契约**（`src/triza/contract.ts`）：一段有效对比必须先绑定数据集版本 / 划分 / 预处理 /
+  feature-fit 范围 / 种子 / 候选预算 / 主次指标 / useful·harmful 合格事件 / 资源上限 / 缺失值行为 /
+  停止规则 + 晋升阈值；**协议指纹 = SHA-256 of 规范化绑定字段序列化**（改任一绑定字段 → **新指纹**，
+  silently 扩展旧结果不被允许）。claimId / task / contradiction / frozenAt 不参与指纹 —— 同一评估
+  协议可被多个 claim 复用。
+- **类型化变换契约**（`src/triza/typed.ts`）：40 原理整表（Table 4）→ 变换类一句话；**精选路由安全
+  子集 14 条**（原理 1/2/3/5/10/11/13/15/22/23/24/25/35/40）给详细契约（输入/输出类型、允许参数、
+  禁止变更、证据义务）；其余 26 条 generic 占位（诚实标注非权威）。
+- **功能信息 + FI/Ideality**（`src/triza/functional-information.ts`）：公式(2)/(3) 的 useful / harmful
+  **位口径分开报告**，Wilson 比分区间给保守界（useful 用上界偏小=不夸大有用；harmful 用下界偏大=
+  不低估有害），`Ideality J = IU_LB/(IH_UB + λ·cost)`（公式 5，描述性打平指标）。
+- **硬门晋升决策**（`src/triza/promotion.ts`）：证据阶梯 L0–L3（公式 4 认证等级 Lcert）+ 四类硬门
+  （data-integrity / safety / reproducibility / resource，可自定义 extra）。**决策顺序**：硬门任一失败
+  → reject / escalate（高风险待人工授权），**FI/Ideality 绝不覆盖 Gl(s)=0**；认证等级 < 施加等级 →
+  revise（先补证据）；相对增益 < 冻结阈值 或 次级硬门槛不过 → **reject 且保留完整负证据**（论文
+  CICIoT 形式化 V2 语义）；全过 → promote。不同决策边界证据不打平（Table 2 证据阶梯）。
+- **可追溯记录**（`src/triza/trace.ts`）：`triz_context.json` / `triz_strategy_plan.md` /
+  `scores.jsonl`（append-only）/ `SHA256SUMS.txt`（逐文件字节摘要）——每条执行落在 claim-linked
+  记录上，被拒候选保留在档案并标注原因（Research Agent Policy #9/#10）。
+- **控制器审计**（`src/triza/audit.ts`）：balanced vs safety-first 两种策略的描述性聚合
+  （promotion F1 / recall / specificity，Figure 2B 语义；**不打平、不给 p 值**）。
+- **`research_triza` 工具**（第 15 个 research_* 工具，preset 作用域）：入参 `problem/improving/
+  worsening/candidateId/parentId/principleNos/metrics/baselineMetrics/referenceUseful/
+  referenceHarmful/evidenceLevel/certifiedLevel/gates/relativeGainPct/requiresAuthorization/
+  record`；省略 `principleNos` 时自动经 `researchTriz.analyzeProblem` 从矛盾推导原理；输出
+  `claimId/fingerprint/contract/typedPlans/decision（promotion/admissible/gateFailures/
+  certification/fi/relativeGainPct/…）/traceSummary/artifactId`；`record` 默认写 artifact
+  （`kind=note, title^='triza: '`）+ episodic（`kind=triza`）。
+- **host 平面清单**（阶段 9 起）：`cordis.patch.yml` host 平面 = **7 行**（core / triz / **triza** /
+  triz-ui / triz-auto / director / experiment / writer / operations）；bundle 插件 = **8 个**
+  （host 6 原 + preset tools 1 + **triza 新 host 1**）；`research_*` 工具 = **15 全量**（research）、
+  engineering 白名单 = **8**（+research_triza）；paper/experiment/reviewer 白名单不变（10/10/8）。
+- **分层**：TRIZa = 方法论 / 程序性能力 → 服务 + skill（`skills/triz/SKILL.md` 增加闭环环节），
+  不是领域知识（领域知识仍走 vocabulary.ts + WeKnora / docs）。
+
+**验证（沙箱）**：
+- 单测 **183/183 全绿**（基线 168 + `src/triza/triza.test.ts` 14：指纹确定性 / FI 公式手工核对 /
+  类型化契约 / 四条晋升决策路径 / 审计语义 / 追溯包 / 服务 evaluate+audit 闭环 / collectGates +
+  plugin.test.ts 阶段 9 工具闭环冒烟）。
+- runtime-smoke → **SMOKE PASS**：services **14/14**（含 researchTriza）、tools **15/15**、
+  engineering **8/8**（白名单 +research_triza）、`triza=true`（evaluate 返回 64 位协议指纹 +
+  promote 决策 + 追溯包 ≥3 文件）。
+
 ## npm 打包与一键部署（2026-10-09：TODO「一键部署」✅）
 
 

@@ -1,4 +1,4 @@
-// @basil/dsh-research/tools — preset 平面插件：14 个 research_* 工具（阶段 5·B2 + 阶段 8·TRIZ）。
+// @basil/dsh-research/tools — preset 平面插件：15 个 research_* 工具（阶段 5·B2 + 阶段 8·TRIZ + 阶段 9·TRIZa）。
 //
 // 阶段 5 把 research_* 工具从 host 全局层（原 src/plugin.ts 的 registerTools）移到
 // preset 作用域：本插件作为 preset-research 的 research-tools 子行挂载
@@ -10,7 +10,7 @@
 // researchExperiment / researchWriter / researchPolicy / researchAutonomous /
 // researchJobs / researchScheduler / researchSelfImprove / researchSubagents
 // 经 `ctx.get(...)` 惰性读取（cordis ctx.get 无需 inject）；缺任一核心服务时告警跳过，
-// 不注册半吊子工具。14 个 research_* 工具定义原样保留（与 src/plugin.ts 一致）。
+// 不注册半吊子工具。15 个 research_* 工具定义原样保留（与 src/plugin.ts 一致）。
 
 import type { Context } from '@deepseek-ai/cordis';
 import type { ArtifactStore } from './core/artifact-store.ts';
@@ -28,6 +28,7 @@ import type { SelfImprover, ReflectionReport } from './self-improve/index.ts';
 import type { RealSubagentAgent } from './real-subagent/index.ts';
 import type { ResearchExperimentService } from './plugin-experiment.ts';
 import type { ResearchTrizService } from './triz/index.ts';
+import type { ResearchTrizaService } from './triza/index.ts';
 import { DOMAIN_KEYWORDS } from './domain/index.ts';
 import type { ResearchDomain } from './plugin-core.ts';
 
@@ -82,19 +83,20 @@ export interface ResearchRuntimeService {
   selfImprove: SelfImprover;
   subagents: RealSubagentAgent;
   triz: ResearchTrizService;
+  triza: ResearchTrizaService;
 }
 
 export interface PluginToolsConfig {
   tools?: {
     enabled?: boolean;
-    /** 角色预设裁剪：only 提供白名单时只注册列出的 research_* 工具名（缺省 = 全部 13 个）。 */
+    /** 角色预设裁剪：only 提供白名单时只注册列出的 research_* 工具名（缺省 = 全部 15 个）。 */
     only?: string[];
   };
 }
 
 /**
  * preset 平面 apply：消费 host 平面 5 插件提供的服务（ctx.get(researchCore/…)），
- * 装配 runtime 聚合，再注册 14 个 research_* 工具（含 research_triz）。返回 disposer（卸载时注销工具）。
+ * 装配 runtime 聚合，再注册 15 个 research_* 工具（含 research_triz / research_triza）。返回 disposer（卸载时注销工具）。
  */
 export function apply(ctx: Context, config: PluginToolsConfig = {}): (() => void) | undefined {
   if (config.tools?.enabled === false) {
@@ -115,16 +117,17 @@ export function apply(ctx: Context, config: PluginToolsConfig = {}): (() => void
   const selfImprove = ctx.get('researchSelfImprove') as SelfImprover | undefined;
   const subagents = ctx.get('researchSubagents') as RealSubagentAgent | undefined;
   const triz = ctx.get('researchTriz') as ResearchTrizService | undefined;
+  const triza = ctx.get('researchTriza') as ResearchTrizaService | undefined;
 
   if (!researchCore || !memory || !agents || !director || !experiment || !writer ||
-      !policy || !autonomous || !jobs || !scheduler || !selfImprove || !subagents || !triz) {
+      !policy || !autonomous || !jobs || !scheduler || !selfImprove || !subagents || !triz || !triza) {
     ctx.logger?.(name).warn('%s: host research 服务未就绪（research-core / research-writer / research-operations 未挂载？），跳过工具注册', name);
     return undefined;
   }
 
   const runtime: ResearchRuntimeService = {
     memory, agents, director, experiment, writer, policy, autonomous,
-    jobs, scheduler, selfImprove, subagents, triz,
+    jobs, scheduler, selfImprove, subagents, triz, triza,
   };
   return registerTools(ctx, researchCore, runtime, config?.tools?.only);
 }
@@ -148,7 +151,7 @@ function registerTools(
   const disposers: Array<() => void> = [];
 
   // 角色预设裁剪：config.tools.only 提供白名单时只注册列出的 research_* 工具
-  // （缺省 = 全部 13 个；research 预设不设 only → 全量，行为与阶段 5 一致）。
+  // （缺省 = 全部 15 个；research 预设不设 only → 全量，行为与阶段 5 一致）。
   const allow = only && only.length > 0 ? new Set(only) : undefined;
   const register = (def: unknown) => {
     if (allow && !allow.has((def as { name: string }).name)) return;
@@ -761,6 +764,160 @@ function registerTools(
     },
   });
 
+  register({
+    name: 'research_triza',
+    description:
+      'TRIZa 闭环治理（阶段 9，论文 docs/2610.04555v1.pdf）——把候选机制方向的评估「冻结」为契约：'
+      + '协议指纹 = SHA-256 of 规范化评估协议绑定字段（数据集版本/划分/预处理/feature-fit/种子/预算/'
+      + '指标/useful·harmful 事件/资源上限/缺失行为/停止规则 + 晋升阈值；改任一绑定字段 → 新指纹）→ '
+      + '类型化变换契约（TRIZ 40 原理整表 + 精选路由安全子集 14 条，声明参数/禁止变更/证据义务）→ '
+      + '功能信息 FI（useful/harmful 位口径分开报告 + Wilson 保守界）+ FI/Ideality → 四类硬门 '
+      + '（integrity/safety/reproducibility/resource，任一失败不可被 FI 覆盖）→ 晋升决策 '
+      + '（promote/revise/reject/escalate；指标提升是观察、晋升是被治理的决策，负证据保留）→ '
+      + '追溯记录（triz_context.json / triz_strategy_plan.md / scores.jsonl 追加 / SHA256SUMS）。'
+      + '输出全部关联 claimId + 协议指纹，可追溯（Research Agent Policy #9/#10）。',
+    parameters: {
+      type: 'object',
+      properties: {
+        problem: { type: 'string', description: '要解决的机制矛盾（同时作为 TRIZ 矛盾输入；省略 principleNos 时自动推导原理）' },
+        improving: { type: 'string', description: '想改善的方面（reliability / 检测率 / 抗劫持 / 收敛…）' },
+        worsening: { type: 'string', description: '可接受的恶化方面（latency / 复杂度 / 开销…）' },
+        candidateId: { type: 'string', description: '候选机制方向 id（每次执行都落一条候选级记录）' },
+        parentId: { type: 'string', description: '可选：父候选 / 前序 triza 记录 id' },
+        principleNos: { type: 'array', items: { type: 'number' }, description: '指定评估的发明原理号；省略时经 researchTriz.analyzeProblem 从矛盾自动推导' },
+        metrics: { type: 'object', additionalProperties: { type: 'number' }, description: '候选在冻结协议 κ 下测得的指标（至少含主指标 detection_rate 与 false_positive_rate）' },
+        baselineMetrics: { type: 'object', additionalProperties: { type: 'number' }, description: '基线（incumbent）指标（同一 κ 下重跑，用于相对增益）' },
+        referenceUseful: { type: 'array', items: { type: 'number' }, description: '冻结参考总体 Bl 的 useful 配置值（higher-is-better）' },
+        referenceHarmful: { type: 'array', items: { type: 'number' }, description: '冻结参考总体 Bl 的 harmful 配置值（larger-is-worse）' },
+        evidenceLevel: { type: 'number', minimum: 0, maximum: 3, description: '本次施加的证据等级（0=静态 / 1=冻结划分成对重跑 / 2=注册种子家族场景 / 3=独立锁定重跑；默认 1）' },
+        certifiedLevel: { type: 'number', minimum: -1, maximum: 3, description: '候选已认证最高等级 Lcert（公式 4；未认证缺省 -1）。低于 evidenceLevel → revise（先补证据）' },
+        gates: { type: 'object', properties: { integrity: { type: 'boolean', description: '数据完整性：fingerprint 一致、零 train-test 重叠' }, safety: { type: 'boolean', description: '安全：无泄漏/越权/危险操作' }, reproducibility: { type: 'boolean', description: '可复现：种子/环境/代码摘要可复核' }, resource: { type: 'boolean', description: '资源未超冻结上限' }, extra: { type: 'array', items: { type: 'object' }, description: '自定义硬门 {id, desc, pass}' } }, description: '四类硬门 + 自定义；任一失败 → 不得晋升（FI 不覆盖）' },
+        relativeGainPct: { type: 'number', description: '可选：覆盖冻结的相对主指标提升阈值（默认 3.0%）' },
+        requiresAuthorization: { type: 'boolean', description: '高风险候选待人工授权（escalate 触发条件之一）' },
+        record: { type: 'boolean', description: '是否写入 artifact + 情景记忆（默认 true）' },
+      },
+      required: ['problem', 'candidateId', 'metrics', 'baselineMetrics'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: {
+        type: 'object',
+        properties: {
+          claimId: { type: 'string' },
+          fingerprint: { type: 'string', description: '协议指纹（SHA-256 hex）——评估同一协议的可比性锚点' },
+          problem: { type: 'string' },
+          typedPlans: { type: 'array', items: { type: 'object' } },
+          decision: { type: 'object' },
+          traceSummary: { type: 'object' },
+          artifactId: { type: 'string' },
+        },
+        required: ['claimId', 'fingerprint', 'decision'],
+        additionalProperties: true,
+      },
+      render: (_a, v) => [{ type: 'text', text: JSON.stringify({
+        claimId: v.claimId,
+        fingerprint: v.fingerprint,
+        problem: v.problem,
+        decision: v.decision,
+        typedPlans: (v.typedPlans ?? []).map((p) => `#${p.principleNo} ${p.opType}`),
+        trace: v.traceSummary,
+        artifactId: v.artifactId,
+      }, null, 2) }],
+    },
+    async execute(args: Record<string, unknown>) {
+      const input = args as {
+        problem: string; improving?: string; worsening?: string; candidateId: string; parentId?: string;
+        principleNos?: number[]; metrics: Record<string, number>; baselineMetrics: Record<string, number>;
+        referenceUseful?: number[]; referenceHarmful?: number[]; evidenceLevel?: number; certifiedLevel?: number;
+        gates?: { integrity?: boolean; safety?: boolean; reproducibility?: boolean; resource?: boolean; extra?: { id: string; desc: string; pass: boolean }[] };
+        relativeGainPct?: number; requiresAuthorization?: boolean; record?: boolean;
+      };
+      const report = runtime.triza.evaluate({
+        problem: input.problem,
+        improving: input.improving ?? 'reliability',
+        worsening: input.worsening ?? 'complexity',
+        candidateId: input.candidateId,
+        parentId: input.parentId,
+        principleNos: input.principleNos,
+        metrics: input.metrics,
+        baselineMetrics: input.baselineMetrics,
+        referenceUseful: input.referenceUseful ?? [],
+        referenceHarmful: input.referenceHarmful ?? [],
+        evidenceLevel: input.evidenceLevel,
+        certifiedLevel: input.certifiedLevel,
+        gates: input.gates,
+        relativeGainPct: input.relativeGainPct,
+        requiresAuthorization: input.requiresAuthorization,
+      });
+      let artifactId: string | undefined;
+      if (input.record !== false) {
+        const decl = report.typedPlans.map((p) => `- #${p.principleNo} ${p.opType} — args=${p.admissibleArgs.join(', ')}; prohibited=${p.prohibitedChanges.join('; ')}; evidence=${p.evidenceObligations.join('; ')}`);
+        const body = [
+          `# TRIZa — ${report.problem}（claim ${report.claimId}）`,
+          '',
+          `protocol fingerprint: ${report.fingerprint}`,
+          `promotion: ${report.decision.promotion} (admissible=${report.decision.admissible}, relativeGain=${report.decision.relativeGainPct}%)`,
+          `certification: L${report.decision.certification.level} ${report.decision.certification.label} | evidenceLadder: ${report.decision.evidenceLadder}`,
+          `FI useful=${report.decision.fi.usefulFI}(LB=${report.decision.fi.usefulFI_LB}) harmful=${report.decision.fi.harmfulFI}(UB=${report.decision.fi.harmfulFI_UB}) ideality=${report.decision.fi.ideality}`,
+          `gate failures: ${report.decision.gateFailures.map((g) => `#${g.id}`).join(', ') || 'none'}`,
+          `negative evidence retained: ${report.decision.negativeEvidenceRetained}`,
+          `reason: ${report.decision.reason}`,
+          '',
+          '## Typed transformations',
+          ...decl,
+          '',
+          '## Trace artifacts (Appendix A.1)',
+          '- triz_context.json / triz_strategy_plan.md / scores.jsonl (appended)',
+          `- SHA256SUMS: ${Object.entries(report.trace.sha256sums).map(([k, v]) => `${k}=${v.slice(0, 12)}...`).join('; ')}`,
+        ].join('\n');
+        artifactId = researchCore.artifacts.put({
+          kind: 'note',
+          title: `triza: ${report.problem.slice(0, 40)}`,
+          body,
+          meta: {
+            claimId: report.claimId,
+            fingerprint: report.fingerprint,
+            promotion: report.decision.promotion,
+            admissible: report.decision.admissible,
+            principles: report.typedPlans.map((p) => p.principleNo),
+          },
+        }).id;
+        runtime.memory.episodic.record({
+          kind: 'triza',
+          summary: `triza: ${report.problem.slice(0, 40)} → ${report.decision.promotion} (fp=${report.fingerprint.slice(0, 12)}), FI=U${report.decision.fi.usefulFI}/H${report.decision.fi.harmfulFI}`,
+          outcome: report.decision.promotion,
+        });
+      }
+      return {
+        claimId: report.claimId,
+        fingerprint: report.fingerprint,
+        problem: report.problem,
+        contract: report.contract,
+        typedPlans: report.typedPlans,
+        decision: {
+          promotion: report.decision.promotion,
+          admissible: report.decision.admissible,
+          gateFailures: report.decision.gateFailures,
+          certification: report.decision.certification,
+          fi: report.decision.fi,
+          relativeGainPct: report.decision.relativeGainPct,
+          secondaryGateFailures: report.decision.secondaryGateFailures,
+          reason: report.decision.reason,
+          evidenceLadder: report.decision.evidenceLadder,
+          negativeEvidenceRetained: report.decision.negativeEvidenceRetained,
+        },
+        traceSummary: {
+          fingerprint: report.fingerprint,
+          contradictions: report.trace.trizContext.contradiction,
+          declaredTransformations: report.trace.strategyPlan.declaredTransformations,
+          scoresJsonlLines: report.trace.scoresJsonl.trim() ? report.trace.scoresJsonl.trim().split('\n').length : 0,
+          sha256sums: report.trace.sha256sums,
+        },
+        artifactId,
+      };
+    },
+  });
+
 
 function jobView(job: Job): { id: string; kind: string; title: string; status: string; progress: number; error?: string; createdAt: string } {
   return { id: job.id, kind: job.kind, title: job.title, status: job.status, progress: job.progress, error: job.error, createdAt: job.createdAt };
@@ -788,7 +945,7 @@ function scheduleView(schedule: ScheduleSpec): { id: string; topic: string; enab
 
   ctx.logger?.(name).info(
     '%s: registered %d/%d research tools%s',
-    name, disposers.length, allow ? allow.size : 14, allow ? ` (tools.only=${[...allow].join(',')})` : '',
+    name, disposers.length, allow ? allow.size : 15, allow ? ` (tools.only=${[...allow].join(',')})` : '',
   );
   // 显式返回 disposer：cordis registry.plugin() 在卸载本插件时统一调用。
   return () => {

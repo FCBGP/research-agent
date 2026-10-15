@@ -124,6 +124,9 @@
 ## 里程碑
 
 
+- [x] 阶段 9 完成（本轮）= TRIZa 闭环治理层（冻结评估契约+协议指纹 / 类型化变换契约 / FI-Ideality
+  / 四类硬门晋升 / 可追溯记录 + 负证据保留，论文 docs/2610.04555v1.pdf）；183/183 单测 + SMOKE
+  PASS（services 14/14, tools 15/15, engineering 8/8, triza=true）+ PACK OK；真机部署待用户
 - [x] 阶段 8 完成（`ce94b68`）= TRIZ 方法论接入（research_triz 工具 + triz skill）；146/146 单测 + SMOKE PASS（tools 14/14, engineering 7/7, triz=true）
 - [x] 阶段 8.5 完成 = 右侧栏「TRIZ 发明原理」面板（host `/api/research.triz.notes` + client bundle `lib/client.js`）；151/151 单测 + SMOKE PASS（trizUi=true），暂无未完成子项
 - [x] 阶段 8.7 完成（本轮）= 右侧栏面板可见性根因修复（client-modules 只认裸包名/两段 scope，
@@ -139,6 +142,23 @@
   报告跟进
 - [x] 全部完成 = `dsh research`（web 会话）一条指令跑完整科研流水线
   （RPKI+BGPsec 缺口 → 实验矩阵 → 核验 → 论文/幻灯片），且阶段 4/5 + 报告跟进全部关闭
+
+## 在研 · TRIZa 真机部署验证（2026-10-15 起；沙箱已自测 183/183 + SMOKE PASS + PACK OK）
+
+> 阶段 9 实现与沙箱自测已完成并提交。真机部署依赖用户在自己终端执行
+> `DSH_HOME="$HOME/.dsh" ./dsh-research/scripts/deploy-profile.sh`（symlink 指向仓库，改
+> dsh-research 立即生效）→ `dsh research` 启动 Web UI 会话（沙箱无法写 `~/.dsh` / 开浏览器）。
+
+- [ ] 真机一键 deploy 后验证 `research_triza` 工具闭环：会话里传
+  `problem/improving/worsening/candidateId/metrics/baselineMetrics/referenceUseful/
+  referenceHarmful/gates(+integrity/safety/reproducibility/resource)/evidenceLevel/
+  certifiedLevel` → 返回 64 位协议指纹 + promote/revise/reject/escalate 决策 + 追溯记录
+  （triz_context.json / triz_strategy_plan.md / scores.jsonl / SHA256SUMS），落 artifact
+  （kind=note, title^="triza: "）+ episodic（kind=triza）
+- [ ] 验证「改任一评估协议绑定字段 → 新指纹」：同一 candidateId 改 split/preprocessing 后重跑
+  `research_triza`，指纹变化、旧结果不被 silently 扩展（PROMOTE 到 incumbent 需走完整闭环）
+- [ ] 阶段 8.5/8.7 右侧栏回归：research_triza 决策后 triz note 与 TRIZ 面板并存、面板正常更新
+  （升级 `dsh research` 需重启生效）
 
 ## 在研 · WeKnora 对接真机验证（2026-10-10 起）
 
