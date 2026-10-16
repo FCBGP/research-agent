@@ -115,8 +115,12 @@
 
 - [ ] 真实网元复测：FRR/VPP 可用后复跑四攻击 × 四策略矩阵，把 rov/aspa 增量结论（subprefix
   +0.06、path-manip 0.65）从 sim 证据升级为真实网元证据（`executors.ts` simulated 随 engine 改写）
-- [ ] H-UNI 规模化扫描：AS 数 × 事件数网格复跑 S1 口径（统一 vs 分散的检索/验签收益随规模
-  怎样变化），并论证与 ASPA「表达力↔可判定性」既有纪律的兼容性后再议 V3 是否升级
+- [x] H-UNI 规模化扫描 · 网格复跑部分：AS 数 × 事件数网格（20 格 × 4 脚本，seed 20261016）
+  已由 `run-sweep.ts` 完成并出报告 `docs/intent-sweep-report.md`（supportedRate 70% → 交叉尺度
+  统一性 C 级 disputed；drift 统一态恒 0、分散随事件数增长；eventWrites/verify/audit 平均<1
+  方向支持 T4-DS3；2026-10-16 归档 CHANGELOG）
+- [ ] H-UNI 规模化扫描 · 剩余：论证统一/分散收益随规模变化与 ASPA「表达力↔可判定性」既有纪律的
+  兼容性后再议 V3 是否升级（网格扫描 + CLI + 报告已完成，见上条）
 - [ ] WeKnora 建库后正文级反证检索：RFC 9315/9234/ASPA/FC-BGP 全文检索「统一意图对象」
 - [ ] 用户确认「跨 AS 安全意图」口径后，向 `src/domain/vocabulary.ts` GLOSSARY 增补
   「意图/intent」词条（唯一口径来源，未确认前不改）

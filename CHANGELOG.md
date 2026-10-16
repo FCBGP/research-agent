@@ -8,7 +8,41 @@
 
 ---
 
-## 2026-10-15 · H-UNI 最小原型：统一意图对象 vs 分散载体代价对比（提交 `5d3d08d`）
+## 2026-10-16 · H-UNI 参数扫描：Dispersed vs Unified 意图仓库（AS 数 × 事件数网格）（提交 `9abadf6`）
+
+需求（承接 2026-10-15 H-UNI 最小原型后 TODO「H-UNI 规模化扫描」的第一步）：把 S1 单脚本对比升级为
+**AS 数 × 事件数网格确定性扫描**，为 **T4-DS3**（分散多写仓库的 write amplification / drift）做参数化
+动机演示。本轮范围 = 开发 `run-sweep.ts` CLI + 网格化确定性场景生成 + 测试 + markdown 报告；
+**不上升 V3 认证**（ASPA「表达力↔可判定性」兼容论证与「V3 是否升级」议项保留在 TODO）。
+
+- **关键产物**：
+  - `dsh-research/src/intent/sweep.ts` —— 确定性网格引擎：`generateScenario`（事件种类权重
+    addProvider 0–0.18 / removeProvider 0.18–0.28 / addRole 0.28–0.44 / removeRole 0.44–0.52 /
+    addForwarding 0.52–0.72 / splitPrefix 0.72–0.86 / revokeAll 0.86–1.0；6 条路由、path 长 2..3；
+    每事件索引在 `events.push` 前按 `events.length` 写入 `failurePlan[key]=1`，仅 splitPrefix / revokeAll
+    可注入、值恒 1、事件自身不带 failAfterWrite；splitPrefix 注入只「ROA 搬家 + FC 改写中止（漂移窗口）」、
+    revokeAll 注入保守镜像不动）+ `mixSeed`（imul-mix 逐格/逐脚本错开）+ `runSweepCell` /
+    `runSweep` / `summaryVerdict`（supportedRate≥0.8）/ `sweepToMarkdown`（逐格表 + 反例表）。
+  - `dsh-research/src/intent/run-sweep.ts` —— CLI：`--as/--events/--scripts/--seed/--out`，
+    默认 20 格（AS=[8,16,32,64] × E=[8,16,32,64,96]）× 每格 4 脚本 × 全局种子 20261016。
+  - `dsh-research/src/intent/sweep.test.ts` —— 13 用例：生成确定性（fingerprint 含 name，异种子必异指纹）/
+    事件不带 failAfterWrite 且子种子互异 / failurePlan 注入纪律（值 1、键=事件索引、仅 splitPrefix/revokeAll）/
+    全网格至少一次注入（按脚本 seed 重生成验证）/ runSweep 整体确定性（JSON 相等）/
+    `driftSum.unified===0` 且每脚本 driftUnified===0 / 每维计数不变量 `perDimOk[dim]+|cx(dim)|===scriptCount` /
+    `supportedCount===scriptCount-唯一失败脚本数` / 范围检查 / 聚合一致性（avg/max/drift/coherent/compliant
+    由脚本重算吻合）/ 流水线不抛 / Markdown 冒烟 / 脚本合计一致性。
+  - `docs/intent-sweep-report.md` —— 报告（含 globalSeed 20261016，全报告可复现）。
+- **关键数值（20 格 × 4 = 80 脚本）**：聚合 supportedRate **70%（56/80）** → 交叉尺度统一性 **C 级
+  disputed**。drift（统一/分散）= **0/N**：分散随事件数单调增长（最大 36 @16×96、35 @32×96），统一态恒 0；
+  eventWrites/verify/audit 平均比值基本 **<1**（统一更省，方向性支持 T4-DS3 写放大/审计开销动机）；
+  verifyOps 个别格比值 >1（8×96 avg 1.94 / max 2.75）→ 反例 24 条（verifyOps 12 + violations 12）如实
+  列出，不作升格。四维平均比值「全部 <1」未成立。
+- **行为变更**：无（`src/intent/` 纯 TS、确定性、未接任何插件/host）。
+- **测试**：`node --test "src/**/*.test.ts"` = **207/207 全绿**（基线 194 + sweep 13）。
+- **TODO 同步**：L118「H-UNI 规模化扫描」拆为——已完成「AS×事件网格复跑 + CLI + 报告」；保留「ASPA
+  可判定性兼容论证」与「V3 是否升级」议项。
+
+---
 
 需求（承接「域间路由意图综合调研」在研项）：为设计假说 **V3（disputed）**「H-UNI 统一意图中介层可
 降低一致性维护开销」补最小原型实证——此前仅有文献级可行性论证（`docs/domain-intent-survey.md` §5.1-⑤
