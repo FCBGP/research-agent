@@ -175,6 +175,21 @@
   假说）；手动调用 `research_triz`（含 resultText）也能落 note 进面板
 - [ ] 一致性确认：面板条目与问答正文不再「两套 TRIZ」冲突（问答不再自造 TRIZ 映射）
 
+## 在研 · TRIZ 会话级持久化 + 中间生成结果逐段应用（阶段 10，2026-10-19 起；沙箱已自测 216/216 + SMOKE PASS）
+
+> 沙箱侧已完成并提交 `af345ce`：统一 ArtifactStore（core.artifacts == memory.artifact）+ 5 profile
+> `memory.dir` 落盘 + note meta 打 sessionId/step/final + triz-auto 按 step 逐段映射 + 侧边栏按会话
+> 过滤/显示生成步序 + 每轮 persist()。持久化往返（boot→写→persist→重启→loadMemoryInto 还原）实测
+> PASS。已存在部署需真机重跑 deploy + 重启 `dsh research` 生效，以下验证依赖用户侧。
+
+- [ ] 真机重跑 `./dsh-research/scripts/deploy-profile.sh`（或 npm 一键部署）后重启 `dsh research`
+- [ ] 同一会话问研究问题 → 轮内**每个实质中间 step + 最终答案**各落一条 triz note（侧边栏按会话
+  过滤，卡片显示「生成步序：第 N 步（该轮最终答案 / 中间生成结果）」）
+- [ ] 关闭 dsh 再重新打开（同一 profile / 工作目录的会话）→ 侧边栏「TRIZ 发明原理说明」记录仍在
+  （随 `$DSH_HOME/profiles/<name>/memory/research-memory.json` 落盘 + 重启 loadMemoryInto 还原）；
+  手动 `research_triz` 调用产生的无 sessionId note 在任意会话仍兼容可见
+- [ ] 其它 profile（paper/experiment/engineering/reviewer）同样验证：重启后 TRIZ 记录不丢
+
 ## 在研 · TRIZa 真机部署验证（2026-10-15 起；沙箱已自测 183/183 + SMOKE PASS + PACK OK）
 
 > 阶段 9 实现与沙箱自测已完成并提交。真机部署依赖用户在自己终端执行

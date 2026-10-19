@@ -8,6 +8,42 @@
 
 ---
 
+## 2026-10-19 · TRIZ 会话级持久化 + 中间生成结果逐段应用（阶段 10，提交 `af345ce`）
+
+需求（用户）：① 侧边栏「TRIZ 发明原理说明」记录当前只存在于内存，关闭 dsh 重开后丢失——要求
+随会话历史一起保存（答：可以做到，已实现）；② TRIZ 应对**每次中间生成结果**都应用发明原理（不只
+轮末最终答案），并核实 `docs/2610.04555v1.pdf` 是否覆盖该粒度。
+
+- **论文粒度核实结论**：TRIZa 只按「演化候选 proposal」声明矛盾 + 原理——§1「Each candidate
+  must declare a contradiction and an operator … before its result is known」、§3.2 式(1) 的
+  typed proposal record `π=(id(s), c, r, τ_r, Δ, κ)` 是 code-evolution 每个候选变换的粒度，
+  **未覆盖** dsh 对话 agent 循环里的逐条中间 assistant 消息/step；故在自动映射层补此粒度。
+- **统一 ArtifactStore（持久化根因修复）**：plugin-core 原先另建全内存 ArtifactStore（=core.artifacts，
+  research_triz 工具 / triz-auto 的写入点），而 createMemory 内部又私有建一个（=memory.artifact，唯一被
+  persistMemory 序列化的源）→ TRIZ note 永不落盘。改为 `createMemory(store?)` 注入同一 store：
+  core.artifacts == memory.artifact.store_，persist 即覆盖 TRIZ note；`profiles/{research,paper,
+  experiment,engineering,reviewer}/cordis.patch.yml` 给 research-core 整行覆盖
+  `memory.dir=dshHomePath('profiles/<name>/memory')`（此前 memory.dir 未配置 = 全内存）；重启后
+  plugin-core `if(memory.dir) loadMemoryInto()` 还原，侧边栏按 sessionId 过滤恢复。
+- **会话级维度**：note meta 打 `sessionId`（session/event 的 session.id）；route
+  `/api/research.triz.notes?sessionId=` 按会话过滤（无 sessionId 的兼容 note——research_triz 手动
+  调用/旧数据——全会话可见）；TrizTab 取数带 sessionId（会话作用域）、依赖 [signal, sessionId] 重取。
+- **中间生成结果逐段应用**：triz-auto 不再只在 turn/end 映射最终答案——按 step 键缓存
+  （`Map<step,text>`，同一步流式多帧覆盖去重），turn/end 对**每个实质中间 step**（末步 final:true）
+  逐一 `mapResult` 落 note；note meta 增 `step/final`；侧边栏卡片显示「生成步序：第 N 步（该轮
+  最终答案 / 中间生成结果）」；每轮批量映射后调 `deps.persist()` 落盘。短文本仍按
+  `MIN_FINAL_ANSWER_LENGTH=40` 阈值过滤；`MAX_TRIZ_NOTES` 10→30。
+- **client bundle 重建**：`lib/client.js`（client/route.ts + client/TrizTab.tsx 的 step/final/sessionId
+  透传与展示）。
+- **行为变更**：research 族 5 profile 的 research-core 现落盘到
+  `$DSH_HOME/profiles/<name>/memory/research-memory.json`；已存在部署**需重跑 deploy-profile.sh 并
+  重启 `dsh research`** 生效（sandbox 已实测），旧无 sessionId note 兼容可见。
+
+实测：`node --test "src/**/*.test.ts"` = **216/216 全绿**（基线 207 + plugin-triz-auto 4 +
+plugin-triz-ui 4 + memory 1）。runtime-smoke → **SMOKE PASS**（services / tools 15/15 / roles /
+standard=0 / triz / triza / trizUi / clientGraph / trizAuto 全 true）。持久化往返实测：
+boot→core.artifacts 写 note→persist→独立进程重启→loadMemoryInto 还原（sessionId/step/final 保留）
+**PASS**。提交号 `af345ce`。
 ## 2026-10-16 · H-UNI 参数扫描：Dispersed vs Unified 意图仓库（AS 数 × 事件数网格）（提交 `9abadf6`）
 
 需求（承接 2026-10-15 H-UNI 最小原型后 TODO「H-UNI 规模化扫描」的第一步）：把 S1 单脚本对比升级为
@@ -285,7 +321,6 @@ Recognition to Solution Invention，arXiv:2610.04555v1），把 TRIZa 从「理�
 
 ---
 
-
 ## 2026-10-14 · 阶段 8.7 · 右侧栏面板可见性根因修复 + 每个最终回答自动映射 TRIZ
 
 需求（用户，最新一轮）：① 部署后**右侧栏看不到「TRIZ 发明原理」面板**——「我要的应该不是
@@ -328,7 +363,6 @@ TRIZ skill，而是你每次给出的结果都要对应到 TRIZ 发明原理，�
   8→9、阶段 8.7 小节）、CHANGELOG、TODO 里程碑同步。
 
 ## 2026-10-14 · 阶段 8.6 · 默认调用 TRIZ + 每次研究结果 ↔ 发明原理映射（论文§6 / 幻灯片 / 右侧栏）
-
 
 需求（用户，三条）：① **git 每轮收尾完整提交一次并说明改了什么**；② research 时**默认就调用
 TRIZ**（不是可选项）；③ 不要 TRIZ skill，要**每次给出的结果都对应到 TRIZ 发明原理**——即研究
