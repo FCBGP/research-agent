@@ -93,7 +93,11 @@ export function apply(ctx: Context, config: PluginCoreConfig = {}): void {
     domain,
   };
 
-  const memory = createMemory();
+  // 统一 ArtifactStore：core.artifacts 与 memory.artifact 共用同一 store——
+  // persistMemory 序列化的是 memory.artifact.store_，二者统一后 TRIZ 分析 note
+  // （research_triz 工具 / triz-auto 写入 core.artifacts）随五类记忆一起落盘、
+  // 重启后随 loadMemoryInto 还原（侧边栏跨启动不丢），与会话历史可追溯。
+  const memory = createMemory(artifacts);
   const agents = createAgents({ memory });
 
   if (config.memory?.dir) loadMemoryInto(memory, config.memory.dir);

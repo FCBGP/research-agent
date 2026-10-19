@@ -22,7 +22,7 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// dsh-research/client/index.ts
+// client/index.ts
 var index_exports = {};
 __export(index_exports, {
   apply: () => apply,
@@ -31,7 +31,7 @@ __export(index_exports, {
 });
 module.exports = __toCommonJS(index_exports);
 
-// dsh-research/client/definition.ts
+// client/definition.ts
 var TRIZ_EXPLAINER_KIND = "triz-explainer";
 var TRIZ_EXPLAINER_ID = "@basil/dsh-research-triz-explainer";
 var TRIZ_EXPLAINER_ADDRESS = "dsh-resource://triz-explainer/**";
@@ -56,12 +56,16 @@ function trizExplainerDefinition() {
   };
 }
 
-// dsh-research/client/TrizTab.tsx
+// client/TrizTab.tsx
 var import_react = require("react");
 
-// dsh-research/client/route.ts
+// client/route.ts
 var TRIZ_NOTES_PATH = "/api/research.triz.notes";
 var TRIZ_NOTES_ROUTE = TRIZ_NOTES_PATH.slice(1);
+function trizNotesUrl(sessionId) {
+  if (!sessionId) return TRIZ_NOTES_ROUTE;
+  return `${TRIZ_NOTES_ROUTE}?${new URLSearchParams({ sessionId }).toString()}`;
+}
 function isRecord(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -73,18 +77,23 @@ function parseTrizNotes(value) {
   const notes = [];
   for (const item of value.notes) {
     if (!isRecord(item)) continue;
-    const { artifactId, title, problem, source, hypotheses } = item;
+    const { artifactId, title, problem, source, hypotheses, contradictionOrigin } = item;
     if (typeof artifactId !== "string" || typeof title !== "string" || typeof source !== "string") continue;
     const candidates = Array.isArray(item.candidates) ? item.candidates.filter(isPrincipleView) : [];
     const lines = Array.isArray(hypotheses) ? hypotheses.filter((h) => typeof h === "string") : [];
+    const step = typeof item.step === "number" && Number.isInteger(item.step) ? item.step : void 0;
+    const fin = typeof item.final === "boolean" ? item.final : void 0;
     notes.push({
       artifactId,
       title,
       problem: typeof problem === "string" && problem.length > 0 ? problem : title,
       source,
+      contradictionOrigin: typeof contradictionOrigin === "string" ? contradictionOrigin : "default",
       candidates,
       hypotheses: lines,
-      createdAt: typeof item.createdAt === "string" ? item.createdAt : ""
+      createdAt: typeof item.createdAt === "string" ? item.createdAt : "",
+      step,
+      final: fin
     });
   }
   return notes;
@@ -94,8 +103,13 @@ var SOURCE_LABEL = {
   "heuristic-fallback": "\u542F\u53D1\u5F0F\u515C\u5E95",
   "unresolved": "\u53C2\u6570\u672A\u89E3\u6790"
 };
+var CONTRADICTION_ORIGIN_LABEL = {
+  "tool": "\u663E\u5F0F\u77DB\u76FE\u53C2\u6570",
+  "extracted": "\u6587\u672C\u89C4\u5219\u63D0\u53D6",
+  "default": "\u9ED8\u8BA4\uFF08\u68C0\u6D4B\u2194\u590D\u6742\u5EA6\uFF09"
+};
 
-// dsh-research/client/TrizTab.tsx
+// client/TrizTab.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
 var styles = {
   root: {
@@ -146,6 +160,11 @@ var styles = {
     background: "var(--dsw-alias-interactive-bg-subtle, #eef2ff)",
     color: "var(--dsw-alias-state-business-primary, #4f46e5)"
   },
+  originLine: {
+    margin: 0,
+    fontSize: "10px",
+    color: "var(--dsw-alias-label-tertiary, #6b7280)"
+  },
   principle: {
     display: "flex",
     flexDirection: "column",
@@ -185,6 +204,16 @@ function TrizNoteCard({ note }) {
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { style: styles.card, children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { style: styles.cardTitle, children: note.problem }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: styles.badge, children: sourceText(note.source) }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { style: styles.originLine, children: [
+      "\u77DB\u76FE\u6765\u6E90\uFF1A",
+      CONTRADICTION_ORIGIN_LABEL[note.contradictionOrigin] ?? note.contradictionOrigin
+    ] }),
+    typeof note.step === "number" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { style: styles.originLine, children: [
+      "\u751F\u6210\u6B65\u5E8F\uFF1A\u7B2C ",
+      note.step,
+      " \u6B65",
+      note.final ? "\uFF08\u8BE5\u8F6E\u6700\u7EC8\u7B54\u6848\uFF09" : "\uFF08\u4E2D\u95F4\u751F\u6210\u7ED3\u679C\uFF09"
+    ] }),
     note.candidates.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", { style: styles.ul, children: note.candidates.map((c) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { style: styles.principle, children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: styles.principleHead, children: [
         /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: styles.principleNo, children: c.no }),
@@ -200,6 +229,7 @@ function TrizTab(props) {
   const { useTabInfo } = props;
   const tabInfo = typeof useTabInfo === "function" ? useTabInfo() : void 0;
   const signal = tabInfo?.tab?.signal;
+  const sessionId = props.sessionId;
   const [state, setState] = (0, import_react.useState)({ phase: "loading" });
   (0, import_react.useEffect)(() => {
     let alive = true;
@@ -210,7 +240,7 @@ function TrizTab(props) {
     signal?.addEventListener("abort", abort, { once: true });
     void (async () => {
       try {
-        const response = await fetch(TRIZ_NOTES_ROUTE, { signal: controller.signal });
+        const response = await fetch(trizNotesUrl(sessionId), { signal: controller.signal });
         if (!alive) return;
         if (!response.ok) {
           setState({ phase: "error" });
@@ -227,7 +257,7 @@ function TrizTab(props) {
       controller.abort();
       signal?.removeEventListener("abort", abort);
     };
-  }, [signal]);
+  }, [signal, sessionId]);
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.root, children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.header, children: "TRIZ \u53D1\u660E\u539F\u7406\u8BF4\u660E" }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.hint, children: "\u5C55\u793A\u672C\u6B21\u7814\u7A76\u8FC7\u7A0B\u4E2D research_triz \u5DE5\u5177\u5206\u6790\u51FA\u7684\u53D1\u660E\u539F\u7406\u4E0E\u63A8\u7406\u94FE\u3002 \u6240\u6709\u63A8\u8350\u5747\u4E3A\u5F85\u6838\u9A8C\u5047\u8BF4\uFF08source=triz, confidence=0.5\uFF09\uFF0C\u987B\u7ECF research_verify / research_campaign \u9A8C\u8BC1\u540E\u624D\u6210\u4E3A\u7ED3\u8BBA\u3002" }),
@@ -237,7 +267,7 @@ function TrizTab(props) {
   ] });
 }
 
-// dsh-research/client/index.ts
+// client/index.ts
 var name = "dsh-research-triz-explainer";
 var inject = ["slots", "sidebarRightTabs"];
 function apply(ctx) {

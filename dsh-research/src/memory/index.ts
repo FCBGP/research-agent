@@ -24,12 +24,16 @@ export interface ResearchMemory {
   persist?(dir?: string): string | undefined;
 }
 
-export function createMemory(): ResearchMemory {
-  const store = new ArtifactStore();
+export function createMemory(store?: ArtifactStore): ResearchMemory {
+  // 外部注入 store（plugin-core 传入与 core.artifacts 同一个 ArtifactStore）：
+  // 则 memory.artifact（persistMemory 序列化的唯一 artifact 源）与 core.artifacts
+  // （research_triz 工具 / triz-auto 写 note 的地方）共用同一存储，persist 即覆盖
+  // TRIZ 分析记录；缺省自建私有 store（全内存，行为与历史一致）。
+  const artifacts = store ?? new ArtifactStore();
   return {
     semantic: new SemanticMemory(),
     episodic: new EpisodicMemory(),
-    artifact: new ArtifactMemory(store),
+    artifact: new ArtifactMemory(artifacts),
     hypothesis: new HypothesisMemory(),
     evidence: new EvidenceMemory(),
   };

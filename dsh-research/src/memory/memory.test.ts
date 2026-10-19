@@ -5,6 +5,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createMemory, persistMemory, loadMemoryInto } from './index.ts';
+import { ArtifactStore } from '../core/artifact-store.ts';
 
 test('semantic: 关键词召回按相关度排序', () => {
   const m = createMemory();
@@ -72,4 +73,17 @@ test('facade: persist → load 往返一致', () => {
   assert.equal(m2.hypothesis.all().length, 1);
   assert.equal(m2.hypothesis.all()[0].status, 'supported');
   assert.equal(m2.artifact.recall().length, 1);
+});
+
+test('createMemory(store)：注入外部 ArtifactStore 时，memory.artifact 与该 store 共享（统一 TRIZ note 持久化通道）', () => {
+  const shared = new ArtifactStore();
+  const m = createMemory(shared);
+  // memory.artifact 写入（persistMemory 序列化的唯一 artifact 源）
+  m.artifact.put({ kind: 'note', title: 'triz: 会话记录', body: '[原理23 Feedback] 反馈回路', meta: { source: 'curated-matrix', auto: true, sessionId: 's1' } });
+  // core.artifacts（research_triz 工具 / triz-auto 写入点）也应能看到同一记录
+  assert.equal(shared.list().length, 1);
+  assert.equal(shared.list()[0].title, 'triz: 会话记录');
+  // 反向：经外部 store 写入 → memory.artifact 召回可见
+  shared.put({ kind: 'result', title: 'R', body: 'b', meta: {} });
+  assert.equal(m.artifact.recall().length, 2);
 });

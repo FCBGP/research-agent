@@ -39,3 +39,15 @@
   config:
     provider: local-interval-dsv4
     model: dsv4flash
+
+# research-core 整行覆盖：开启五类记忆 + TRIZ 分析 note 的 JSON 落盘（默认全内存）。
+# 阶段 10：统一 ArtifactStore 后 core.artifacts == memory.artifact.store_，persistMemory
+# 落盘到 memory.dir（/profiles/experiment/memory）；research_triz / triz-auto 写入的
+# TRIZ note 随会话一起持久化，重启后 loadMemoryInto 还原、右侧栏按 sessionId 过滤恢复。
+- id: research-core
+  name: '@basil/dsh-research'
+  config:
+    agents:
+      enabled: true
+    memory:
+      dir: !!js dshHomePath('profiles/experiment/memory')

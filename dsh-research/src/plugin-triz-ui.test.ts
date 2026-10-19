@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { ConnectionFetchRoute } from '@deepseek-ai/dsh-client-connection';
-import { apply, collectTrizNotes, isTrizArtifact, toTrizNoteView, TRIZ_NOTES_PATH } from './plugin-triz-ui.ts';
+import { apply, collectTrizNotes, isTrizArtifact, isTrizNoteForSession, sessionIdFromRequest, toTrizNoteView, TRIZ_NOTES_PATH } from './plugin-triz-ui.ts';
 import { ArtifactStore, type Artifact } from './core/artifact-store.ts';
 import { TRIZ_PRINCIPLES } from './triz/data.ts';
 
@@ -133,4 +133,49 @@ test('apply：在 connection 鉴权栅栏挂 /api/research.triz.notes GET route�
   assert.equal(payload.notes[0].problem, 'ROV 提升劫持检测率');
   assert.equal((payload.notes[0].candidates as Array<Record<string, unknown>>)[0].no, 13);
   assert.equal(payload.notes[0].contradictionOrigin, 'default', 'route 负载携带矛盾来源（旧 note 回落 default）');
+});
+
+test('isTrizNoteForSession：auto note 按会话过滤；无 sessionId 的兼容 note 全会话可见', () => {
+  const autoA = trizNote({ meta: { source: 'curated-matrix', candidates: [1], sessionId: 'sess-a' } });
+  const autoB = trizNote({ id: 'art-2', meta: { source: 'curated-matrix', candidates: [2], sessionId: 'sess-b' } });
+  const manual = trizNote({ id: 'art-3', meta: { source: 'unresolved', candidates: [] } });
+  assert.equal(isTrizNoteForSession(autoA, 'sess-a'), true);
+  assert.equal(isTrizNoteForSession(autoB, 'sess-a'), false, '他会话 auto note 过滤');
+  assert.equal(isTrizNoteForSession(manual, 'sess-a'), true, '手动 note 无 sessionId → 兼容可见');
+  assert.equal(isTrizNoteForSession(autoA, undefined), true, '无会话参数 → 不过滤');
+});
+
+test('collectTrizNotes：按 sessionId 过滤（只显示该会话 + 无 sessionId 兼容 note）', () => {
+  const artifacts = new ArtifactStore();
+  artifacts.put({ kind: 'note', title: 'triz: sess-a 的结论', body: 'h', meta: { source: 'curated-matrix', candidates: [1], sessionId: 'sess-a' }, createdAt: '2026-10-19T00:00:01.000Z' });
+  artifacts.put({ kind: 'note', title: 'triz: sess-b 的结论', body: 'h2', meta: { source: 'heuristic-fallback', candidates: [4], sessionId: 'sess-b' }, createdAt: '2026-10-19T00:00:02.000Z' });
+  artifacts.put({ kind: 'note', title: 'triz: 手动调用（无会话）', body: 'h3', meta: { source: 'unresolved', candidates: [] }, createdAt: '2026-10-19T00:00:03.000Z' });
+  const ctx = { get: () => ({ artifacts }) } as unknown as FakeCtx;
+  const views = collectTrizNotes(ctx, 'sess-a');
+  assert.equal(views.length, 2, 'sess-a 只看到自己的 + 无 sessionId 的兼容 note');
+  assert.deepEqual(new Set(views.map((v) => v.problem)), new Set(['sess-a 的结论', '手动调用（无会话）']));
+  const onlyB = collectTrizNotes(ctx, 'sess-b');
+  assert.deepEqual(new Set(onlyB.map((v) => v.problem)), new Set(['sess-b 的结论', '手动调用（无会话）']));
+  const all = collectTrizNotes(ctx);
+  assert.equal(all.length, 3, '无会话参数 → 全部可见（兼容旧行为）');
+});
+
+test('toTrizNoteView：透传生成步序 step/final（中间生成结果逐段映射的展示维度）', () => {
+  const intermediate = trizNote({ meta: { source: 'curated-matrix', candidates: [2], sessionId: 'sess-a', step: 2, final: false } });
+  const view = toTrizNoteView(intermediate);
+  assert.equal(view.step, 2);
+  assert.equal(view.final, false);
+  const finalNote = trizNote({ meta: { source: 'curated-matrix', candidates: [3], sessionId: 'sess-a', step: 3, final: true } });
+  const fin = toTrizNoteView(finalNote);
+  assert.equal(fin.step, 3);
+  assert.equal(fin.final, true);
+  const manual = trizNote({ meta: { source: 'curated-matrix', candidates: [1] } });
+  assert.equal(toTrizNoteView(manual).step, undefined, '手动 note 无 step');
+  assert.equal(toTrizNoteView(manual).final, undefined);
+});
+
+test('sessionIdFromRequest：解析 ?sessionId=；缺省 / 非法 URL → undefined', () => {
+  assert.equal(sessionIdFromRequest(new Request('http://localhost/api/research.triz.notes?sessionId=sess-1')), 'sess-1');
+  assert.equal(sessionIdFromRequest(new Request('http://localhost/api/research.triz.notes')), undefined);
+  assert.equal(sessionIdFromRequest(new Request('http://localhost/api/research.triz.notes?sessionId=')), undefined);
 });

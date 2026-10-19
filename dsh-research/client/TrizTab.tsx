@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { CONTRADICTION_ORIGIN_LABEL, SOURCE_LABEL, TRIZ_NOTES_ROUTE, parseTrizNotes, type TrizNoteView } from './route.ts'
+import { CONTRADICTION_ORIGIN_LABEL, SOURCE_LABEL, parseTrizNotes, trizNotesUrl, type TrizNoteView } from './route.ts'
 
 /** 本 type's body 的合成 props：框架 shares（useTabInfo/sessionId）+ 无自定义注入面。 */
 export type TrizTabProps = PropsRuntime<'sidebar.right.pane.tab'>
@@ -117,6 +117,9 @@ function TrizNoteCard({ note }: { note: TrizNoteView }): ReactNode {
       <h3 style={styles.cardTitle}>{note.problem}</h3>
       <span style={styles.badge}>{sourceText(note.source)}</span>
       <p style={styles.originLine}>矛盾来源：{CONTRADICTION_ORIGIN_LABEL[note.contradictionOrigin] ?? note.contradictionOrigin}</p>
+      {typeof note.step === 'number' && (
+        <p style={styles.originLine}>生成步序：第 {note.step} 步{note.final ? '（该轮最终答案）' : '（中间生成结果）'}</p>
+      )}
       {note.candidates.length > 0 && (
         <ul style={styles.ul}>
           {note.candidates.map((c) => (
@@ -150,6 +153,9 @@ export function TrizTab(props: TrizTabProps): ReactNode {
   const { useTabInfo } = props
   const tabInfo = typeof useTabInfo === 'function' ? useTabInfo() : undefined
   const signal = tabInfo?.tab?.signal
+  // 会话标准注入：当前会话 id（ui-session 合并进 SessionStandardProps）——
+  // 右侧栏面板是会话作用域，用它按会话过滤 TRIZ 记录（重启后随会话历史恢复）。
+  const sessionId = (props as { sessionId?: string }).sessionId
   const [state, setState] = useState<LoadState>({ phase: 'loading' })
   useEffect(() => {
     let alive = true
@@ -158,7 +164,7 @@ export function TrizTab(props: TrizTabProps): ReactNode {
     signal?.addEventListener('abort', abort, { once: true })
     void (async () => {
       try {
-        const response = await fetch(TRIZ_NOTES_ROUTE, { signal: controller.signal })
+        const response = await fetch(trizNotesUrl(sessionId), { signal: controller.signal })
         if (!alive) return
         if (!response.ok) { setState({ phase: 'error' }); return }
         const notes = parseTrizNotes(await response.json())
@@ -172,7 +178,7 @@ export function TrizTab(props: TrizTabProps): ReactNode {
       controller.abort()
       signal?.removeEventListener('abort', abort)
     }
-  }, [signal])
+  }, [signal, sessionId])
   return (
     <div style={styles.root}>
       <p style={styles.header}>TRIZ 发明原理说明</p>

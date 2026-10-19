@@ -1,7 +1,8 @@
 // client/route.ts — 右侧栏「TRIZ 发明原理」Tab 与 host 之间的数据契约。
 //
 // host 侧（src/plugin-triz-ui.ts）在 /api/research.triz.notes 挂 GET route，
-// 返回 research_triz 工具写入的最近 N 条 TRIZ 分析 note（富化 40 原理明细）。
+// 返回 research_triz 工具 / triz-auto 写入的最近 N 条 TRIZ 分析 note（富化 40 原理明细）。
+// 阶段 10：取数带 sessionId（侧边栏按会话过滤）+ note 增加 step/final（生成步序展示）。
 // 本文件只含 client 侧常量与解析函数；路径常量与 host 侧同名常量保持一致
 // （host 是 Node 侧、client 走浏览器 bundle，两侧不共享模块图）。
 
@@ -10,6 +11,12 @@ export const TRIZ_NOTES_PATH = '/api/research.triz.notes'
 
 /** 浏览器侧 document-relative 形式（与 ui-deliverables 的 CHANGED_FILES_ROUTE 同款约定）。 */
 export const TRIZ_NOTES_ROUTE = TRIZ_NOTES_PATH.slice(1)
+
+/** 带会话维度的取数 URL：sessionId 提供时只拉取该会话的 TRIZ note（与 ui-deliverables 同款约定）。 */
+export function trizNotesUrl(sessionId?: string): string {
+  if (!sessionId) return TRIZ_NOTES_ROUTE
+  return `${TRIZ_NOTES_ROUTE}?${new URLSearchParams({ sessionId }).toString()}`
+}
 
 /** 一条候选发明原理的展示视图（host 已从 40 原理表富化）。 */
 export interface TrizPrincipleView {
@@ -31,6 +38,10 @@ export interface TrizNoteView {
   candidates: TrizPrincipleView[]
   hypotheses: string[]
   createdAt: string
+  /** 生成步序（triz-auto 逐段映射才有）；research_triz 手动 note 缺省。 */
+  step?: number
+  /** 是否该轮最终答案（末步）；中间生成结果为 false / 缺省未标注。 */
+  final?: boolean
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -52,6 +63,8 @@ export function parseTrizNotes(value: unknown): TrizNoteView[] {
     if (typeof artifactId !== 'string' || typeof title !== 'string' || typeof source !== 'string') continue
     const candidates = Array.isArray(item.candidates) ? item.candidates.filter(isPrincipleView) : []
     const lines = Array.isArray(hypotheses) ? hypotheses.filter((h): h is string => typeof h === 'string') : []
+    const step = typeof item.step === 'number' && Number.isInteger(item.step) ? item.step : undefined
+    const fin = typeof item.final === 'boolean' ? item.final : undefined
     notes.push({
       artifactId,
       title,
@@ -61,6 +74,8 @@ export function parseTrizNotes(value: unknown): TrizNoteView[] {
       candidates,
       hypotheses: lines,
       createdAt: typeof item.createdAt === 'string' ? item.createdAt : '',
+      step,
+      final: fin,
     })
   }
   return notes

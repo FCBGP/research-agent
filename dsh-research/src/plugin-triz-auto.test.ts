@@ -150,3 +150,81 @@ test('recordAnswerMapping：矛盾从问题文本提取（不再固定 detection
   assert.deepEqual(note!.meta.candidates, mapping.entries.map((e) => e.principleNo), 'meta.candidates = 全量条目');
   assert.equal(note!.meta.contradictionOrigin, 'extracted');
 });
+
+test('recordAnswerMapping：noteMeta 携带会话 id + 生成步序（sessionId/step/final）落 note meta', () => {
+  const { deps, artifacts } = makeDeps();
+  const mapping = recordAnswerMapping(
+    deps,
+    '如何提升 RPKI 劫持检测率而不增加复杂度',
+    'ROV 逐前缀校验宣告来源，反馈给传播决策；BGPsec 验证路径完整性。'.repeat(4),
+    { sessionId: 'sess-1', step: 2, final: false },
+  );
+  assert.ok(mapping, '应产出映射');
+  const note = artifacts.list().find((a) => a.kind === 'note' && a.title.startsWith('triz: '));
+  assert.ok(note, '应写入 triz note');
+  assert.equal(note!.meta.sessionId, 'sess-1', '会话级持久化维度的关键字');
+  assert.equal(note!.meta.step, 2, '生成步序');
+  assert.equal(note!.meta.final, false, '中间生成结果 final=false');
+  // 缺省 noteMeta → 不写 sessionId/step（research_triz 手动 note 兼容），final 缺省为 false
+  const { deps: d2, artifacts: a2 } = makeDeps();
+  recordAnswerMapping(d2, '问题', '答案正文'.repeat(30));
+  const bare = a2.list().find((x) => x.kind === 'note');
+  assert.ok(bare, 'bare note');
+  assert.equal(bare!.meta.sessionId, undefined);
+  assert.equal(bare!.meta.step, undefined);
+});
+
+test('createAutoTrizMiddleware：多个实质中间 step 逐段映射（step/final/sessionId 正确，末步 final=true）', () => {
+  const { deps, artifacts } = makeDeps();
+  const { ctx, emit } = makeEventCtx(deps);
+  applyVia(ctx, deps);
+  emit('s-sess', 'user/message', { role: 'user', content: [{ type: 'text', text: PROBLEM }] });
+  // step 1/2 是实质中间生成结果；step 3 是该轮最终答案
+  emit('s-sess', 'assistant/message', { turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: '先检索 RPKI 校验路径，对比 ROV 与 BGPsec 的前缀级来源验证开销。'.repeat(2) }] }, stream: [] });
+  emit('s-sess', 'assistant/message', { turn: 1, step: 2, message: { role: 'assistant', content: [{ type: 'text', text: '中间结论：分离验证与传播控制面可降低端到端复杂度，反馈回路改进收敛。'.repeat(2) }] }, stream: [] });
+  emit('s-sess', 'assistant/message', { turn: 1, step: 3, message: { role: 'assistant', content: [{ type: 'text', text: FINAL }] }, stream: [] });
+  emit('s-sess', 'turn/end', { turn: 1, reason: 'complete' });
+  const notes = artifacts.list().filter((a) => a.title.startsWith('triz: '));
+  assert.equal(notes.length, 3, '每个实质 step 各落一条（中间生成结果逐段应用）');
+  const byStep = new Map(notes.map((n) => [n.meta.step as number, n.meta]));
+  assert.deepEqual([...byStep.keys()].sort((a, b) => a - b), [1, 2, 3], 'step 1/2/3 各一条');
+  assert.equal(byStep.get(1)!.final, false, 'step1 = 中间生成结果');
+  assert.equal(byStep.get(2)!.final, false, 'step2 = 中间生成结果');
+  assert.equal(byStep.get(3)!.final, true, '末步 = 最终答案');
+  for (const m of byStep.values()) assert.equal(m.sessionId, 's-sess', '全部打会话 id 以便重启后按会话恢复');
+  assert.equal(notes.every((n) => n.meta.auto === true), true);
+});
+
+test('createAutoTrizMiddleware：同一步流式多帧只覆盖缓存，不重复写 note', () => {
+  const { deps, artifacts } = makeDeps();
+  const { ctx, emit } = makeEventCtx(deps);
+  applyVia(ctx, deps);
+  emit('s-dedup', 'user/message', { role: 'user', content: [{ type: 'text', text: PROBLEM }] });
+  // step 1 多帧：中间帧“半截” → 末帧完整；同一步只保留末帧
+  emit('s-dedup', 'assistant/message', { turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: FINAL.slice(0, 60) }] }, stream: [{}] });
+  emit('s-dedup', 'assistant/message', { turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: FINAL }] }, stream: [{}] });
+  emit('s-dedup', 'turn/end', { turn: 1, reason: 'complete' });
+  const notes = artifacts.list().filter((a) => a.title.startsWith('triz: '));
+  assert.equal(notes.length, 1, '同一步多帧只落一条（末帧覆盖）');
+  assert.equal(notes[0].meta.step, 1);
+  assert.equal(notes[0].meta.final, true);
+});
+
+test('createAutoTrizMiddleware：短中间 step 被阈值过滤，仍按实质 step 映射；turn/end 后调 persist()', () => {
+  const { deps, artifacts, episodes } = makeDeps();
+  const persisted: unknown[] = [];
+  let persistCalls = 0;
+  const depsWithPersist: TrizAutoDeps = { ...deps, persist: () => { persistCalls += 1; persisted.push('persist'); } };
+  const { ctx, emit } = makeEventCtx(depsWithPersist);
+  applyVia(ctx, depsWithPersist);
+  emit('s-p', 'user/message', { role: 'user', content: [{ type: 'text', text: PROBLEM }] });
+  emit('s-p', 'assistant/message', { turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: '先检索。' }] }, stream: [] });
+  emit('s-p', 'assistant/message', { turn: 1, step: 2, message: { role: 'assistant', content: [{ type: 'text', text: FINAL }] }, stream: [] });
+  emit('s-p', 'turn/end', { turn: 1, reason: 'complete' });
+  const notes = artifacts.list().filter((a) => a.title.startsWith('triz: '));
+  assert.equal(notes.length, 1, '短 step（“先检索。” < 阈值）被过滤，只有实质 step2 落一条');
+  assert.equal(notes[0].meta.step, 2);
+  assert.equal(notes[0].meta.final, true);
+  assert.equal(persistCalls, 1, 'turn/end 批量映射后调 persist() 落盘（重启恢复）');
+  assert.equal(episodes.filter((e) => (e as { kind: string }).kind === 'triz').length, 1, 'episodic 同步一条');
+});
