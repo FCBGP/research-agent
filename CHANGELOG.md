@@ -8,6 +8,36 @@
 
 ---
 
+## 2026-10-19 · 域间路由意图合并调研报告（提交 `ab85631`）
+
+需求（用户）：把 `docs/domain-intent-survey.md` + `docs/域间路由意图-调研与TRIZ机制方向.md` 与
+新增内容合并为单一 `docs/域间路由意图-调研报告.md`——保留全部已核验 claim、补三条待核验 TRIZ
+假说、§3.5 补 NIST/工业界素材、文末按正文首次出现编号的 14 条参考文献表。
+
+- **关键产物**：
+  - `docs/域间路由意图-调研报告.md` —— 9 章 + 8 张三线表 + §2 无编号链接（标签含字母）+ 文末
+    纯文本 `参考文献` 14 条（[1]–[14] 按正文首次出现编号，[R]×8 / [C]×2 / [EB/OL]×4；FC-BGP
+    [9] 为个人 I-D 非 RFC、RFC 9582 [5] 为 ROA profile 非 ASPA、DECLARE [10] = SIGMOD 2006
+    pp.97–108、draft-li [12] 已过期归档）。
+  - `docs/output/域间路由意图-调研报告.docx` —— build_docx.sh（prepare_reference_docx →
+    pandoc --reference-doc → postprocess：引用转 Word REF 字段、文献自动编号、三线表、正文宋体
+    小四 1.5 倍行距）产出，34509 B。
+- **新增待核验假说**（source=triz, confidence=0.5，永不升级；各带文献级反证）：H1-2（sidecar
+  分离，#2 Taking out，反证 RFC 7115 同步/分叉窗口）、H2-2（预签署推断，#10 Preliminary action，
+  反证推断过期→增量风暴、信任边界污染）、H3-2（威胁自适应，#15 Dynamization）；H-UNI 保持
+  disputed。
+- **诚实口径**：实验 engine=sim（RouteEngineSim 确定性，mulberry32 种子 20261016）、reps=3、
+  supportThreshold=0.8（外部设定）、严重度范围 "0.55–0.79"（不写 0.8）；五指纹与 20 格 sweep
+  全部绑定实验 artifact。
+- **核验结论（§6.4）**：V1 Fact verified（文献 4/4 + datatracker asintent=0 + 实验支持）；V2
+  Result verified（但「达到 0.8」不被支持）；C5 Result rejected（subprefix +0.060、path-manip
+  0.650 独立覆盖 ROV 盲区）；V3 Hypothesis disputed（ASPA 仅编码 provider 关系保 O(1) 可判定、
+  SIDR 偏好单机制增量部署、RFC 9315 未投射跨 AS 安全域）。
+
+测试与 SMOKE 数字：`check_references.py` → **PASS**（citations 14 unique / entries 14 / 顺序一致，
+未用 --fix）；`build_docx.sh` → **OK**（docx 34509 B）；纯文档+产物提交，无代码改动 → 无单测需求。
+TODO.md 本轮无条目变更（无相关 `- [x]` 移入，Paperclip 备忘/决策项未触碰）。提交号 `ab85631`。
+
 ## 2026-10-19 · TRIZ 会话级持久化 + 中间生成结果逐段应用（阶段 10，提交 `af345ce`）
 
 需求（用户）：① 侧边栏「TRIZ 发明原理说明」记录当前只存在于内存，关闭 dsh 重开后丢失——要求
