@@ -398,6 +398,9 @@
   大图）+ 右 `draw` 简要提示(title 单行省略) + 路径 + 尺寸/模型/日期 + 「查看大图」小按钮；host
   collectDrawHistory 按 createdAt 降序 = 最近在最上（后进先出），注释锁定；文件缺失左列红框
   「文件缺失」+ 删除/重新生成提示保留；lib/client.js 重建 66544 B；单测 260/260 全绿。
+- [x] `skills/draw/SKILL.md` 新增「文字/图形错乱处理」（2026-10-21，1b70eee）：分类（文字是否关键）
+  → 提示词纪律（≤2-3 标签/宁大勿小/4K+高步/多 seed/negativePrompt）→ 结构化 SVG/Mermaid 兜底 →
+  两阶段混合（无文字底图 + PIL/SVG 叠字）→ 验收弃图规则。
 
 
 - [ ] 真机（用户侧）：research 或 paper 会话右栏「科研绘图」→ local 默认参数 16:9/2K/高画质（**先重启
