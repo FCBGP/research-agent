@@ -142,7 +142,7 @@ let standardClean = false;
 // config.tools.only 白名单裁剪 research_* 工具；此处记录各角色会话应恰好可见的工具集。
 let rolesOk = false;
 const ROLE_TOOLS = {
-  paper: ['research_search', 'research_record', 'research_verify', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy', 'research_job', 'research_schedule', 'research_reflect'],
+  paper: ['research_search', 'research_record', 'research_verify', 'research_paper', 'research_slides', 'research_autonomous', 'research_policy', 'research_job', 'research_schedule', 'research_reflect', 'research_draw', 'research_draw_status'],
   experiment: ['research_search', 'research_record', 'research_verify', 'research_experiment', 'research_campaign', 'research_autonomous', 'research_policy', 'research_job', 'research_schedule', 'research_reflect'],
   engineering: ['research_record', 'research_verify', 'research_triz', 'research_triza', 'research_policy', 'research_job', 'research_schedule', 'research_reflect'],
   reviewer: ['research_search', 'research_record', 'research_verify', 'research_review', 'research_policy', 'research_job', 'research_schedule', 'research_reflect'],
@@ -445,10 +445,34 @@ if (trizAutoEntryOk && trizSvc?.mapResult && core?.artifacts) {
   console.log('triz-auto:', trizAutoEntryOk ? 'FAIL (services missing)' : 'FAIL (loader entry missing)');
 }
 
-const servicesOk = ['researchCore', 'researchMemory', 'researchAgents', 'researchDirector', 'researchExperiment', 'researchWriter', 'researchPolicy', 'researchAutonomous', 'researchJobs', 'researchScheduler', 'researchSelfImprove', 'researchSubagents', 'researchTriz', 'researchTriza'].every((s) => ctx.get(s) !== undefined);
-const ok = servicesOk && toolOk && standardClean && rolesOk && verdict === 'verified' && domainOk && searchOk && campaignOk && policyOk && autoOk && jobOk && schedOk && reflectOk && subagentsOk && chainDefaultsOk && trizOk && trizaOk && trizUiOk && clientOk && trizAutoOk;
+// 阶段 11 冒烟：科研绘图（research-draw host 插件）——researchDraw 服务 + config 视图口径 +
+// connection.fetch route 能力（generate/status/history/config 4 条路由随服务一起挂载）。
+// 侧边栏「科研绘图」tab 数据口径：10 种比例（默认 16:9）、分辨率 1K/2K/4K（默认 2K）、
+// 画质 低20/中30/高50 步（默认 高）、输出固定 <outputRoot>/images/image-YYYYMMDDHHmmSS.png。
+const drawSvc = ctx.get('researchDraw');
+let drawOk = false;
+if (drawSvc?.config && drawSvc?.submit && !!ctx.get('connection')?.fetch?.register) {
+  const dcfg = drawSvc.config();
+  const job = drawSvc.submit({ prompt: 'BGP 架构图（冒烟）', provider: 'local', aspect: '16:9', resolution: '2K', quality: 'high' }, 'smoke-draw-session');
+  drawOk = dcfg.enabled === true
+    && dcfg.providers.includes('local') && dcfg.providers.includes('api')
+    && dcfg.aspects.length === 10 && dcfg.defaults.aspect === '16:9'
+    && dcfg.defaults.resolution === '2K' && dcfg.defaults.quality === 'high'
+    && dcfg.qualitySteps.high === 50 && dcfg.qualitySteps.low === 20
+    && typeof job?.id === 'string' && ['queued', 'running', 'succeeded', 'failed'].includes(job.phase)
+    && typeof drawSvc.status(job.id)?.id === 'string'
+    && typeof drawSvc.list === 'function';
+  console.log('draw:', drawOk
+    ? `OK (${dcfg.providers.join('/')} providers, aspects=${dcfg.aspects.length}, defaults ${dcfg.defaults.aspect}/${dcfg.defaults.resolution}/${dcfg.defaults.quality}, job=${job.id}:${job.phase})`
+    : 'FAIL (researchDraw service/config mismatch)');
+} else {
+  console.log('draw: FAIL (researchDraw service or connection.fetch.register missing)');
+}
+
+const servicesOk = ['researchCore', 'researchMemory', 'researchAgents', 'researchDirector', 'researchExperiment', 'researchWriter', 'researchPolicy', 'researchAutonomous', 'researchJobs', 'researchScheduler', 'researchSelfImprove', 'researchSubagents', 'researchTriz', 'researchTriza', 'researchDraw'].every((s) => ctx.get(s) !== undefined);
+const ok = servicesOk && toolOk && standardClean && rolesOk && verdict === 'verified' && domainOk && searchOk && campaignOk && policyOk && autoOk && jobOk && schedOk && reflectOk && subagentsOk && chainDefaultsOk && trizOk && trizaOk && trizUiOk && clientOk && trizAutoOk && drawOk;
 await ctx.fiber.dispose();
 console.log('disposed OK');
 console.log(ok ? 'SMOKE PASS' : 'SMOKE FAIL');
-console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} standard=${standardClean} roles=${rolesOk} verdict=${verdict} domain=${domainOk} search=${searchOk} campaign=${campaignOk} policy=${policyOk} autonomous=${autoOk} job=${jobOk} schedule=${schedOk} reflect=${reflectOk} subagents=${subagentsOk} chainDefaults=${chainDefaultsOk} triz=${trizOk} triza=${trizaOk} trizUi=${trizUiOk} clientGraph=${clientOk} trizAuto=${trizAutoOk}`);
+console.log(`summary: services=${servicesOk} tools(${researchTools.length}/${EXPECTED.length})=${toolOk} standard=${standardClean} roles=${rolesOk} verdict=${verdict} domain=${domainOk} search=${searchOk} campaign=${campaignOk} policy=${policyOk} autonomous=${autoOk} job=${jobOk} schedule=${schedOk} reflect=${reflectOk} subagents=${subagentsOk} chainDefaults=${chainDefaultsOk} triz=${trizOk} triza=${trizaOk} trizUi=${trizUiOk} clientGraph=${clientOk} trizAuto=${trizAutoOk} draw=${drawOk}`);
 process.exit(ok ? 0 : 2);

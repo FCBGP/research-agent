@@ -67,10 +67,16 @@ REQUIRED=(
   package/src/plugin-tools.js
   package/src/plugin-triz.js
   package/src/plugin-triza.js
+  package/src/plugin-draw.js
+  package/src/draw/dimensions.js
+  package/src/draw/paths.js
+  package/src/draw/local.js
+  package/src/draw/api.js
   package/lib/client.js
   package/skills/experiment/SKILL.md
   package/skills/paper-review/SKILL.md
   package/skills/triz/SKILL.md
+  package/skills/draw/SKILL.md
   package/scripts/runtime-smoke.mjs
 )
 for entry in "${REQUIRED[@]}"; do

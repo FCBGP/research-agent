@@ -127,6 +127,8 @@
 
 ## 里程碑
 
+- [ ] 科研绘图（draw，2026-10-21 规划，用户确认后开工）= 只做**右侧栏「科研绘图」tab**（撤销 preset-draw / draw profile，TRIZ 同机制）+ research_draw 工具（paper 报告配图）+ 记录随会话持久化；图片后端双模式：**local**（mflux CLI 调 Qwen-Image-2.1）/ **api**（OpenAI 兼容 images API，侧边栏填 baseURL/apiKey/modelId），文本模型 dsv4；规划见文末「在研 · 科研绘图」小节。
+
 - [ ] Paperclip dsh_local adapter 决策项（2026-10-15 备忘，未动工）= 可行性调研已完成：
   external adapter 插件机制 + `dsh --profile headless --json` 实测通过；推进路径与待核实点
   见文末「决策备忘 · Paperclip 接入」小节。用户明确本轮仅备忘、不做。
@@ -297,3 +299,89 @@
   ① 本机装 Paperclip server 并跑通自带 codex_local 闭环 → ② profile 层建 headless+research 复合
   profile 验证会话 resume + 模型 overlay（不碰核心）→ ③ 写独立 `dsh_local` adapter 包并接入
   `~/.paperclip/adapter-plugins.json`
+
+## 在研 · 科研绘图（draw，2026-10-21 规划；用户已确认「按规划修改 TODO.md 后开工」，已实现并自测，待真机验收）
+
+> 需求与决策（用户 2026-10-21 确认）：
+> - **不做独立 preset / profile**（preset-draw 撤销）：绘图只用**右侧栏「科研绘图」tab**
+>   （TRIZ 同机制，两 tab 并列），不新增管理负担。
+> - 侧边栏支持**模型/后端选择**：
+>   - `local / Qwen-Image-2.1（mflux）` —— 本机 CLI 调 `~/llm/models/Qwen-Image-2.1`（**非驻留**）；
+>   - `api（OpenAI 兼容 images API）` —— 侧边栏填 **baseURL / apiKey / modelId**（apiKey 支持
+>     `${VAR}` 环境变量引用），走 `POST {baseURL}/images/generations`（Bearer 认证、
+>     `{model, prompt, n:1, size, quality, response_format=b64_json|url 双处理}`；seed 可选）。
+> - 参数口径：比例 10 种（默认 16:9）/ 分辨率**长边** 1K/2K/4K（默认 2K）/ 画质低20·中30·高50 步
+>   （默认 高）。
+> - 边界：垫图（1 张参考图）v1 **仅 local**（mflux edit 双模式：风格 0.4 / 内容 0.7 可滑），
+>   api 模式标注「暂不支持垫图」；OpenAI 标准尺寸只固定几档，任意比例（21:10 等）先发精确
+>   WxH、失败回退最近标准尺寸（尺寸策略开关）。ControlNet 列二期。
+> - 文本模型 dsv4；`research_draw` / `research_draw_status` 两个 agent 工具供 **paper**
+>   （research_paper 报告配图用）；research / experiment / engineering / reviewer 默认不出现
+>   （tools `enableDraw: true` 一行可开，research-draw `config.enabled: false` 一行可关面板）。
+> - 生成记录**随会话持久化**（复用阶段 10 ArtifactStore + persistMemory + 按 sessionId 过滤）。
+
+### A · host 插件与路由（`src/plugin-draw.ts`，exports `./draw`）
+
+- [x] `dsh-research/cordis.patch.yml`：`research-draw` 行（host 平面 9 → **10 行**，
+  位于 research-triz-auto 与 research-director 之间），`config.enabled` 默认 true + 默认配置
+  （local bin/model、outputRoot `~/Downloads/outputs`、sizePolicy `exact-then-fallback`）
+- [x] **provider 抽象**：`DrawProvider` 双后端 —— local spawn mflux CLI（非驻留、并发 1）；
+  api fetch OpenAI 兼容端点；统一 `DrawJobManager.submit → run → runLocal/runApi`
+- [x] **4 条**鉴权 route（`ctx.connection.fetch.register`，inject ['connection']）：
+  `POST /api/research.draw.generate`（provider + 参数 + 垫图 base64 → `{ jobId }`）、
+  `GET /api/research.draw.status?jobId=`、`GET /api/research.draw.config`（enabled=false 仍挂）、
+  `GET /api/research.draw.history?sessionId=`
+- [x] `drawJobManager`：内存 job 表 + 并发上限 1 + disposer 终止（local 杀进程 / api AbortController）
+- [x] 完成：输出 path + macOS `sips -Z 1024` 缩略图 base64（无 sips 回落整图）+ 写 artifact
+  （kind=note, title^=`draw: `, meta.sessionId/params/outputPath）+ 会话持久化
+
+### B · 参数计算与命令/请求组装（纯函数，单测覆盖）
+
+- [x] `src/draw/dimensions.ts`：`sizeFor` —— 长边像素×比例、32 倍数对齐（local）/ api 尺寸
+  字符串 + OpenAI 标准尺寸兜底表 + 越界校验 + 覆盖宽高
+- [x] `src/draw/paths.ts`：`<outputRoot>/images/image-YYYYMMDDHHmmSS.png`（本地时区、固定格式、同秒序号）
+- [x] `src/draw/local.ts`：mflux cmd 组装 —— txt2img / edit（+`--image-path --strength`）/
+  可选负向、guidance、quantize + tqdm 进度解析
+- [x] `src/draw/api.ts`：请求体组装（`images/generations`、Bearer、b64_json） + 响应处理
+  （b64_json | url 双收）+ `${VAR}` 环境变量展开
+
+### C · client 右栏面板（TRIZ 同机制；**无独立 preset/profile**）
+
+- [x] `client/draw/definition.ts`：注册「科研绘图」tab（kind=draw-studio, id=@basil/dsh-research-draw-studio, order=2）
+- [x] `client/draw/DrawTab.tsx`：prompt + 后端/模型选择 + api 折叠配置 + 垫图（仅 local）+
+  比例/分辨率/画质分段 + 高级折叠 + 输出目录 + 生成/轮询/预览 + 会话级历史卡片
+- [x] `client/draw/route.ts`：数据契约（config/generate/status/history parse + 兜底）
+- [x] `/api/research.draw.config` 拉不到或 `enabled=false` → 空渲染
+- [x] `client/index.ts`：注册 drawStudioDefinition + DrawTab body（与 TRIZ 同步两步注册）→ 重跑
+  `scripts/build-client.mjs` 产出 `lib/client.js`（47391 bytes，含 draw-studio + triz-explainer）
+
+### D · 记录持久化 + agent 工具
+
+- [x] 生成记录落盘 + 重启 loadMemoryInto 还原 + 右栏按 sessionId 过滤（复用阶段 10；
+  见 `collectDrawHistory` / `drawHistoryView`）
+- [x] `src/plugin-tools.ts`：**两个**新工具 `research_draw`（提交 job + bounded 等待，超时返回
+  jobId）+ `research_draw_status`（轮询）；仅 `enableDraw: true` 的 preset 注册
+  （preset-paper：`enableDraw: true` + only 白名单 `+research_draw/+research_draw_status`，
+  paper 10→**12**；research 保持 15、experiment 10 / engineering 8 / reviewer 8 不变）
+- [x] `skills/draw/SKILL.md`：科研绘图纪律（图型规范/配色图例/分辨率字号/何时图何时表/
+  research_draw → research_draw_status → 报告内嵌输出路径；local/api 模型选择说明）
+
+### E · 测试 / 冒烟 / 文档 / 真机验收
+
+- [x] 单测（`node --test "src/**/*.test.ts"`）**253/253 全绿**：`src/draw/*.test.ts` 24（dimensions
+  各比例×分辨率 32 对齐 + 覆盖 + 越界 + api 尺寸回退；paths 时间戳格式；local txt2img/edit
+  全参数断言；api 请求体 / b64_json+url 双响应）+ `plugin-draw.test.ts` 9（mock bin/mock fetch
+  端到端、local/api/回退、持久化往返、history 过滤）+ `plugin-tools.test.ts` 4（draw 工具
+  注册/惰性解析/execute）
+- [x] `scripts/runtime-smoke.mjs` 待同步：services 14→15（researchDraw）、tools（research 15 /
+  paper 10→12 / experiment 10 / engineering 8 / reviewer 8）、draw.config 路由可达、enabled=false
+  无 research_draw、history 路由、trizAuto 面板回归（216→~230）
+- [x] `scripts/pack.sh`：pack 必备条目 + plugin-draw.js + draw/{dimensions,paths,local,api}.js + skills/draw + client bundle
+- [x] `AGENTS.md`（阶段 11 快照）/ `dsh-research/README.md` 口径更新（host 平面 **10 行** /
+  services **15** / bundle 插件 **11**（host 10 = core/triz/triza/triz-ui/triz-auto/draw/
+  director/experiment/writer/operations + preset tools 1）/ tools research **15**、paper **12**、
+  experiment 10、engineering 8、reviewer 8；**无 draw profile、无 preset-draw**）
+- [ ] 真机（用户侧）：research 或 paper 会话右栏「科研绘图」→ local 默认参数 16:9/2K/高画质
+  出一张到 `~/Downloads/outputs/images/image-<ts>.png`；垫图风格/内容各一张；切 api 填
+  baseURL/apiKey/modelId 出一张（按 OpenAI 兼容）；paper 会话 research_paper 流程里
+  research_draw 出一张写入报告；重启会话记录仍在；experiment/engineering/reviewer 无此 tab

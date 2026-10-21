@@ -583,3 +583,62 @@ bundle 插件 = **8 个**（host 7 + preset tools 1）；阶段 8 快照里的 6
 
 用法（用户口径）：`dsh research` 跑 research_autonomous / 任一会话后，右侧栏「TRIZ 发明原理」
 面板即显示本次**最终结果的原理映射行**（`[原理N Name] 理由`）；论文 §6 与幻灯片 5c 同步带映射表。
+
+---
+
+## 阶段 11 · 科研绘图「科研绘图」tab（2026-10-21，✅ 已实现并自测）
+
+需求（用户，2026-10-21 确认）：
+1. **不做独立 preset / profile**（preset-draw 撤销）——绘图只用 **Web 右侧栏「科研绘图」tab**
+   （TRIZ 同机制，两 tab 并列），不新增管理负担。
+2. 侧边栏支持**模型/后端选择**：`local / Qwen-Image-2.1（mflux）`（本机 CLI 调
+   `~/llm/models/Qwen-Image-2.1`，**非驻留**，`mflux-generate-qwen-2.1`）或 `api`（OpenAI 兼容
+   images API，填 baseURL / apiKey（支持 `${VAR}` 环境变量引用）/ modelId）。
+3. `research_draw` / `research_draw_status` 工具只给 **paper**（research_paper 报告配图）；
+   research / experiment / engineering / reviewer 默认不出现；生成记录**随会话持久化**
+   （复用阶段 10 ArtifactStore + persistMemory + 按 sessionId 过滤）。
+
+改动（全部在 `dsh-research/` 自身层，`deepseek-harness/` 零改动）：
+- **`src/plugin-draw.ts`（新，exports `./draw`）**：host 插件 `dsh-research-draw`，提供
+  `researchDraw` 服务（submit / status / list / config）+ 4 条鉴权 route（`POST
+  /api/research.draw.generate`、`GET /api/research.draw.status`、`GET /api/research.draw.config`
+  （enabled=false 仍挂，客户端空渲染）、`GET /api/research.draw.history?sessionId=`）。
+- **`src/draw/{dimensions,paths,local,api}.ts`（新，纯函数）**：比例 10 种（默认 16:9）/ 分辨率
+  **长边** 1K/2K/4K（默认 2K）/ 画质 低20·中30·高50 步（默认 高）/ 输出
+  `<outputRoot>/images/image-YYYYMMDDHHmmSS.png`；local mflux cmd 组装（txt2img/edit 垫图
+  style 0.4 / content 0.7）；api 请求体（`images/generations`、Bearer、b64_json）+ 响应双收 +
+  `${VAR}` 环境变量展开。
+- **双后端 provider + DrawJobManager**：local spawn mflux CLI（并发 1）；api fetch；完成 →
+  输出 path + `sips -Z 1024` 缩略图 base64（无 sips 回落整图）+ 写 artifact（kind=note,
+  title^=`draw: `, meta.sessionId/params/outputPath）+ 会话持久化。
+- **`src/plugin-tools.ts`**：新增 2 个工具 `research_draw`（提交 job + bounded 等待，超时返回
+  jobId 供轮询）+ `research_draw_status`（轮询）。**注册与解析解耦**：`enableDraw: true` 即注册
+  （researchDraw 依赖 connection，preset 组合阶段未必就绪），execute 时经 `ctx.get('researchDraw')`
+  惰性解析、未就绪返回明确错误。仅 preset-paper 开 `enableDraw: true` + 白名单 +2（paper
+  10→**12**）。
+- **client 半边**：`client/draw/{definition,DrawTab,route}.tsx` + `client/index.ts` 两步注册
+  （与 TRIZ tab 同步，kind=draw-studio, order=2）；`scripts/build-client.mjs` → `lib/client.js`
+  （47391 bytes）。面板 = prompt + 后端/模型选择 + api 折叠配置 + 垫图（仅 local）+
+  比例/分辨率/画质分段 + 高级折叠 + 输出目录 + 生成/轮询/预览 + 会话级历史卡片。
+- **`skills/draw/SKILL.md`（新）**：科研绘图纪律（图型规范 / 配色图例 / 分辨率字号 / 何时图何时表 /
+  research_draw → research_draw_status → 报告内嵌输出路径；local/api 模型选择）。
+
+**口径变更（自本阶段起）**：host 平面 = **10 行 / 15 服务**（含 researchTriza / researchDraw；
+triz-ui / triz-auto 不 provide 服务）、bundle 插件 = **11 个**（host 10 = core/triz/triza/
+triz-ui/triz-auto/draw/director/experiment/writer/operations + preset tools 1）、`research_*`
+工具 = **15 全量**（research）、paper **12**（+research_draw/+research_draw_status）、
+experiment 10 / engineering 8 / reviewer 8；**无 draw profile、无 preset-draw**。阶段 8.5 快照
+里的 7 行 / 8 插件、阶段 9 快照里的 14 服务属当时口径。
+
+实测（沙箱，`DSH_HOME=/tmp/dsh-home`）：
+- `node --test "src/**/*.test.ts"` = **253/253 全绿**（src/draw 24 + plugin-draw.test.ts 9 +
+  plugin-tools.test.ts draw 4）。
+- runtime-smoke → **SMOKE PASS**：services **15/15**（含 researchDraw）、tools **15/15**、
+  `paper:OK[12/12] experiment:OK[10/10] engineering:OK[8/8] reviewer:OK[8/8]`、`standard=0`、
+  `draw=true`（双 provider、比例 10、默认 16:9/2K/high、job=…:running）、triz/triza/trizUi/
+  trizAuto/clientGraph 全回归通过。
+
+用法（用户口径）：`dsh research` 或 `dsh --profile paper` 启动 Web UI 后，右侧栏打开
+「科研绘图」tab —— 选 local（默认 Qwen-Image-2.1 mflux）或 api（填 baseURL/apiKey/modelId），
+调比例/分辨率/画质/垫图与输出目录出图到 `~/Downloads/outputs/images/image-<ts>.png`；
+paper 会话里 `research_draw` 随 report 出图、`research_draw_status` 轮询，重启后记录仍在。

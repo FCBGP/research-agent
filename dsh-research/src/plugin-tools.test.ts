@@ -230,3 +230,123 @@ test('plugin-tools: research_verify / research_record 经 ctx.get 装配的 core
   dispose!();
   assert.equal(ctx.registeredTools.length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// 阶段 11 · 科研绘图工具（research_draw / research_draw_status）
+// 规则：enableDraw=true 即注册（注册与解析解耦——researchDraw 依赖 connection，
+// preset 组合阶段可能尚未就绪）；执行时经 ctx.get('researchDraw') 惰性解析，
+// 未就绪返回 phase:failed 明确错误；默认（不传 enableDraw）不注册 draw 工具。
+// ---------------------------------------------------------------------------
+
+/** 假 draw 服务：submit 立即返回已 succeeded 的 job；status 按 id 查。 */
+function fakeDrawService(): Record<string, unknown> {
+  const jobs = new Map<string, unknown>();
+  let seq = 0;
+  const submit = (req: Record<string, unknown>, sessionId?: string) => {
+    seq += 1;
+    const id = `draw-fake-${seq}`;
+    const view = {
+      id,
+      sessionId,
+      phase: 'succeeded' as const,
+      progress: 1,
+      logTail: [],
+      request: req,
+      result: {
+        outputPath: `/o/images/image-2026102100000${seq}.png`,
+        thumbnailBase64: `data:image/png;base64,thumb${seq}`,
+        width: 2048, height: 1152,
+        provider: 'local', model: 'local/Qwen-Image-2.1 (mflux)',
+        mode: 'txt2img', size: '2048x1152', steps: 50, seed: 7,
+      },
+      artifactId: `art-draw-${seq}`,
+    };
+    jobs.set(id, view);
+    return view;
+  };
+  return {
+    submit,
+    status: (id: string) => jobs.get(id),
+    list: () => [...jobs.values()],
+    config: () => ({ enabled: true }),
+  };
+}
+
+function hostServicesWithDraw(): Record<string, unknown> {
+  const services = hostServices();
+  services['researchDraw'] = fakeDrawService();
+  return services;
+}
+
+test('plugin-tools: enableDraw=true + researchDraw 服务在 → 注册 research_draw / research_draw_status', () => {
+  const ctx = makeGuestCtx(hostServicesWithDraw());
+  const dispose = apply(ctx as never, { enableDraw: true });
+
+  const names = registeredNames(ctx).sort();
+  assert.equal(names.length, TOOL_NAMES.length + 2, '15 基础 + 2 draw');
+  assert.ok(names.includes('research_draw'), '应含 research_draw');
+  assert.ok(names.includes('research_draw_status'), '应含 research_draw_status');
+  // 日志原样保留 %d 占位与实参：分母应为 17（15 基础 + 2 draw）
+  assert.ok(ctx.logs.some((l) => l.includes('dsh-research-tools') && l.includes('17')), `注册计数日志=${ctx.logs.join(' | ')}`);
+
+  dispose!();
+  assert.equal(ctx.registeredTools.length, 0, '卸载后 draw 工具注销');
+});
+
+test('plugin-tools: 默认（不传 enableDraw）→ 不注册 research_draw（15 个）', () => {
+  const ctx = makeGuestCtx(hostServicesWithDraw());
+  const dispose = apply(ctx as never, {});
+
+  const names = registeredNames(ctx);
+  assert.equal(names.length, TOOL_NAMES.length, '默认 15 个');
+  assert.ok(!names.includes('research_draw'), '不应注册 research_draw');
+  dispose!();
+});
+
+test('plugin-tools: enableDraw=true 但 researchDraw 服务缺失 → 仍注册 draw 工具，execute 惰性解析失败返回明确错误', async () => {
+  const ctx = makeGuestCtx(hostServices());
+  const dispose = apply(ctx as never, { enableDraw: true });
+
+  const names = registeredNames(ctx);
+  assert.equal(names.length, TOOL_NAMES.length + 2, 'enableDraw=true → 注册 15 基础 + 2 draw（即使服务当时未就绪）');
+  assert.ok(names.includes('research_draw'), '应含 research_draw');
+
+  const defs = ctx.registeredTools as Array<{ name: string; execute(args: Record<string, unknown>): Promise<unknown> }>;
+  const draw = defs.find((d) => d.name === 'research_draw')!;
+  const out = await draw.execute({ prompt: 'BGP 架构图' }) as Record<string, unknown>;
+  assert.equal(out.phase, 'failed');
+  assert.ok(String(out.error).includes('researchDraw 服务未就绪'), `明确错误=${out.error}`);
+  dispose!();
+});
+
+test('plugin-tools: research_draw.execute 对已完结 job 秒回结果（不进入轮询 sleep）+ research_draw_status 轮询', async () => {
+  const ctx = makeGuestCtx(hostServicesWithDraw());
+  const dispose = apply(ctx as never, { enableDraw: true });
+
+  const defs = ctx.registeredTools as Array<{ name: string; execute(args: Record<string, unknown>): Promise<unknown> }>;
+  const draw = defs.find((d) => d.name === 'research_draw')!;
+  const drawStatus = defs.find((d) => d.name === 'research_draw_status')!;
+
+  // research_draw：prompt 必填；提交后已 succeeded → 直接返回完整结果（无轮询等待）
+  const started = Date.now();
+  const out = await draw.execute({ prompt: 'BGP 架构图', provider: 'local', aspect: '16:9', resolution: '2K', quality: 'high', seed: 7 }) as Record<string, unknown>;
+  const elapsed = Date.now() - started;
+  assert.equal(out.jobId, 'draw-fake-1');
+  assert.equal(out.phase, 'succeeded');
+  assert.equal(out.outputPath, '/o/images/image-20261021000001.png');
+  assert.equal(out.provider, 'local');
+  assert.ok(elapsed < 2000, `已完结 job 不应轮询：elapsed=${elapsed}ms`);
+
+  // research_draw_status：查 jobId → 进度/result/artifactId/logTail
+  const st = await drawStatus.execute({ jobId: 'draw-fake-1' }) as Record<string, unknown>;
+  assert.equal(st.phase, 'succeeded');
+  assert.equal(st.artifactId, 'art-draw-1');
+  assert.ok(Array.isArray(st.logTail), 'logTail 数组');
+
+  // 未知名 job → failed
+  const miss = await drawStatus.execute({ jobId: 'nope' }) as Record<string, unknown>;
+  assert.equal(miss.phase, 'failed');
+  assert.equal(miss.error, 'job not found');
+
+  dispose!();
+});

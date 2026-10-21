@@ -43,6 +43,9 @@
           - id: research-tools
             name: '@basil/dsh-research/tools'
             config:
+              # 阶段 11：paper 预设开启科研绘图工具（research_draw / research_draw_status，
+              # host research-draw 插件提供 researchDraw 服务；generate 随会话持久化）。
+              enableDraw: true
               tools:
                 only:
                   - research_search
@@ -55,6 +58,8 @@
                   - research_job
                   - research_schedule
                   - research_reflect
+                  - research_draw
+                  - research_draw_status
           # 3. skill-filesystem — 程序性 skill 根（与 preset-research 同款，bundle skills/，experiment / paper-review）。
           - id: skill-filesystem
             name: '@deepseek-ai/dsh-skill-filesystem'

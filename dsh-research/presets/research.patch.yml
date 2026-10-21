@@ -14,7 +14,7 @@
 #
 # preset-research 挂载内容（按 TODO 阶段 5·A）：
 #   1. persona        —— 研究 agent 身份（域间路由安全科研工作台，直接替换 standard 的编码器 persona）
-#   2. research-tools —— @basil/dsh-research/tools：14 个 research_* 工具只注册到本预设作用域，
+#   2. research-tools —— @basil/dsh-research/tools：15 个 research_* 工具只注册到本预设作用域，
 #                        不再 host 全局注册（消除 always-on 污染：standard 会话看不到 research_*）
 #   3. skill-filesystem —— customSkillDirs → node_modules/@basil/dsh-research/skills
 #                        （与 cordis preset 同款 createRequire(baseUrl) 解析；部署后路径为
@@ -60,7 +60,7 @@
                 authoritative surface for TRIZ. Do NOT append any TRIZ section or
                 发明原理映射 to your answer text: keep replies free of TRIZ boilerplate.
 
-          # 2. research-tools — 14 个 research_* 工具（含 research_triz）只出现在 research 预设会话的工具目录。
+          # 2. research-tools — 15 个 research_* 工具（含 research_triz / research_triza）只出现在 research 预设会话的工具目录。
           - id: research-tools
             name: '@basil/dsh-research/tools'
           # 3. skill-filesystem — 程序性 skill 根：bundle 自带 skills/ 目录（experiment / paper-review）。

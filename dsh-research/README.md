@@ -102,11 +102,12 @@
 
 | 文件 | 平面 | 内容 |
 |---|---|---|
-| `cordis.patch.yml` | host | 8 行：`research-core`（裸包名 `@basil/dsh-research`）/ `research-triz` / `research-triz-ui` / `research-triz-auto` / `research-director` / `research-experiment` / `research-writer` / `research-operations`（行序 = 依赖顺序；阶段 8.5 加 `research-triz-ui`、阶段 8.7 加 `research-triz-auto`；**首行必须用裸包名**——client-modules 只识别裸包名/两段 scope，子路径无法发现 `dsh.client`，右侧栏面板因此「看不到」） |
+| `cordis.patch.yml` | host | 10 行：`research-core`（裸包名 `@basil/dsh-research`）/ `research-triz` / `research-triza` / `research-triz-ui` / `research-triz-auto` / `research-draw` / `research-director` / `research-experiment` / `research-writer` / `research-operations`（行序 = 依赖顺序；阶段 8.5 加 `research-triz-ui`、阶段 8.7 加 `research-triz-auto`、阶段 9 加 `research-triza`、阶段 11 加 `research-draw`；**首行必须用裸包名**——client-modules 只识别裸包名/两段 scope，子路径无法发现 `dsh.client`，右侧栏面板因此「看不到」） |
 | `presets/research.patch.yml` | preset | `preset-research`（`@deepseek-ai/dsh-agent-preset`，id=research, order=2）：persona + research-tools + skill-filesystem + tool-skill + standard 基础工具集 |
 
-**9 个插件**（包 `exports` 显式子路径 `./core` `./triz` `./triz-ui` `./triz-auto` `./director`
-`./experiment` `./writer` `./operations` `./tools`；另有浏览器半边 `./client`，见阶段 8.5）：
+**10 个插件**（包 `exports` 显式子路径 `./core` `./triz` `./triza` `./triz-ui` `./triz-auto`
+`./draw` `./director` `./experiment` `./writer` `./operations` `./tools`；另有浏览器半边
+`./client`，见阶段 8.5）：
 
 | 插件 | 入口 | 平面 | 提供 |
 |---|---|---|---|
@@ -114,11 +115,12 @@
 | `dsh-research-triz` | `src/plugin-triz.ts` | host | `researchTriz`（TRIZ 知识基 + 矛盾分析 / IFR / 假说生成） |
 | `dsh-research-triz-ui` | `src/plugin-triz-ui.ts` | host | 右侧栏「TRIZ 发明原理」面板数据源：`connection.fetch` 挂 `/api/research.triz.notes`（只读，不注册工具） |
 | `dsh-research-triz-auto` | `src/plugin-triz-auto.ts` | host | **每个最终回答自动映射到 TRIZ**：订阅 `session/event`（user/message→assistant/message→turn/end），`mapResult` 写 `triz: ` note artifact + episodic → 右侧栏面板自动更新（不注册工具，不 provide 服务） |
+| `dsh-research-draw` | `src/plugin-draw.ts` | host | `researchDraw`（科研绘图：local mflux CLI / api OpenAI 兼容双后端；4 条 /api/research.draw.* route；2 个 research_draw 工具的 host 后端） |
 | `dsh-research-director` | `src/plugin-director.ts` | host | `researchDirector`（DAG 调度） |
 | `dsh-research-experiment` | `src/plugin-experiment.ts` | host | `researchExperiment`（自动实验战役） |
 | `dsh-research-writer` | `src/plugin-writer.ts` | host | `researchWriter`（论文 / 幻灯片） |
 | `dsh-research-operations` | `src/plugin-operations.ts` | host | `researchPolicy` / `researchAutonomous` / `researchJobs` / `researchScheduler` / `researchSelfImprove` / `researchSubagents` |
-| `dsh-research-tools` | `src/plugin-tools.ts` | **preset** | 14 个 `research_*` 工具（research 会话作用域） |
+| `dsh-research-tools` | `src/plugin-tools.ts` | **preset** | 15 个 `research_*` 工具（research 会话作用域）；`enableDraw: true` 的 preset（paper）额外 2 个 `research_draw` / `research_draw_status` |
 
 - `package.json` `main` / `.` 指向 `src/plugin-core.ts`；`src/plugin.ts` 降级为纯 re-export
   （保留历史模块路径不中断，不再承载实现）。
@@ -135,21 +137,23 @@
 
 ### 运行时插件（阶段 5 · 6 插件分片，Cordis 形态）— ✅ 已端到端挂载实测
 
-- 原 `src/plugin.ts` 巨型插件已拆为 9 个职责单一插件（服务名 / 工具 schema 语义零变化；
+- 原 `src/plugin.ts` 巨型插件已拆为 11 个职责单一插件（服务名 / 工具 schema 语义零变化；
   阶段 8 起新增 `dsh-research-triz`、阶段 8.5 起新增 `dsh-research-triz-ui`、阶段 8.7 起新增
-  `dsh-research-triz-auto`），挂载分两个平面：
-  - **host 平面**（`cordis.patch.yml` 8 行，行序 = 依赖顺序）提供 13 个服务
-    （`research-triz-ui` / `research-triz-auto` 不 provide 服务：前者只挂右栏面板数据源 route，
-    后者只订阅 session/event 自动写 TRIZ note）——
-    `researchCore` / `researchMemory` / `researchAgents`（core）；`researchTriz`（triz）；`researchDirector`（director）；
+  `dsh-research-triz-auto`、阶段 9 起新增 `dsh-research-triza`、阶段 11 起新增
+  `dsh-research-draw`），挂载分两个平面：
+  - **host 平面**（`cordis.patch.yml` 10 行，行序 = 依赖顺序）提供 15 个服务
+    （`research-triz-ui` / `research-triz-auto` 只挂右栏面板数据源 route / 订阅自动写 TRIZ note，
+    不 provide 服务）——
+    `researchCore` / `researchMemory` / `researchAgents`（core）；`researchTriz`（triz）；
+    `researchTriza`（triza）；`researchDraw`（draw）；`researchDirector`（director）；
     `researchExperiment`（experiment）；`researchWriter`（writer）；`researchPolicy` /
     `researchAutonomous` / `researchJobs` / `researchScheduler` / `researchSelfImprove` /
     `researchSubagents`（operations）
   - **preset 平面**（`presets/research.patch.yml` 的 research-tools 子行，`inject ['tools']`）
-    在会话作用域注册 14 个 `research_*` 工具 —— `research_verify` / `research_record` /
+    在会话作用域注册 15 个 `research_*` 工具 —— `research_verify` / `research_record` /
     `research_search` / `research_review` / `research_experiment` / `research_campaign` /
     `research_paper` / `research_slides` / `research_autonomous` / `research_policy` /
-    `research_job` / `research_schedule` / `research_reflect` / `research_triz`
+    `research_job` / `research_schedule` / `research_reflect` / `research_triz` / `research_triza`
 - 依赖生命周期挂在 fiber effect 上：profile 卸载即回收
 - 行 `config`（`tools.enabled` 开关、`memory.dir` 持久化等）经 bundle patch
   （`cordis.patch.yml`）进入组合树，profile overlay 可整行覆盖
@@ -163,8 +167,9 @@ DSH_HOME=/tmp/dsh-home ./scripts/deploy-profile.sh
 # 2) 组合树含 research-* 7 行 + preset-research（无旧 dsh-research-core 行）
 DSH_HOME=/tmp/dsh-home dsh --profile research --dump-config | grep -E "research-(core|triz|triz-ui|director|experiment|writer|operations)|preset-research"
 
-# 3) 运行时冒烟：13 服务（host，含 researchTriz）/ 14 工具（research 会话作用域，standard=0）/
-#    BGP claim→verify / campaign / policy / autonomous / job / schedule / reflect / subagents / triz
+# 3) 运行时冒烟：15 服务（host，含 researchTriz / researchTriza / researchDraw）/ 15 工具
+#    （research 会话作用域，standard=0）/ BGP claim→verify / campaign / policy / autonomous /
+#    job / schedule / reflect / subagents / triz / triza / draw
 DSH_HOME=/tmp/dsh-home node scripts/runtime-smoke.mjs   # → SMOKE PASS
 #    端口被占用时：SMOKE_PORT=<空闲端口> node scripts/runtime-smoke.mjs
 ```
@@ -183,11 +188,12 @@ DSH_HOME=/tmp/dsh-home node scripts/runtime-smoke.mjs   # → SMOKE PASS
   （角色专用 agent 身份）+ research-tools（`config.tools.only` 白名单裁剪）+ skill-filesystem +
   tool-skill + standard 基础工具集（与 `research.patch.yml` 同一块，改时五处同步）。
 - **工具裁剪语义（`config.tools.only`）**：`src/plugin-tools.ts` 的 `register()` 闭包
-  只注册白名单内的 `research_*` 工具；白名单 = `undefined`/空数组 → 全量 14 个
+  只注册白名单内的 `research_*` 工具；白名单 = `undefined`/空数组 → 全量 15 个
   （preset-research 不设 only → 行为与阶段 5 完全一致）。角色白名单：
-  - `paper`（10）：search / record / verify / paper / slides / autonomous / policy / job / schedule / reflect
+  - `paper`（12）：search / record / verify / paper / slides / autonomous / policy / job / schedule /
+    reflect / **draw** / **draw_status**（阶段 11 起，enableDraw=true；paper 报告配图）
   - `experiment`（10）：search / record / verify / experiment / campaign / autonomous / policy / job / schedule / reflect
-  - `engineering`（7）：record / verify / **triz** / policy / job / schedule / reflect
+  - `engineering`（8）：record / verify / **triz** / **triza** / policy / job / schedule / reflect
   - `reviewer`（8）：search / record / verify / review / policy / job / schedule / reflect
 - **Profile 模板**：`profiles/{paper,experiment,engineering,reviewer}/` 各含 `package.json`
   （base + web 前端 + `@basil/dsh-research`）+ `cordis.patch.yml`（从 `profiles/research/`
@@ -201,7 +207,7 @@ DSH_HOME=/tmp/dsh-home node scripts/runtime-smoke.mjs   # → SMOKE PASS
 - 5 个 profile `--dump-config` 各出现其默认 preset 行（`preset-{research,paper,experiment,
   engineering,reviewer}`）+ 对应 `agent-preset-registry.config.default`。
 - runtime-smoke → **SMOKE PASS**，新增角色断言 `roles=true`：
-  `paper:OK[10/10] experiment:OK[10/10] engineering:OK[7/7] reviewer:OK[8/8]`
+  `paper:OK[12/12] experiment:OK[10/10] engineering:OK[8/8] reviewer:OK[8/8]`
   （组成 inventory 存在 + 未 broken + research-tools enabled；对应会话工具目录里
   `research_*` 恰好 = 白名单）。
 
@@ -435,10 +441,12 @@ patch 栈，冒烟时断言 `policy rules: 12`（L1）与 `chain defaults-only c
   `claimId/fingerprint/contract/typedPlans/decision（promotion/admissible/gateFailures/
   certification/fi/relativeGainPct/…）/traceSummary/artifactId`；`record` 默认写 artifact
   （`kind=note, title^='triza: '`）+ episodic（`kind=triza`）。
-- **host 平面清单**（阶段 9 起）：`cordis.patch.yml` host 平面 = **7 行**（core / triz / **triza** /
-  triz-ui / triz-auto / director / experiment / writer / operations）；bundle 插件 = **8 个**
-  （host 6 原 + preset tools 1 + **triza 新 host 1**）；`research_*` 工具 = **15 全量**（research）、
-  engineering 白名单 = **8**（+research_triza）；paper/experiment/reviewer 白名单不变（10/10/8）。
+- **host 平面清单**（阶段 11 起）：`cordis.patch.yml` host 平面 = **10 行**（core / triz / triza /
+  triz-ui / triz-auto / **draw** / director / experiment / writer / operations）；bundle 插件 =
+  **11 个**（host 10 + preset tools 1）； services 15（含 researchTriza / researchDraw）；
+  `research_*` 工具 = **15 全量**（research）、paper 白名单 = **12**（+research_draw /
+  research_draw_status）、engineering 白名单 = **8**（+research_triza）；experiment/reviewer
+  不变（10/8）。
 - **分层**：TRIZa = 方法论 / 程序性能力 → 服务 + skill（`skills/triz/SKILL.md` 增加闭环环节），
   不是领域知识（领域知识仍走 vocabulary.ts + WeKnora / docs）。
 
@@ -450,13 +458,62 @@ patch 栈，冒烟时断言 `policy rules: 12`（L1）与 `chain defaults-only c
   engineering **8/8**（白名单 +research_triza）、`triza=true`（evaluate 返回 64 位协议指纹 +
   promote 决策 + 追溯包 ≥3 文件）。
 
+
+### 阶段 11 · 科研绘图「科研绘图」tab（2026-10-21：右侧栏面板 + research_draw 工具，✅ 已实现并自测）
+
+> 需求（用户，三条已确认）：① **不做独立 preset/profile**（撤销 preset-draw）——绘图只在
+> Web 右侧栏以 **「科研绘图」tab** 提供（与 TRIZ 面板同机制，两 tab 并列，不新增管理负担）；
+> ② 侧边栏支持**模型/后端选择**：`local / Qwen-Image-2.1（mflux）`（本机 CLI 调
+> `~/llm/models/Qwen-Image-2.1`，**非驻留**，mflux-generate-qwen-2.1）或 `api`（OpenAI 兼容
+> images API，侧边栏填 baseURL / apiKey（支持 `${VAR}` 环境变量引用）/ modelId）；
+> ③ `research_draw` / `research_draw_status` 工具只给 **paper**（报告配图），research /
+> experiment / engineering / reviewer 默认不出现；生成记录**随会话持久化**。
+
+- **host 插件** `src/plugin-draw.ts`（exports `./draw`，inject `['connection']`，host 平面第 6 行
+  `cordis.patch.yml`）：提供 `researchDraw` 服务（submit / status / list / config）+ 4 条鉴权
+  route —— `POST /api/research.draw.generate`（provider+参数+垫图 base64 → `{jobId}`）、
+  `GET /api/research.draw.status?jobId=`、`GET /api/research.draw.config`（enabled=false 仍挂，
+  客户端空渲染）、`GET /api/research.draw.history?sessionId=`（重启后按会话列历史）。
+- **双后端 provider**：`local` spawn 本机 mflux CLI（Qwen-Image-2.1，非驻留、并发 1、支持垫图
+  edit style 0.4 / content 0.7）；`api` POST `{baseURL}/images/generations`（Bearer、
+  b64_json|url 双收；任意比例先发精确 WxH、失败回退最近标准尺寸，sizePolicy 开关）。
+- **参数口径**（`src/draw/dimensions.ts` / `paths.ts` / `local.ts` / `api.ts`，纯函数 + 单测）：
+  比例 10 种（默认 16:9）；分辨率**长边** 1K/2K/4K（默认 2K）；画质 低20/中30/高50 步（默认 高）；
+  输出 `<outputRoot>/images/image-YYYYMMDDHHmmSS.png`（默认 outputRoot `~/Downloads/outputs`，
+  固定追加 `images/` 子目录，本地时区、同秒序号）。
+- **完成回调**：输出 path + macOS `sips -Z 1024` 缩略图 base64（无 sips 回落整图）+ 写 artifact
+  （kind=note, title^=`draw: `, meta.sessionId/params/outputPath）+ 会话持久化（复用阶段 10
+  ArtifactStore + persistMemory + 按 sessionId 过滤）。
+- **浏览器半边** `client/draw/{definition,DrawTab,route}.tsx` + `client/index.ts` 两步注册
+  （与 TRIZ tab 同步；kind=draw-studio, id=@basil/dsh-research-draw-studio, order=2），
+  `scripts/build-client.mjs` 产出 `lib/client.js`（47391 bytes）。面板 = prompt + 后端/模型选择 +
+  api 折叠配置 + 垫图（仅 local）+ 比例/分辨率/画质分段 + 高级折叠 + 输出目录 + 生成/轮询/预览 +
+  会话级历史卡片。
+- **agent 工具**（`src/plugin-tools.ts`）：`research_draw`（提交 job + bounded 等待，超时返回
+  jobId 供轮询）+ `research_draw_status`（轮询 phase/progress/result/logTail）。**注册与解析
+  解耦**：`enableDraw: true` 即注册（researchDraw 依赖 connection，preset 组合阶段未必就绪），
+  execute 时经 `ctx.get('researchDraw')` 惰性解析、未就绪返回明确错误。仅 preset-paper 开
+  `enableDraw: true` + 白名单 +2（paper **10→12**；research 15 / experiment 10 / engineering 8 /
+  reviewer 8 不变）。
+- **skill** `skills/draw/SKILL.md`：科研绘图纪律（图型规范 / 配色图例 / 分辨率字号 / 何时图何时表 /
+  research_draw → research_draw_status → 报告内嵌输出路径；local/api 模型选择）。
+
+**验证（沙箱，`DSH_HOME=/tmp/dsh-home`）：**
+- 单测 **253/253 全绿**（基线 216 + `src/draw/*.test.ts` 24 + `plugin-draw.test.ts` 9 +
+  `plugin-tools.test.ts` draw 4）。
+- runtime-smoke → **SMOKE PASS**：services **15/15**（含 researchDraw）、tools **15/15**、
+  `paper:OK[12/12] experiment:OK[10/10] engineering:OK[8/8] reviewer:OK[8/8]`、
+  `draw=true`（双 provider、比例 10、默认 16:9/2K/high、job 可提交）。
+- **无 draw profile、无 preset-draw**（用户决策，不新增管理负担）。
+
+
 ## npm 打包与一键部署（2026-10-09：TODO「一键部署」✅）
 
 
 
 
 `@basil/dsh-research` 是**可 npm 安装的 bundle 包**：`package.json` 声明了
-`dsh.bundle.patch`（3 片 bundle patch）与 8 个插件子路径 `exports`（+ 浏览器 `./client`）；用
+`dsh.bundle.patch`（3 片 bundle patch）与 11 个插件子路径 `exports`（+ 浏览器 `./client`）；用
 `dsh plugin --profile <name> add` 安装后是 `node_modules` 下的**真实拷贝**，可被 dsh
 运行时直接 import。**与 `deploy-profile.sh` 是两条互补路径，不存在替代关系**：
 
@@ -538,11 +595,11 @@ node --test "src/**/*.test.ts"   # core + memory + agents + triz + director + pl
 - `src/real-subagent/` — 阶段 4c real subagent：web 会话 seam / persona / 本地回退 / RealSubagentAgent
 - `src/autonomous/` — 阶段 4 一键科研流水线
 - `src/jobs/` `src/scheduler/` `src/self-improve/` — 阶段 4 长任务 / 周期调度 / 自省改进
-- `src/plugin-{core,triz,director,experiment,writer,operations}.ts` — 阶段 5/8 host 平面 6 插件入口
-  （阶段 8 新增 `src/plugin-triz.ts`）
-- `src/plugin-tools.ts` / `src/plugin-tools.test.ts` — 阶段 5 preset 平面插件：14 个
+- `src/plugin-{core,triz,triza,triz-ui,triz-auto,draw,director,experiment,writer,operations}.ts`
+  — 阶段 5/8/9/11 host 平面 10 插件入口（核心源码清单，非网络依赖）
+- `src/plugin-tools.ts` / `src/plugin-tools.test.ts` — 阶段 5 preset 平面插件：15 个
   `research_*` 工具（research 会话作用域，含 `research_triz`）；`src/plugin.test.ts` — 插件自检（内存假 ctx）
-- `src/plugin.ts` — 兼容 re-export（不再承载实现；`main` / `exports` 指向 7 插件分片）
+- `src/plugin.ts` — 兼容 re-export（不再承载实现；`main` / `exports` 指向 11 插件分片）
 - `scripts/build-client.mjs` — 用 esbuild 把 `client/`（TS/TSX）打成右侧栏面板浏览器 bundle → `lib/client.js`（ModuleLoader wrapper；`$ESBUILD_BIN` / 本地 esbuild / CLI 三级兜底）
 - `scripts/pack.sh` — 一键打包 `@basil/dsh-research` 为**可 boot** 的 npm tarball（单测 → `build.mjs` 构建 staging → npm pack → 产物校验；`VERIFY_INSTALL=1` 时再用 `dsh plugin add` 安装 + boot 验证）
 - `scripts/build.mjs` — 为发行包构建 staging：`src/*.ts` 类型剥离（`node:module.stripTypeScriptTypes`，零依赖）+ 相对 import `.ts→.js` + 改写 staging `package.json`（`main`/`exports` 指向 `.js`）

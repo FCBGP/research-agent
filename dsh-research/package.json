@@ -84,6 +84,10 @@
       "types": "./src/plugin-tools.ts",
       "default": "./src/plugin-tools.ts"
     },
+    "./draw": {
+      "types": "./src/plugin-draw.ts",
+      "default": "./src/plugin-draw.ts"
+    },
     "./client": {
       "default": "./lib/client.js"
     },

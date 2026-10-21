@@ -1,4 +1,5 @@
-// @basil/dsh-research/tools — preset 平面插件：15 个 research_* 工具（阶段 5·B2 + 阶段 8·TRIZ + 阶段 9·TRIZa）。
+// @basil/dsh-research/tools — preset 平面插件：15 个基础 research_* 工具（阶段 5·B2 + 阶段 8·TRIZ + 阶段 9·TRIZa）
+//   + 阶段 11 科研绘图 2 个（research_draw / research_draw_status，仅 enableDraw: true 的 preset 注册）。
 //
 // 阶段 5 把 research_* 工具从 host 全局层（原 src/plugin.ts 的 registerTools）移到
 // preset 作用域：本插件作为 preset-research 的 research-tools 子行挂载
@@ -29,6 +30,7 @@ import type { RealSubagentAgent } from './real-subagent/index.ts';
 import type { ResearchExperimentService } from './plugin-experiment.ts';
 import type { ResearchTrizService } from './triz/index.ts';
 import type { ResearchTrizaService } from './triza/index.ts';
+import type { ResearchDrawService } from './plugin-draw.ts';
 import { DOMAIN_KEYWORDS } from './domain/index.ts';
 import type { ResearchDomain } from './plugin-core.ts';
 
@@ -84,6 +86,8 @@ export interface ResearchRuntimeService {
   subagents: RealSubagentAgent;
   triz: ResearchTrizService;
   triza: ResearchTrizaService;
+  /** 科研绘图服务（research_draw 的 host 后端；research-draw 插件提供，可选）。 */
+  draw?: ResearchDrawService;
 }
 
 export interface PluginToolsConfig {
@@ -92,11 +96,15 @@ export interface PluginToolsConfig {
     /** 角色预设裁剪：only 提供白名单时只注册列出的 research_* 工具名（缺省 = 全部 15 个）。 */
     only?: string[];
   };
+  /** 是否注册 research_draw / research_draw_status（科研绘图 agent 工具；仅 paper 预设
+   *  enableDraw: true 开启；research/experiment/engineering/reviewer 默认不注册）。 */
+  enableDraw?: boolean;
 }
 
 /**
  * preset 平面 apply：消费 host 平面 5 插件提供的服务（ctx.get(researchCore/…)），
- * 装配 runtime 聚合，再注册 15 个 research_* 工具（含 research_triz / research_triza）。返回 disposer（卸载时注销工具）。
+ * 装配 runtime 聚合，再注册 15 个基础 research_* 工具（含 research_triz / research_triza；
+ * 若 enableDraw=true 且 researchDraw 服务在，追加 research_draw / research_draw_status）。返回 disposer（卸载时注销工具）。
  */
 export function apply(ctx: Context, config: PluginToolsConfig = {}): (() => void) | undefined {
   if (config.tools?.enabled === false) {
@@ -118,6 +126,7 @@ export function apply(ctx: Context, config: PluginToolsConfig = {}): (() => void
   const subagents = ctx.get('researchSubagents') as RealSubagentAgent | undefined;
   const triz = ctx.get('researchTriz') as ResearchTrizService | undefined;
   const triza = ctx.get('researchTriza') as ResearchTrizaService | undefined;
+  const draw = ctx.get('researchDraw') as ResearchDrawService | undefined;
 
   if (!researchCore || !memory || !agents || !director || !experiment || !writer ||
       !policy || !autonomous || !jobs || !scheduler || !selfImprove || !subagents || !triz || !triza) {
@@ -129,7 +138,12 @@ export function apply(ctx: Context, config: PluginToolsConfig = {}): (() => void
     memory, agents, director, experiment, writer, policy, autonomous,
     jobs, scheduler, selfImprove, subagents, triz, triza,
   };
-  return registerTools(ctx, researchCore, runtime, config?.tools?.only);
+  // research-draw 依赖 connection（web 基座），在 preset 组合阶段可能尚未提供
+  // （实测：其余 host 服务就绪、仅 researchDraw 缺席）。故注册与解析解耦——
+  // 只要 enableDraw=true 即注册 research_draw / research_draw_status，服务在
+  // execute 时才经 ctx.get('researchDraw') 惰性解析（就绪即用，未就绪返回明确错误）。
+  const enableDraw = config?.enableDraw === true;
+  return registerTools(ctx, researchCore, runtime, config?.tools?.only, enableDraw, () => ctx.get('researchDraw') as ResearchDrawService | undefined);
 }
 
 interface ToolRegistrar {
@@ -141,6 +155,8 @@ function registerTools(
   researchCore: ResearchCoreService,
   runtime: ResearchRuntimeService,
   only?: string[],
+  enableDraw = false,
+  getDraw?: () => ResearchDrawService | undefined,
 ): (() => void) | undefined {
   const tools = (ctx as Context & { tools?: ToolRegistrar }).tools;
   if (!tools) {
@@ -950,9 +966,141 @@ function scheduleView(schedule: ScheduleSpec): { id: string; topic: string; enab
     artifacts?: string[];
   }
 
+
+  // 科研绘图 agent 工具（阶段 11）——仅 enableDraw=true 的 preset 注册（paper）。
+  // research_draw：提交 job + bounded 等待（输出完成或超时返回 jobId 供轮询）；
+  // research_draw_status：按 jobId 轮询进度/结果（process 工具后续可组合）。
+  if (enableDraw) {
+    register({
+      name: 'research_draw',
+      description: '科研绘图（科研绘图面板的 agent 侧）：提交一张图片生成任务并等待完成（bounded 等待，超时返回 jobId 供 research_draw_status 轮询）。后端双模式：local = 本机 mflux CLI 调 Qwen-Image-2.1（非驻留、并发 1，支持 1 张垫图 edit）；api = OpenAI 兼容 images API。生成随会话持久化。',
+      parameters: {
+        type: 'object',
+        properties: {
+          prompt: { type: 'string', description: '绘图提示词（科研绘图风格；可英文/中文，建议给出图型、元素、配色、风格与用途' },
+          provider: { type: 'string', enum: ['local', 'api'], description: '后端：local（本机 Qwen-Image-2.1）或 api（OpenAI 兼容）' },
+          mode: { type: 'string', enum: ['txt2img', 'edit'], description: '生成模式；edit（垫图 1 张）v1 仅 local' },
+          aspect: { type: 'string', enum: ['16:9', '21:10', '21:9', '16:10', '4:3', '3:2', '1:1', '2:3', '3:4', '9:16'], description: '比例（默认 16:9）' },
+          resolution: { type: 'string', enum: ['1K', '2K', '4K'], description: '分辨率（长边，默认 2K）' },
+          quality: { type: 'string', enum: ['low', 'medium', 'high'], description: '画质（低20/中30/高50 步，默认 高）' },
+          steps: { type: 'number', description: '推理步数覆盖（默认由画质档决定）' },
+          seed: { type: 'number', description: '随机种子（默认 42；local 可复现）' },
+          width: { type: 'number', description: '宽覆盖（local 32 对齐；缺省由比例×分辨率算）' },
+          height: { type: 'number', description: '高覆盖' },
+          negativePrompt: { type: 'string', description: '负向提示（可选）' },
+          outputDir: { type: 'string', description: '输出根目录（默认 ~/Downloads/outputs；固定再追加 images/ 子目录）' },
+          apiBaseURL: { type: 'string', description: 'api 模式：OpenAI 兼容 baseURL' },
+          apiKey: { type: 'string', description: 'api 模式：API key（支持 ${VAR} 环境变量引用）' },
+          apiModel: { type: 'string', description: 'api 模式：模型 id' },
+          imageData: { type: 'string', description: 'edit 模式：参考图 base64（1 张；仅 local）' },
+          imageName: { type: 'string', description: 'edit 模式：参考图文件名（仅做扩展名判断）' },
+          editPreset: { type: 'string', enum: ['style', 'content'], description: 'edit 参考语义：风格 0.4 / 内容 0.7' },
+        },
+        required: ['prompt'],
+        additionalProperties: false,
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: {
+            jobId: { type: 'string' },
+            phase: { type: 'string' },
+            outputPath: { type: 'string' },
+            thumbnailBase64: { type: 'string', description: '缩略图 data URL（长 JOB 缩略；可内嵌报告预览）' },
+            width: { type: 'number' }, height: { type: 'number' },
+            size: { type: 'string' }, steps: { type: 'number' }, seed: { type: 'number' },
+            provider: { type: 'string' }, model: { type: 'string' },
+            artifactId: { type: 'string' },
+          },
+          required: ['jobId', 'phase'],
+          additionalProperties: true,
+        },
+        render: (_a, v) => [{ type: 'text', text: JSON.stringify({
+          jobId: v.jobId, phase: v.phase, outputPath: v.outputPath, size: v.size, steps: v.steps, seed: v.seed,
+          provider: v.provider, model: v.model, width: v.width, height: v.height, artifactId: v.artifactId,
+        }, null, 2) }],
+      },
+      async execute(args: Record<string, unknown>) {
+        const draw = getDraw ? getDraw() : runtime.draw;
+        if (!draw) {
+          return { jobId: '', phase: 'failed', error: 'researchDraw 服务未就绪（research-draw 插件未挂载或 connection 未就绪）。' };
+        }
+        const job = draw.submit({
+          prompt: String(args.prompt ?? '').slice(0, 4000),
+          provider: args.provider === 'api' ? 'api' : 'local',
+          mode: args.mode === 'edit' ? 'edit' : 'txt2img',
+          aspect: typeof args.aspect === 'string' ? args.aspect : undefined,
+          resolution: typeof args.resolution === 'string' ? args.resolution : undefined,
+          quality: typeof args.quality === 'string' ? args.quality : undefined,
+          steps: typeof args.steps === 'number' ? args.steps : undefined,
+          seed: typeof args.seed === 'number' ? Math.floor(args.seed) : undefined,
+          width: typeof args.width === 'number' ? args.width : undefined,
+          height: typeof args.height === 'number' ? args.height : undefined,
+          negativePrompt: typeof args.negativePrompt === 'string' ? args.negativePrompt : undefined,
+          outputDir: typeof args.outputDir === 'string' ? args.outputDir : undefined,
+          apiBaseURL: typeof args.apiBaseURL === 'string' ? args.apiBaseURL : undefined,
+          apiKey: typeof args.apiKey === 'string' ? args.apiKey : undefined,
+          apiModel: typeof args.apiModel === 'string' ? args.apiModel : undefined,
+          imageData: typeof args.imageData === 'string' ? args.imageData : undefined,
+          imageName: typeof args.imageName === 'string' ? args.imageName : undefined,
+          editPreset: args.editPreset === 'content' || args.editPreset === 'style' ? args.editPreset : undefined,
+        });
+        // bounded 等待：最多 2.5s 轮询一次，15s 内若完成即返回结果；否则交给调用方轮询。
+        const deadline = Date.now() + 15000;
+        let view = job;
+        while (view.phase === 'queued' || view.phase === 'running') {
+          if (Date.now() > deadline) break;
+          await new Promise((r) => setTimeout(r, 2500));
+          const d2 = getDraw ? getDraw() : runtime.draw;
+          view = d2 ? d2.status(job.id) : view;
+        }
+        if (view.phase === 'succeeded' && view.result) {
+          const r = view.result;
+          return {
+            jobId: view.id, phase: view.phase, outputPath: r.outputPath, thumbnailBase64: r.thumbnailBase64,
+            width: r.width, height: r.height, size: r.size, steps: r.steps, seed: r.seed,
+            provider: r.provider, model: r.model, artifactId: view.artifactId,
+          };
+        }
+        return { jobId: view.id, phase: view.phase, error: view.error };
+      },
+    });
+
+    register({
+      name: 'research_draw_status',
+      description: '科研绘图状态轮询：按 jobId 查 research_draw 提交的任务，返回进度/结果/日志尾部（供长任务在报告配图流程里轮询）。',
+      parameters: {
+        type: 'object',
+        properties: { jobId: { type: 'string', description: 'research_draw / research_draw_status 返回的 job id' } },
+        required: ['jobId'],
+        additionalProperties: false,
+      },
+      output: {
+        schema: {
+          type: 'object',
+          properties: { jobId: { type: 'string' }, phase: { type: 'string' }, progress: { type: 'number' }, error: { type: 'string' }, outputPath: { type: 'string' }, artifactId: { type: 'string' }, logTail: { type: 'array', items: { type: 'string' } } },
+          required: ['jobId', 'phase'],
+          additionalProperties: true,
+        },
+        render: (_a, v) => [{ type: 'text', text: JSON.stringify(v, null, 2) }],
+      },
+      async execute(args: Record<string, unknown>) {
+        const draw = getDraw ? getDraw() : runtime.draw;
+        const jobId = String(args.jobId ?? '');
+        if (!draw) return { jobId, phase: 'failed', error: 'researchDraw 服务未就绪（research-draw 插件未挂载或 connection 未就绪）。' };
+        const view = draw.status(jobId);
+        if (!view) return { jobId, phase: 'failed', error: 'job not found' };
+        return {
+          jobId: view.id, phase: view.phase, progress: view.progress, error: view.error,
+          outputPath: view.result?.outputPath, artifactId: view.artifactId, logTail: view.logTail,
+        };
+      },
+    });
+  }
+
   ctx.logger?.(name).info(
     '%s: registered %d/%d research tools%s',
-    name, disposers.length, allow ? allow.size : 15, allow ? ` (tools.only=${[...allow].join(',')})` : '',
+    name, disposers.length, allow ? allow.size : (15 + (enableDraw ? 2 : 0)), allow ? ` (tools.only=${[...allow].join(',')})` : '',
   );
   // 显式返回 disposer：cordis registry.plugin() 在卸载本插件时统一调用。
   return () => {
