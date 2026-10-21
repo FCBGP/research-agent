@@ -8,6 +8,7 @@ var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __export = (target, all) => {
   for (var name2 in all)
     __defProp(target, name2, { get: all[name2], enumerable: true });
@@ -21,6 +22,7 @@ var __copyProps = (to, from, except, desc) => {
   return to;
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
 // client/index.ts
 var index_exports = {};
@@ -300,10 +302,12 @@ var DRAW_GENERATE_PATH = "/api/research.draw.generate";
 var DRAW_STATUS_PATH = "/api/research.draw.status";
 var DRAW_CONFIG_PATH = "/api/research.draw.config";
 var DRAW_HISTORY_PATH = "/api/research.draw.history";
+var DRAW_DEBUG_PATH = "/api/research.draw.debug";
 var DRAW_GENERATE_ROUTE = DRAW_GENERATE_PATH.slice(1);
 var DRAW_STATUS_ROUTE = DRAW_STATUS_PATH.slice(1);
 var DRAW_CONFIG_ROUTE = DRAW_CONFIG_PATH.slice(1);
 var DRAW_HISTORY_ROUTE = DRAW_HISTORY_PATH.slice(1);
+var DRAW_DEBUG_ROUTE = DRAW_DEBUG_PATH.slice(1);
 function drawUrl(route, sessionId, extra) {
   const params = new URLSearchParams();
   if (sessionId) params.set("sessionId", sessionId);
@@ -324,6 +328,9 @@ function drawConfigUrl() {
 }
 function drawHistoryUrl(sessionId) {
   return drawUrl(DRAW_HISTORY_ROUTE, sessionId);
+}
+function drawDebugUrl() {
+  return DRAW_DEBUG_ROUTE;
 }
 function fallbackDrawConfig() {
   return {
@@ -454,6 +461,64 @@ function parseDrawHistory(value) {
 
 // client/draw/DrawTab.tsx
 var import_jsx_runtime2 = require("react/jsx-runtime");
+function postDebug(level, msg, meta) {
+  try {
+    void fetch(drawDebugUrl(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        level,
+        msg,
+        meta: meta === void 0 ? void 0 : typeof meta === "string" ? meta : JSON.stringify(meta)
+      })
+    });
+  } catch {
+  }
+}
+function formatDate(value) {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value || "\u2014" : d.toLocaleString();
+}
+if (typeof window !== "undefined" && !window.__dshDrawDebugInstalled) {
+  ;
+  window.__dshDrawDebugInstalled = true;
+  window.addEventListener("error", (e) => {
+    const msg = `[uncaught] ${String(e.message ?? "")} @ ${String(e.filename ?? "")}:${e.lineno ?? ""}:${e.colno ?? ""}`;
+    postDebug("error", msg);
+    console.error("[dsh-research-draw]", msg);
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const r = e.reason;
+    const msg = `[unhandledrejection] ${r instanceof Error ? r.stack ?? r.message : String(r)}`;
+    postDebug("error", msg);
+    console.error("[dsh-research-draw]", msg);
+  });
+}
+var DrawErrorBoundary = class extends import_react2.Component {
+  constructor() {
+    super(...arguments);
+    __publicField(this, "state", { error: null });
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error) {
+    postDebug("error", `[tab-render] ${error.message}
+${error.stack ?? ""}`);
+    console.error("[dsh-research-draw] tab render error:", error);
+  }
+  render() {
+    if (this.state.error) {
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { padding: 12, color: "#dc2626", fontSize: 12, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: { fontWeight: 600, margin: "0 0 6px" }, children: "\u79D1\u7814\u7ED8\u56FE\u9762\u677F\u6E32\u67D3\u51FA\u9519\uFF08\u5DF2\u4E0A\u62A5 CLI/\u7EC8\u7AEF\uFF09" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { style: { whiteSpace: "pre-wrap", wordBreak: "break-all", margin: 0, fontSize: 11 }, children: String(this.state.error.stack ?? this.state.error) }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: { marginTop: 8 }, onClick: () => this.setState({ error: null }), children: "\u91CD\u8BD5" })
+      ] });
+    }
+    return this.props.children;
+  }
+};
+var MAX_POLL_RETRY = 6;
 var styles2 = {
   root: {
     boxSizing: "border-box",
@@ -599,6 +664,7 @@ function DrawTab(props) {
         if (cfg2.api.baseURL) setApiBaseURL(cfg2.api.baseURL);
         if (cfg2.api.modelId) setApiModel(cfg2.api.modelId);
       } catch {
+        postDebug("error", "[config] \u62C9\u53D6\u79D1\u7814\u7ED8\u56FE\u914D\u7F6E\u5931\u8D25/\u6570\u636E\u6E90\u4E0D\u53EF\u7528");
         if (alive) setCfgState({ phase: "error" });
       }
     })();
@@ -615,6 +681,7 @@ function DrawTab(props) {
         if (!res.ok) return;
         setHistory(parseDrawHistory(await res.json()));
       } catch {
+        postDebug("error", "[history] \u62C9\u53D6\u7ED8\u56FE\u5386\u53F2\u5931\u8D25\uFF08\u9759\u9ED8\uFF09");
       }
     })();
   };
@@ -623,29 +690,48 @@ function DrawTab(props) {
   }, [sessionId]);
   const poll = (jobId) => {
     runningRef.current = { jobId };
+    let retryCount = 0;
     const tick = async () => {
       if (runningRef.current?.jobId !== jobId) return;
       try {
         const res = await fetch(drawStatusUrl(jobId));
         if (!res.ok) return;
-        const view = parseDrawJob(await res.json());
-        if (!view || runningRef.current?.jobId !== jobId) return;
+        const raw = await res.json();
+        const view = parseDrawJob(raw);
+        if (!view || runningRef.current?.jobId !== jobId) {
+          const msg = typeof raw?.error === "string" && raw.error ? raw.error : "job \u72B6\u6001\u89E3\u6790\u5931\u8D25";
+          runningRef.current = null;
+          postDebug("error", `[status] job=${jobId} ${msg}`);
+          setRun({ phase: "failed", error: msg, logTail: [] });
+          return;
+        }
         if (view.phase === "succeeded" && view.result) {
           runningRef.current = null;
+          postDebug("log", `[done] job=${jobId} \u2192 ${view.result.outputPath}`);
           setRun({ phase: "done", result: view.result, artifactId: view.artifactId });
           loadHistory();
           return;
         }
         if (view.phase === "failed") {
           runningRef.current = null;
+          postDebug("error", `[failed] job=${jobId} ${view.error ?? "\u751F\u6210\u5931\u8D25"}`);
           setRun({ phase: "failed", error: view.error ?? "\u751F\u6210\u5931\u8D25", logTail: view.logTail });
           return;
         }
         if (view.phase === "queued" || view.phase === "running") {
+          retryCount = 0;
           setRun({ phase: "running", jobId, progress: view.progress, logTail: view.logTail });
           pollTimer.current = window.setTimeout(() => void tick(), 2500);
         }
-      } catch {
+      } catch (err) {
+        retryCount += 1;
+        if (retryCount > MAX_POLL_RETRY) {
+          runningRef.current = null;
+          const msg = `\u8F6E\u8BE2\u5931\u8D25 ${retryCount} \u6B21\uFF1A${String(err?.message ?? err)}`;
+          postDebug("error", `[status] job=${jobId} ${msg}`);
+          setRun({ phase: "failed", error: msg, logTail: [] });
+          return;
+        }
         if (runningRef.current?.jobId === jobId) pollTimer.current = window.setTimeout(() => void tick(), 3e3);
       }
     };
@@ -684,6 +770,7 @@ function DrawTab(props) {
       body.editStrength = editStrength;
     }
     setRun({ phase: "submitting" });
+    postDebug("log", `[generate] \u63D0\u4EA4 provider=${provider} mode=${mode} ${aspect}/${resolution}/${quality} session=${sessionId ?? "\u2205"}`);
     void (async () => {
       try {
         const res = await fetch(drawGenerateUrl(sessionId), {
@@ -693,12 +780,16 @@ function DrawTab(props) {
         });
         const json = await res.json();
         if (!res.ok || !json.jobId) {
-          setRun({ phase: "failed", error: json.error ?? `\u63D0\u4EA4\u5931\u8D25 (${res.status})`, logTail: [] });
+          const msg = json.error ?? `\u63D0\u4EA4\u5931\u8D25 (${res.status})`;
+          postDebug("error", `[generate] \u63D0\u4EA4\u88AB\u62D2\uFF1A${msg}`);
+          setRun({ phase: "failed", error: msg, logTail: [] });
           return;
         }
+        postDebug("log", `[generate] \u5DF2\u53D7\u7406 job=${json.jobId}`);
         setRun({ phase: "running", jobId: json.jobId });
         poll(json.jobId);
       } catch (err) {
+        postDebug("error", `[generate] \u7F51\u7EDC/\u89E3\u6790\u5F02\u5E38: ${String(err?.message ?? err)}`);
         setRun({ phase: "failed", error: String(err?.message ?? err), logTail: [] });
       }
     })();
@@ -715,7 +806,7 @@ function DrawTab(props) {
   };
   const cfg = cfgState.phase === "ready" ? cfgState.cfg : void 0;
   const useEdit = mode === "edit" && provider === "local";
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: styles2.root, children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(DrawErrorBoundary, { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: styles2.root, children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.header, children: "\u79D1\u7814\u7ED8\u56FE" }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: styles2.hint, children: [
       "\u751F\u6210/\u7F16\u8F91\u79D1\u7814\u914D\u56FE\uFF1AQwen-Image-2.1\uFF08\u672C\u673A mflux\uFF0C\u975E\u9A7B\u7559\uFF09\u6216 OpenAI \u517C\u5BB9 API\u3002 \u8F93\u51FA\u56FA\u5B9A\u5230 ",
@@ -875,12 +966,12 @@ function DrawTab(props) {
             h.size ?? "",
             h.model ? ` \xB7 ${h.model}` : "",
             " \xB7 ",
-            new Date(h.createdAt).toLocaleString()
+            formatDate(h.createdAt)
           ] })
         ] }, h.artifactId))
       ] })
     ] })
-  ] });
+  ] }) });
 }
 
 // client/index.ts

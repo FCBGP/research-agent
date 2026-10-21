@@ -13,12 +13,14 @@ export const DRAW_GENERATE_PATH = '/api/research.draw.generate'
 export const DRAW_STATUS_PATH = '/api/research.draw.status'
 export const DRAW_CONFIG_PATH = '/api/research.draw.config'
 export const DRAW_HISTORY_PATH = '/api/research.draw.history'
+export const DRAW_DEBUG_PATH = '/api/research.draw.debug'
 
 /** 浏览器侧 document-relative 形式（与 ui-deliverables 的 CHANGED_FILES_ROUTE 同款约定）。 */
 export const DRAW_GENERATE_ROUTE = DRAW_GENERATE_PATH.slice(1)
 export const DRAW_STATUS_ROUTE = DRAW_STATUS_PATH.slice(1)
 export const DRAW_CONFIG_ROUTE = DRAW_CONFIG_PATH.slice(1)
 export const DRAW_HISTORY_ROUTE = DRAW_HISTORY_PATH.slice(1)
+export const DRAW_DEBUG_ROUTE = DRAW_DEBUG_PATH.slice(1)
 
 /** 会话维度：传入 sessionId 时 URL 带上（history / generate 记录按会话过滤/注解）。 */
 export function drawUrl(route: string, sessionId?: string, extra?: Record<string, string>): string {
@@ -40,6 +42,9 @@ export function drawConfigUrl(): string {
 }
 export function drawHistoryUrl(sessionId?: string): string {
   return drawUrl(DRAW_HISTORY_ROUTE, sessionId)
+}
+export function drawDebugUrl(): string {
+  return DRAW_DEBUG_ROUTE
 }
 
 // ---------------------------------------------------------------------------

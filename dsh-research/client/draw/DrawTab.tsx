@@ -10,11 +10,11 @@
  * 数据经 host connection 鉴权栅栏提供，浏览器端用相对路径 fetch（同源 cookie 认证）。
  * 本组件有意零额外运行时依赖：只用 react（useState/useEffect/useRef + JSX），样式走内联。
  */
-import { useEffect, useRef, useState } from 'react'
+import { Component, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  drawConfigUrl, drawGenerateUrl, drawHistoryUrl, drawStatusUrl,
+  drawConfigUrl, drawDebugUrl, drawGenerateUrl, drawHistoryUrl, drawStatusUrl,
   parseDrawConfig, parseDrawHistory, parseDrawJob,
   type DrawConfigView,
 } from './route.ts'
@@ -35,6 +35,76 @@ type RunState =
   | { phase: 'done'; result: import('./route.ts').DrawResultView; artifactId?: string }
   | { phase: 'failed'; error: string; logTail: string[] }
 
+
+// ---------------------------------------------------------------------------
+// 白屏可见性（2026-10-21 用户反馈「点生成后白屏、不知道发生什么」）
+//   1. postDebug() —— 浏览器端任何步骤/错误转发到后端 /api/research.draw.debug，
+//      由 host 打印到 `dsh research` 终端 → CLI 可见；
+//   2. 全局 error / unhandledrejection 兜底 —— 未捕获异常也上报 CLI；
+//   3. DrawErrorBoundary —— 面板渲染抛错不白屏，就地显示错误 + 上报 CLI；
+//   4. 日期格式化兜底 —— 无效日期不抛 RangeError（防渲染崩溃）。
+// 极端兜底：白屏若仍复现，终端会看到 [dsh-research-draw] 开头的具体错误行。
+// ---------------------------------------------------------------------------
+
+function postDebug(level: 'log' | 'warn' | 'error', msg: string, meta?: unknown): void {
+  try {
+    void fetch(drawDebugUrl(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        level,
+        msg,
+        meta: meta === undefined ? undefined : (typeof meta === 'string' ? meta : JSON.stringify(meta)),
+      }),
+    })
+  } catch { /* 上报失败静默，不影响面板 */ }
+}
+
+function formatDate(value: string): string {
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? (value || '—') : d.toLocaleString()
+}
+
+// 全局兜底：浏览器里任何未捕获异常/未处理 rejection → 转发 CLI（只装一次）。
+if (typeof window !== 'undefined' && !(window as { __dshDrawDebugInstalled?: boolean }).__dshDrawDebugInstalled) {
+  ;(window as { __dshDrawDebugInstalled?: boolean }).__dshDrawDebugInstalled = true
+  window.addEventListener('error', (e) => {
+    const msg = `[uncaught] ${String(e.message ?? '')} @ ${String(e.filename ?? '')}:${e.lineno ?? ''}:${e.colno ?? ''}`
+    postDebug('error', msg)
+    console.error('[dsh-research-draw]', msg)
+  })
+  window.addEventListener('unhandledrejection', (e) => {
+    const r = e.reason as unknown
+    const msg = `[unhandledrejection] ${r instanceof Error ? (r.stack ?? r.message) : String(r)}`
+    postDebug('error', msg)
+    console.error('[dsh-research-draw]', msg)
+  })
+}
+
+/** 面板级错误边界：渲染抛错不白屏，就地显示错误并上报 CLI。 */
+class DrawErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null }
+  static getDerivedStateFromError(error: Error): { error: Error } { return { error } }
+  componentDidCatch(error: Error): void {
+    postDebug('error', `[tab-render] ${error.message}\n${error.stack ?? ''}`)
+    console.error('[dsh-research-draw] tab render error:', error)
+  }
+  render(): ReactNode {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 12, color: '#dc2626', fontSize: 12, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+          <p style={{ fontWeight: 600, margin: '0 0 6px' }}>科研绘图面板渲染出错（已上报 CLI/终端）</p>
+          <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0, fontSize: 11 }}>{String(this.state.error.stack ?? this.state.error)}</pre>
+          <button type="button" style={{ marginTop: 8 }} onClick={() => this.setState({ error: null })}>重试</button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+/** 轮询最大连续网络失败次数（防「生成中…」永久卡死）。 */
+const MAX_POLL_RETRY = 6
 const styles = {
   root: {
     boxSizing: 'border-box' as const,
@@ -202,6 +272,7 @@ export function DrawTab(props: DrawTabProps): ReactNode {
         if (cfg.api.baseURL) setApiBaseURL(cfg.api.baseURL)
         if (cfg.api.modelId) setApiModel(cfg.api.modelId)
       } catch {
+        postDebug('error', '[config] 拉取科研绘图配置失败/数据源不可用')
         if (alive) setCfgState({ phase: 'error' })
       }
     })()
@@ -219,38 +290,58 @@ export function DrawTab(props: DrawTabProps): ReactNode {
         const res = await fetch(drawHistoryUrl(sessionId))
         if (!res.ok) return
         setHistory(parseDrawHistory(await res.json()))
-      } catch { /* 历史拉取失败静默 */ }
+      } catch { postDebug('error', '[history] 拉取绘图历史失败（静默）') }
     })()
   }
   useEffect(() => { loadHistory() }, [sessionId])
 
-  // 轮询直到完成/失败
+  // 轮询直到完成/失败（含白屏/卡死防御：状态不可解析或连续失败判失败，不上报 CLI 的每个 tick）
   const poll = (jobId: string): void => {
     runningRef.current = { jobId }
+    let retryCount = 0
     const tick = async (): Promise<void> => {
       if (runningRef.current?.jobId !== jobId) return
       try {
         const res = await fetch(drawStatusUrl(jobId))
         if (!res.ok) return
-        const view = parseDrawJob(await res.json())
-        if (!view || runningRef.current?.jobId !== jobId) return
+        const raw = (await res.json()) as Record<string, unknown>
+        const view = parseDrawJob(raw)
+        if (!view || runningRef.current?.jobId !== jobId) {
+          // 状态不可解析（如 job not found / 非预期 JSON）：不再无限轮询，直接判失败
+          const msg = typeof raw?.error === 'string' && raw.error ? raw.error : 'job 状态解析失败'
+          runningRef.current = null
+          postDebug('error', `[status] job=${jobId} ${msg}`)
+          setRun({ phase: 'failed', error: msg, logTail: [] })
+          return
+        }
         if (view.phase === 'succeeded' && view.result) {
           runningRef.current = null
+          postDebug('log', `[done] job=${jobId} → ${view.result.outputPath}`)
           setRun({ phase: 'done', result: view.result, artifactId: view.artifactId })
           loadHistory()
           return
         }
         if (view.phase === 'failed') {
           runningRef.current = null
+          postDebug('error', `[failed] job=${jobId} ${view.error ?? '生成失败'}`)
           setRun({ phase: 'failed', error: view.error ?? '生成失败', logTail: view.logTail })
           return
         }
         if (view.phase === 'queued' || view.phase === 'running') {
+          retryCount = 0
           setRun({ phase: 'running', jobId, progress: view.progress, logTail: view.logTail })
           pollTimer.current = window.setTimeout(() => void tick(), 2500)
         }
-      } catch {
-        // 拉取失败：短暂重试
+      } catch (err) {
+        // 拉取失败：短暂重试（连续失败超上限判失败，防永久卡死）
+        retryCount += 1
+        if (retryCount > MAX_POLL_RETRY) {
+          runningRef.current = null
+          const msg = `轮询失败 ${retryCount} 次：${String((err as Error)?.message ?? err)}`
+          postDebug('error', `[status] job=${jobId} ${msg}`)
+          setRun({ phase: 'failed', error: msg, logTail: [] })
+          return
+        }
         if (runningRef.current?.jobId === jobId) pollTimer.current = window.setTimeout(() => void tick(), 3000)
       }
     }
@@ -291,6 +382,7 @@ export function DrawTab(props: DrawTabProps): ReactNode {
       body.editStrength = editStrength
     }
     setRun({ phase: 'submitting' })
+    postDebug('log', `[generate] 提交 provider=${provider} mode=${mode} ${aspect}/${resolution}/${quality} session=${sessionId ?? '∅'}`)
     void (async () => {
       try {
         const res = await fetch(drawGenerateUrl(sessionId), {
@@ -300,12 +392,16 @@ export function DrawTab(props: DrawTabProps): ReactNode {
         })
         const json = (await res.json()) as { jobId?: string; error?: string; phase?: string }
         if (!res.ok || !json.jobId) {
-          setRun({ phase: 'failed', error: json.error ?? `提交失败 (${res.status})`, logTail: [] })
+          const msg = json.error ?? `提交失败 (${res.status})`
+          postDebug('error', `[generate] 提交被拒：${msg}`)
+          setRun({ phase: 'failed', error: msg, logTail: [] })
           return
         }
+        postDebug('log', `[generate] 已受理 job=${json.jobId}`)
         setRun({ phase: 'running', jobId: json.jobId })
         poll(json.jobId)
       } catch (err) {
+        postDebug('error', `[generate] 网络/解析异常: ${String((err as Error)?.message ?? err)}`)
         setRun({ phase: 'failed', error: String((err as Error)?.message ?? err), logTail: [] })
       }
     })()
@@ -326,6 +422,7 @@ export function DrawTab(props: DrawTabProps): ReactNode {
   const useEdit = mode === 'edit' && provider === 'local'
 
   return (
+    <DrawErrorBoundary>
     <div style={styles.root}>
       <p style={styles.header}>科研绘图</p>
       <p style={styles.hint}>
@@ -514,12 +611,13 @@ export function DrawTab(props: DrawTabProps): ReactNode {
               <section key={h.artifactId} style={styles.card}>
                 <p style={styles.mono}>{h.title}</p>
                 {h.outputPath && <p style={styles.mono}>{h.outputPath}</p>}
-                <p style={styles.hint}>{h.size ?? ''}{h.model ? ` · ${h.model}` : ''} · {new Date(h.createdAt).toLocaleString()}</p>
+                <p style={styles.hint}>{h.size ?? ''}{h.model ? ` · ${h.model}` : ''} · {formatDate(h.createdAt)}</p>
               </section>
             ))}
           </div>
         </>
       )}
     </div>
+    </DrawErrorBoundary>
   )
 }

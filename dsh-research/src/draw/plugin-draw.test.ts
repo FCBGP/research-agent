@@ -300,3 +300,58 @@ test('draw/plugin: collectDrawHistory 按 sessionId 过滤 + isDrawArtifact / dr
   const raw = artifacts.get(onlyA[0].artifactId)!;
   assert.ok(isDrawArtifact(raw), 'isDrawArtifact 判定');
 });
+
+// ---------------------------------------------------------------------------
+// apply() 路由挂载 —— 白屏可见性（2026-10-21）：
+//   5 条路由（含 DR1 恒挂 debug 上报路由）都注册；debug route 收到浏览器端
+//   error 上报时打印到 `dsh research` 终端（CLI 可见，白屏也能看到原因）。
+// ---------------------------------------------------------------------------
+import { apply, DRAW_CONFIG_PATH, DRAW_DEBUG_PATH, DRAW_GENERATE_PATH, DRAW_HISTORY_PATH, DRAW_STATUS_PATH } from '../plugin-draw.ts';
+
+test('draw/plugin: apply() 挂 5 条路由 + debug 上报路由把客户端错误打到 CLI', async () => {
+  const routes: Array<{ path: string; methods?: string[]; fetch: (r: Request) => Promise<Response> }> = [];
+  const provided = new Map<string, unknown>();
+  const ctx = {
+    get: (n: string) => provided.get(n),
+    provide: (n: string, v: unknown) => { provided.set(n, v); },
+    logger: () => ({ info() {}, warn() {} }),
+    connection: { fetch: { register: (r: { path: string; methods?: string[]; fetch: (req: Request) => Promise<Response> }) => { routes.push(r); return () => {}; } } },
+  };
+  const disposer = apply(ctx as never, { enabled: true });
+  try {
+    const paths = routes.map((r) => r.path);
+    for (const p of [DRAW_CONFIG_PATH, DRAW_DEBUG_PATH, DRAW_GENERATE_PATH, DRAW_STATUS_PATH, DRAW_HISTORY_PATH]) {
+      assert.ok(paths.includes(p), `路由已注册: ${p}`);
+    }
+    // service 提供
+    assert.ok(provided.has('researchDraw'), 'researchDraw 服务已 provide');
+
+    // debug 上报 → CLI 打印
+    const debugRoute = routes.find((r) => r.path === DRAW_DEBUG_PATH)!;
+    const errs: string[] = [];
+    const origErr = console.error;
+    console.error = (...a: unknown[]) => { errs.push(a.map(String).join(' ')); };
+    let body: { ok?: boolean };
+    try {
+      const res = await debugRoute.fetch(new Request(`http://x${DRAW_DEBUG_PATH}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level: 'error', msg: 'tab boom', meta: 'stack line' }),
+      }));
+      body = await res.json() as { ok?: boolean };
+    } finally {
+      console.error = origErr;
+    }
+    assert.equal(body.ok, true, 'debug route 返回 {ok:true}');
+    assert.ok(errs.length >= 1, 'console.error 被调用');
+    assert.match(errs[0], /\[dsh-research-draw\]/);
+    assert.ok(errs[0].includes('tab boom'), `CLI 含客户端错误内容: ${errs[0]}`);
+
+    // config route GET 可用
+    const cfgRoute = routes.find((r) => r.path === DRAW_CONFIG_PATH)!;
+    const cfg = await (await cfgRoute.fetch(new Request(`http://x${DRAW_CONFIG_PATH}`, { method: 'GET' }))).json() as { enabled?: boolean };
+    assert.equal(cfg.enabled, true);
+  } finally {
+    disposer?.();
+  }
+});

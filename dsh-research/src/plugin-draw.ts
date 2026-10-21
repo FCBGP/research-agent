@@ -45,6 +45,29 @@ export const DRAW_GENERATE_PATH = '/api/research.draw.generate';
 export const DRAW_STATUS_PATH = '/api/research.draw.status';
 export const DRAW_CONFIG_PATH = '/api/research.draw.config';
 export const DRAW_HISTORY_PATH = '/api/research.draw.history';
+/** 客户端→CLI 报错/步骤上送（浏览器端白屏/异常也能在 `dsh research` 终端看到）。 */
+export const DRAW_DEBUG_PATH = '/api/research.draw.debug';
+
+// ---------------------------------------------------------------------------
+// CLI 可见日志：`dsh research` 跑在终端里，白屏/失败也能在命令行看到发生了什么。
+// 2026-10-21 用户反馈「点生成后白屏、不知道发生什么」→ 补全部 draw 事件到 stdout。
+// ---------------------------------------------------------------------------
+const LOG_TAG = '[dsh-research-draw]';
+function cliLog(...parts: unknown[]): void {
+  // eslint-disable-next-line no-console
+  console.log(LOG_TAG, ...parts);
+}
+function cliWarn(...parts: unknown[]): void {
+  // eslint-disable-next-line no-console
+  console.warn(LOG_TAG, ...parts);
+}
+function cliError(...parts: unknown[]): void {
+  // eslint-disable-next-line no-console
+  console.error(LOG_TAG, ...parts);
+}
+function safeString(value: unknown): string {
+  try { return JSON.stringify(value ?? null); } catch { return String(value); }
+}
 
 /** 需要 host 服务：connection（route 注册）；researchCore/researchMemory 经 ctx.get 惰性读取。 */
 export const inject = ['connection'];
@@ -269,6 +292,8 @@ export class DrawJobManager {
     };
     this.jobs.set(id, job);
     this.queue.push(id);
+    cliLog('submit job=', id, 'provider=', request.provider ?? 'local', 'mode=', request.mode ?? 'txt2img',
+      'prompt=', JSON.stringify((request.prompt ?? '').slice(0, 60)), 'session=', sessionId ?? '∅');
     if (!this.running && !this.disposed) {
       this.running = true;
       void this.serve();
@@ -327,6 +352,7 @@ export class DrawJobManager {
         job.phase = 'failed';
         job.error = String((err as Error)?.message ?? err);
         this.appendLog(job, `[error] ${job.error}`);
+        cliError('job=', id, '[failed]', job.error);
       } finally {
         if (!this.recent.includes(id)) {
           this.recent.push(id);
@@ -358,6 +384,8 @@ export class DrawJobManager {
     const outputRoot = request.outputDir ?? config.outputRoot ?? defaultLocalConfig().outputRoot!;
     const outputPath = drawOutputPath(outputRoot);
     this.appendLog(job, `[size] ${size.width}x${size.height} (${aspect}, ${resolution}, quality=${quality}, steps=${steps}, seed=${seed})`);
+    cliLog('job=', job.id, '[start]', provider, 'mode=', request.mode ?? 'txt2img',
+      `${size.width}x${size.height}`, `steps=${steps}`, `seed=${seed}`, 'session=', job.sessionId ?? '∅', '→', outputPath);
     if (request.sizePolicy !== 'standard-only' && provider === 'api') {
       this.appendLog(job, `[size] api 兜底档=${size.apiFallback}（${size.apiSize} 失败时回退）`);
     }
@@ -382,6 +410,7 @@ export class DrawJobManager {
     job.progress = 1;
     job.phase = 'succeeded';
     this.appendLog(job, `[done] ${result.outputPath} ${result.width}x${result.height}`);
+    cliLog('job=', job.id, '[done]', result.outputPath, `${result.width}x${result.height}`, 'provider=', result.provider, 'steps=', result.steps);
 
     // 记录 artifact + 情景记忆 + 会话持久化（复用阶段 10）
     if (core?.artifacts) {
@@ -759,7 +788,29 @@ export function apply(ctx: Context, config: DrawPluginConfig = {}): (() => void)
     path: DRAW_CONFIG_PATH,
     methods: ['GET'],
     requestBody: 'buffered',
-    fetch: () => Promise.resolve(Response.json(manager.config(), { headers: { 'cache-control': 'no-store' } })),
+    fetch: () => {
+      cliLog('GET config');
+      return Promise.resolve(Response.json(manager.config(), { headers: { 'cache-control': 'no-store' } }));
+    },
+  }) as unknown as () => void);
+  // 客户端→CLI 上报路由（恒挂）：浏览器端 error/unhandledrejection/面板错误 → 打印到终端
+  disposers.push(ctx.connection.fetch.register({
+    path: DRAW_DEBUG_PATH,
+    methods: ['POST'],
+    requestBody: 'buffered',
+    fetch: (request: Request) => Promise.resolve((async () => {
+      let payload: { level?: string; msg?: string; meta?: unknown } = {};
+      try {
+        const text = await request.text();
+        payload = JSON.parse(text || '{}') as { level?: string; msg?: string; meta?: unknown };
+      } catch { /* 非法 body 忽略 */ }
+      const level = payload.level === 'error' ? 'error' : payload.level === 'warn' ? 'warn' : 'log';
+      const line = `${payload.msg ?? ''}${payload.meta !== undefined ? ` ${safeString(payload.meta)}` : ''}`;
+      if (level === 'error') cliError('[client]', line);
+      else if (level === 'warn') cliWarn('[client]', line);
+      else cliLog('[client]', line);
+      return Response.json({ ok: true }, { headers: { 'cache-control': 'no-store' } });
+    })()),
   }) as unknown as () => void);
   if (enabled) {
     disposers.push(ctx.connection.fetch.register({
