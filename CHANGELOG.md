@@ -8,6 +8,43 @@
 
 ---
 
+## 2026-10-21 · 科研绘图「科研绘图」tab + research_draw 工具（阶段 11，提交 `b01be2e`）
+
+需求（用户）：dsh research 增加科研绘图。确认后的方案 = **不设独立 preset / profile**
+（preset-draw 撤销）——只做**右侧栏「科研绘图」tab**（与 TRIZ 同机制、两 tab 并列，不新增
+管理负担）；后续可换模型；生成记录随会话持久化；研究报告配图也走 research_draw
+（research_paper 流程内嵌）。
+
+- **关键产物**：
+  - `src/plugin-draw.ts`（exports `./draw`）—— `DrawProvider` 双后端 + `DrawJobManager`
+    （内存 job 表、并发上限 1、disposer 终止）+ 4 条鉴权 route
+    （`POST /api/research.draw.generate` / `status?jobId=` / `config` / `history?sessionId=`）
+    + macOS `sips -Z 1024` 缩略图 + artifact/memory 会话持久化。
+  - `src/draw/{dimensions,paths,local,api}.ts` —— 纯函数：比例 10 种（默认 16:9）× 分辨率
+    长边 1K/2K/4K（默认 2K）× 画质 低20/中30/高50 步（默认高）、32 倍数对齐 + OpenAI 标准
+    尺寸兜底表；`<outputRoot>/images/image-YYYYMMDDHHmmSS.png` 固定命名；mflux txt2img/edit
+    cmd 组装；api 请求体（`images/generations`、Bearer、b64_json|url 双收）+ `${VAR}` 展开。
+  - `src/plugin-tools.ts` —— `research_draw` / `research_draw_status` 两工具，仅
+    `enableDraw:true` 的 preset 注册（preset-paper：白名单 +2 → **12 个**）；research 保持
+    15、experiment 10 / engineering 8 / reviewer 8 不变。
+  - `client/draw/{definition,route,DrawTab}.tsx` —— 右栏「科研绘图」tab（后端/模型选择 +
+    api 折叠配置 + 垫图仅 local + 比例/分辨率/画质分段 + 输出目录 + 生成/轮询/预览 +
+    会话级历史卡片）；`lib/client.js` 重建 47391 B。
+  - `skills/draw/SKILL.md` —— 科研绘图纪律；`cordis.patch.yml` host 平面 9→**10 行**。
+- **根因修复**：plugin-tools 原先在 preset 组合阶段 `ctx.get('researchDraw')` 时服务未就绪
+  （research-draw 依赖 connection，web 基座 boot 晚于 preset 组合）→ 即使 enableDraw=true
+  也不注册 draw 工具。改为**注册与解析解耦**：enableDraw=true 即注册，execute 时惰性解析，
+  未就绪返回 `phase:'failed', error:'researchDraw 服务未就绪…'`。
+- **行为变更**：paper 会话才有 research_draw 工具；research/experiment/engineering/reviewer
+  默认无；tab 经 `research-draw config.enabled:false` 一行可关；已存在部署**需重跑
+  deploy-profile.sh 并重启 `dsh research`** 生效。
+
+实测：`node --test "src/**/*.test.ts"` = **253/253 全绿**（基线 216 + draw 24 + plugin-draw 9
++ plugin-tools 4）。runtime-smoke → **SMOKE PASS**（services 15 / tools research 15、paper
+12 / experiment 10 / engineering 8 / reviewer 8 / roles / draw=true；local/api providers、
+aspects=10、defaults 16:9/2K/high）。真机验收（用户侧）留在 TODO「在研 · 科研绘图」节。
+提交号 `b01be2e`。
+
 ## 2026-10-19 · 域间路由意图合并调研报告（提交 `ab85631`）
 
 需求（用户）：把 `docs/domain-intent-survey.md` + `docs/域间路由意图-调研与TRIZ机制方向.md` 与
