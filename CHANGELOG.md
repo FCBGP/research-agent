@@ -1,3 +1,27 @@
+## 2026-10-21 · 科研绘图：会话筛选 + 大图回读 + 侧边栏/TRIZ 滚动修复（提交 5c68452）
+
+需求（用户，2026-10-21）：① 绘图的会话历史要能**选中 / 清除 / 在 dsh 内查看生成图片**；
+② 本地图片文件被移除后提示删除或重新生成；③ 侧边栏与 TRIZ 面板**内容不可滚动**（越界不可见）——修复。
+
+- **会话筛选与历史管理（用户 A–C）**：`DrawTab.tsx` 新增会话筛选下拉（当前会话 / 全部会话 /
+  具体会话）；完成卡 + 历史卡直接回读 **原图**（`drawImageUrl(outputPath)`，不再只看缩略图），
+  点击缩略图或「查看大图」按钮开**全屏遮罩**查看生成图；「清除历史」按当前筛选目标会话执行；
+  生成/删除/清空后刷新会话聚合。fileExists=false 的「删除记录 / 重新生成」提示保留（用户需求）。
+- **host**（`src/plugin-draw.ts`，route 6→**8 条**）：新增 `GET /api/research.draw.sessions`
+  （`collectDrawSessions` 聚合全会话 `{sessionId,count,lastAt}` 降序，无会话记录归
+  `__no_session__` 分组）+ `GET /api/research.draw.image?path=<abs>`
+  （`readDrawImage` 回读本地图片：`~` 展开 / 扩展名校验 / 非法 URL 编码容错 / 400·404·415 语义）。
+  两个 collect/read 抽象成纯函数便于单测；route 常量导出与 client 同名对齐。
+- **滚动修复（根因）**：host CSS `.P3OORG_tabBody{height:100%;overflow:hidden}` —— tab 根节点若
+  非滚动容器越界内容不可见。`DrawTab.tsx` 与 `TrizTab.tsx` 的 `styles.root` 统一补
+  `flex:'1 1 auto' + minHeight:0 + overflowY:auto`（后续新增 tab 照此模式）。
+- **客户端 bundle**：`lib/client.js` 重跑 `scripts/build-client.mjs` 重建（64597 B）。
+- **部署**：重跑 `./dsh-research/scripts/deploy-profile.sh` 后**硬刷新浏览器**（Cmd+Shift+R，
+  旧白屏可能是缓存的旧 lib/client.js；若仍白屏，CLI 会打 `[dsh-research-draw] [client]` 栈）。
+- 测试：`node --test "src/**/*.test.ts"` = **260/260 全绿**（257 基线 + collectDrawSessions 聚合 /
+  SESSIONS+IMAGE 路由端到端（200 png / 400 缺参 / 415 非图 / 404 缺失）/ readDrawImage 纯函数 3 例）；
+  apply() 路由测试 6→8。
+
 ## 2026-10-21 · 科研绘图：白屏根因修复 + 历史管理（删除/预览/缺失提示）
 
 ### fix(dsh-research): 科研绘图白屏根因修复 + 历史管理（本回合）

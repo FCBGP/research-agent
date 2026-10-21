@@ -386,6 +386,14 @@
   `dsh research` 终端（前缀 `[dsh-research-draw]`）；DrawErrorBoundary 就地错误卡 + 重试；formatDate
   兜底防渲染崩溃；MAX_POLL_RETRY=6 轮询防永久卡死；5 条 route 挂载 + CLI 打印由 plugin-draw.test 新增
   的 apply() 路由测试锁定（254/254 全绿）。
+- [x] 会话筛选 + 大图回读 + 侧边栏/TRIZ 滚动修复（2026-10-21 用户反馈「还是白屏」+ 三需求，5c68452）：
+  host `src/plugin-draw.ts` 新增 `GET /api/research.draw.sessions`（`collectDrawSessions` 会话聚合
+  `{sessionId,count,lastAt}` 降序，无会话归 `__no_session__`）+ `GET /api/research.draw.image?path=`
+  （`readDrawImage` 回读本地图片：`~` 展开/扩展名校验/URL 编码容错/400·404·415）；DrawTab 会话筛选
+  下拉（当前/全部/具体会话）+ 「清除历史」按筛选目标 + 完成卡/历史卡回读**原图** + 全屏大图遮罩 +
+  fileExists=false 提示删除/重生成；`DrawTab.tsx`/`TrizTab.tsx` `styles.root` 补 `flex:1+minHeight:0+
+  overflowY:auto` 修复 host CSS `.P3OORG_tabBody{overflow:hidden}` 导致的不滚动；route 6→**8 条**；
+  单测 **260/260 全绿**（apply 路由测试 6→8 + collectDrawSessions/SESSIONS+IMAGE 路由/readDrawImage 3 例）。
 
 - [ ] 真机（用户侧）：research 或 paper 会话右栏「科研绘图」→ local 默认参数 16:9/2K/高画质（**先重启
   `dsh research` 再操作**：点「生成」后观察 CLI 应依次出现 `[dsh-research-draw] submit → [start] →
@@ -393,3 +401,7 @@
   出一张到 `~/Downloads/outputs/images/image-<ts>.png`；垫图风格/内容各一张；切 api 填
   baseURL/apiKey/modelId 出一张（按 OpenAI 兼容）；paper 会话 research_paper 流程里
   research_draw 出一张写入报告；重启会话记录仍在；experiment/engineering/reviewer 无此 tab
+  扩展验收（本轮新功能）：**硬刷新浏览器**（Cmd+Shift+R — 旧白屏可能是缓存的旧 lib/client.js；若仍白屏，
+  CLI 会打 `[dsh-research-draw] [client]` 具体栈）；右侧栏侧边栏与 TRIZ 面板**可滚动**；画一张后侧边栏
+  出现会话下拉 → 切「全部会话 / 具体会话」看到记录、「清除历史」按会话清空、历史卡/完成卡点开**全屏大图**、
+  删除本地图片文件后刷新历史出现「文件已缺失 → 删除记录 / 重新生成」提示。
