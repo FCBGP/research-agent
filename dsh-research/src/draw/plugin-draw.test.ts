@@ -301,14 +301,61 @@ test('draw/plugin: collectDrawHistory 按 sessionId 过滤 + isDrawArtifact / dr
   assert.ok(isDrawArtifact(raw), 'isDrawArtifact 判定');
 });
 
-// ---------------------------------------------------------------------------
-// apply() 路由挂载 —— 白屏可见性（2026-10-21）：
-//   5 条路由（含 DR1 恒挂 debug 上报路由）都注册；debug route 收到浏览器端
-//   error 上报时打印到 `dsh research` 终端（CLI 可见，白屏也能看到原因）。
-// ---------------------------------------------------------------------------
-import { apply, DRAW_CONFIG_PATH, DRAW_DEBUG_PATH, DRAW_GENERATE_PATH, DRAW_HISTORY_PATH, DRAW_STATUS_PATH } from '../plugin-draw.ts';
+test('draw/plugin: 完成时缩略图 base64 随 artifact meta 持久化（历史可预览）', async () => {
+  const h = makeHarness({});
+  const jobId = h.manager.submit(baseReq(), 'sess-thumb').id;
+  await settle(h.manager, jobId);
+  const view = h.manager.status(jobId)!;
+  assert.equal(view.phase, 'succeeded', `error=${view.error}`);
+  assert.ok(view.result!.thumbnailBase64, 'job result 有缩略图');
+  const art = h.artifacts.get(view.artifactId!)!;
+  assert.equal(typeof art.meta.thumbBase64, 'string', 'meta.thumbBase64 已持久化');
+  assert.ok((art.meta.thumbBase64 as string).startsWith('data:image/png;base64,'), 'thumbBase64 为 data URL');
+});
 
-test('draw/plugin: apply() 挂 5 条路由 + debug 上报路由把客户端错误打到 CLI', async () => {
+test('draw/plugin: 历史视图带 thumbBase64 + fileExists；archive 后从列表消失（删除语义）', () => {
+  const artifacts = new ArtifactStore();
+  const mk = (sessionId: string, i: number, thumb?: string): Artifact => artifacts.put({
+    kind: 'note',
+    title: `draw: 图${i}`,
+    body: 'x',
+    meta: { sessionId, params: { prompt: `图${i}` }, outputPath: `/o/images/image-${i}.png`, provider: 'local', model: 'm', size: '1024x1024', mode: 'txt2img', thumbBase64: thumb ?? `data:image/png;base64,T${i}` },
+  });
+  const a1 = mk('s-x', 1);
+  mk('s-x', 2);
+  const ctx = { get: (n: string) => (n === 'researchCore' ? { artifacts } : undefined) } as never;
+
+  // 假 existsSync：image-1 存在、其余缺失
+  const check = (p: string): boolean => p.includes('image-1.png');
+  const items = collectDrawHistory(ctx, 's-x', 50, check);
+  assert.equal(items.length, 2);
+  const i1 = items.find((v) => v.artifactId === a1.id)!;
+  assert.equal(i1.fileExists, true, '存在文件标记 true');
+  assert.equal(i1.thumbBase64, 'data:image/png;base64,T1', 'thumbBase64 透出');
+  const missing = items.find((v) => v.artifactId !== a1.id)!;
+  assert.equal(missing.fileExists, false, '缺失文件标记 false');
+
+  // archiveDrawArtifact：删一条
+  assert.equal(archiveDrawArtifact({ artifacts } as never, a1.id), true);
+  assert.equal(archiveDrawArtifact({ artifacts } as never, 'art-nope'), false, '不存在返回 false');
+  assert.equal(collectDrawHistory(ctx, 's-x').length, 1, 'archive 后列表过滤');
+  // archiveDrawHistory：按会话清空
+  assert.equal(archiveDrawHistory({ artifacts } as never, 's-x'), 1);
+  assert.equal(collectDrawHistory(ctx, 's-x').length, 0, '清空后 0');
+  // 非 draw note 不可被 archive 命中
+  const plain = artifacts.put({ kind: 'note', title: '普通笔记', body: 'x', meta: {} });
+  assert.equal(archiveDrawArtifact({ artifacts } as never, plain.id), false);
+});
+
+// ---------------------------------------------------------------------------
+// apply() 路由挂载 —— 白屏可见性（2026-10-21）+ 历史管理（2026-10-21）：
+//   6 条路由（config / debug / generate / status / history / delete）都注册；
+//   debug route 收到浏览器端 error 上报时打印到 `dsh research` 终端；
+//   delete route 支持 artifactId 删单条 / sessionId 清空会话。
+// ---------------------------------------------------------------------------
+import { apply, archiveDrawArtifact, archiveDrawHistory, DRAW_CONFIG_PATH, DRAW_DEBUG_PATH, DRAW_DELETE_PATH, DRAW_GENERATE_PATH, DRAW_HISTORY_PATH, DRAW_STATUS_PATH } from '../plugin-draw.ts';
+
+test('draw/plugin: apply() 挂 6 条路由 + debug 上报路由把客户端错误打到 CLI', async () => {
   const routes: Array<{ path: string; methods?: string[]; fetch: (r: Request) => Promise<Response> }> = [];
   const provided = new Map<string, unknown>();
   const ctx = {
@@ -320,7 +367,7 @@ test('draw/plugin: apply() 挂 5 条路由 + debug 上报路由把客户端错�
   const disposer = apply(ctx as never, { enabled: true });
   try {
     const paths = routes.map((r) => r.path);
-    for (const p of [DRAW_CONFIG_PATH, DRAW_DEBUG_PATH, DRAW_GENERATE_PATH, DRAW_STATUS_PATH, DRAW_HISTORY_PATH]) {
+    for (const p of [DRAW_CONFIG_PATH, DRAW_DEBUG_PATH, DRAW_GENERATE_PATH, DRAW_STATUS_PATH, DRAW_HISTORY_PATH, DRAW_DELETE_PATH]) {
       assert.ok(paths.includes(p), `路由已注册: ${p}`);
     }
     // service 提供
@@ -351,6 +398,46 @@ test('draw/plugin: apply() 挂 5 条路由 + debug 上报路由把客户端错�
     const cfgRoute = routes.find((r) => r.path === DRAW_CONFIG_PATH)!;
     const cfg = await (await cfgRoute.fetch(new Request(`http://x${DRAW_CONFIG_PATH}`, { method: 'GET' }))).json() as { enabled?: boolean };
     assert.equal(cfg.enabled, true);
+  } finally {
+    disposer?.();
+  }
+});
+
+test('draw/plugin: DELETE route — artifactId 删单条 / sessionId 清空 / 缺参与不存在 4xx', async () => {
+  const artifacts = new ArtifactStore();
+  artifacts.put({ kind: 'note', title: 'draw: 甲', body: 'x', meta: { sessionId: 's-1', outputPath: '/o/1.png' } });
+  artifacts.put({ kind: 'note', title: 'draw: 乙', body: 'x', meta: { sessionId: 's-1', outputPath: '/o/2.png' } });
+  artifacts.put({ kind: 'note', title: '别的笔记', body: 'x', meta: {} });
+  const routes: Array<{ path: string; methods?: string[]; fetch: (r: Request) => Promise<Response> }> = [];
+  const provided = new Map<string, unknown>();
+  const ctx = {
+    get: (n: string) => provided.get(n),
+    provide: (n: string, v: unknown) => { provided.set(n, v); },
+    logger: () => ({ info() {}, warn() {} }),
+    connection: { fetch: { register: (r: { path: string; methods?: string[]; fetch: (req: Request) => Promise<Response> }) => { routes.push(r); return () => {}; } } },
+  };
+  provided.set('researchCore', { artifacts });
+  const disposer = apply(ctx as never, { enabled: true });
+  try {
+    const route = routes.find((r) => r.path === DRAW_DELETE_PATH)!;
+    // 缺参 → 400
+    let res = await route.fetch(new Request(`http://x${DRAW_DELETE_PATH}`, { method: 'POST', body: JSON.stringify({}) }));
+    assert.equal(res.status, 400, '缺参 400');
+    // artifactId 删单条
+    res = await route.fetch(new Request(`http://x${DRAW_DELETE_PATH}`, { method: 'POST', body: JSON.stringify({ artifactId: 'art-1' }) }));
+    assert.equal(res.status, 200);
+    const body = await res.json() as { ok: boolean; archived: number };
+    assert.deepEqual(body, { ok: true, archived: 1 }, '单条删除 {ok,archived:1}');
+    assert.equal(collectDrawHistory(ctx as never, undefined).length, 1, 'archive 后只剩一条 draw');
+    // 不存在的 artifactId → 404
+    res = await route.fetch(new Request(`http://x${DRAW_DELETE_PATH}`, { method: 'POST', body: JSON.stringify({ artifactId: 'art-nope' }) }));
+    assert.equal(res.status, 404, '不存在 404');
+    // sessionId 清空该会话
+    res = await route.fetch(new Request(`http://x${DRAW_DELETE_PATH}`, { method: 'POST', body: JSON.stringify({ sessionId: 's-1' }) }));
+    assert.equal(res.status, 200);
+    const body2 = await res.json() as { ok: boolean; archived: number };
+    assert.deepEqual(body2, { ok: true, archived: 1 }, '会话清空 {ok,archived:1}');
+    assert.equal(collectDrawHistory(ctx as never, undefined).length, 0, '清空后无 draw 记录');
   } finally {
     disposer?.();
   }

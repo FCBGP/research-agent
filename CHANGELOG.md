@@ -1,3 +1,21 @@
+## 2026-10-21 · 科研绘图：白屏根因修复 + 历史管理（删除/预览/缺失提示）
+
+### fix(dsh-research): 科研绘图白屏根因修复 + 历史管理（本回合）
+- 白屏根因（本回合确定）：DrawTab.generate() 提交达标后 `setRun({ phase: 'running', jobId })` 缺 `logTail`，
+  running 卡片渲染 `run.logTail.length` → TypeError → 面板/整页白屏；f3dafab 边界未捕获说明崩溃点在后续帧。
+  修复为 `setRun({ ...logTail: [] })`，并对 running/failed 卡片 `(run.logTail ?? [])` 兜底（同类崩溃不再白屏）。
+- 历史管理（用户需求 A–E）：历史卡片可点选显示详情（提示词/模型/尺寸/日期/输出路径/预览缩略图）；
+  「清除历史」按会话 archive；完成时缩略图 base64 持久化进 artifact meta（重启后仍可预览）；
+  history 接口实时探测输出文件是否仍在（fileExists）；文件已丢失 → 就地警示 + 「删除记录 / 重新生成」按钮。
+- host（src/plugin-draw.ts）：新增 `POST /api/research.draw.delete`（{artifactId} 删单条 / {sessionId} 清空，
+  archive 语义，缺参 400 / 不存在 404）；DrawHistoryView 增 thumbBase64/fileExists；
+  drawHistoryView(a, fileExists) / collectDrawHistory(..., fileExistsCheck) 扩展 + archiveDrawArtifact/archiveDrawHistory。
+- client（route.ts / DrawTab.tsx）：DRAW_DELETE_ROUTE + drawDeleteUrl；parseDrawHistory 透传 thumbBase64/fileExists；
+  选中态详情 / 清除历史（确认）/ 缩略图预览 / fileExists=false 警示与删除/重生成回填（edit 垫图不可还原 → 按 txt2img）。
+- 测试：`node --test "src/**/*.test.ts"` = 257/257 全绿（254 基线 + thumbBase64 持久化 / fileExists+archive 语义 /
+  DELETE route 端到端 3 例，apply 路由 5→6）。
+- 部署：重跑 `./dsh-research/scripts/deploy-profile.sh` 后重启 `dsh research` 生效（lib/client.js 已用 build-client.mjs 重建）。
+
 # CHANGELOG.md — Research Agent OS 演进记录
 
 > 维护规则（详见 `AGENTS.md` §10.1 文档卫生）：

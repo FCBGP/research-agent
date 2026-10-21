@@ -11,7 +11,9 @@
 //        POST /api/research.draw.generate   （provider + 参数 + 垫图 base64）→ { jobId }
 //        GET  /api/research.draw.status?jobId= → { phase, progress?, logTail, result?, artifactId }
 //        GET  /api/research.draw.config     → { enabled, providers, 比例/分辨率/画质表, 默认值, outputRoot, sizePolicy }
-//        GET  /api/research.draw.history?sessionId= → 最近绘图记录（写 artifact 的 draw: note，重启后仍可按会话列出）
+//        GET  /api/research.draw.history?sessionId= → 最近绘图记录（写 artifact 的 draw: note，重启后仍可按会话列出；
+//             带 thumbBase64 预览 + fileExists 实时探测输出文件是否仍在本地）
+//        POST /api/research.draw.delete             → { artifactId } 删单条 / { sessionId } 清空该会话（archive）
 //   3. 双后端 provider 抽象：
 //        local —— spawn 本机 mflux CLI（mflux-generate-qwen-2.1, Qwen-Image-2.1 模型，非驻留，
 //                 现场加载 → 并发上限 1）；edit 垫图（1 张参考图，style 0.4 / content 0.7）。
@@ -32,7 +34,7 @@ import type { ResearchCoreService } from './plugin-core.ts';
 import type { ResearchMemory } from './memory/index.ts';
 import type { AspectRatio, DrawMode, Quality, Resolution, SizePolicy } from './draw/dimensions.ts';
 import { ASPECT_RATIOS, DEFAULT_ASPECT, DEFAULT_QUALITY, DEFAULT_RESOLUTION, QUALITIES, QUALITY_STEPS, RESOLUTIONS, RESOLUTION_LONG_EDGE, sizeFor } from './draw/dimensions.ts';
-import { drawOutputPath } from './draw/paths.ts';
+import { drawOutputPath, expandHome } from './draw/paths.ts';
 import type { LocalConfig } from './draw/local.ts';
 import { buildLocalArgs, defaultLocalConfig, parseMfluxProgress } from './draw/local.ts';
 import type { ApiConfig } from './draw/api.ts';
@@ -45,6 +47,8 @@ export const DRAW_GENERATE_PATH = '/api/research.draw.generate';
 export const DRAW_STATUS_PATH = '/api/research.draw.status';
 export const DRAW_CONFIG_PATH = '/api/research.draw.config';
 export const DRAW_HISTORY_PATH = '/api/research.draw.history';
+/** 删除单条（artifactId）或按会话清空（sessionId）绘图历史记录（archive 到 ArtifactStore）。 */
+export const DRAW_DELETE_PATH = '/api/research.draw.delete';
 /** 客户端→CLI 报错/步骤上送（浏览器端白屏/异常也能在 `dsh research` 终端看到）。 */
 export const DRAW_DEBUG_PATH = '/api/research.draw.debug';
 
@@ -437,6 +441,7 @@ export class DrawJobManager {
           steps: result.steps,
           seed: result.seed,
           mode: result.mode,
+          thumbBase64: typeof result.thumbnailBase64 === 'string' ? result.thumbnailBase64 : undefined,
         },
       });
       job.artifactId = artifact.id;
@@ -739,6 +744,10 @@ export interface DrawHistoryView {
   model?: string;
   size?: string;
   mode?: string;
+  /** 完成时生成的 macOS sips 缩略图 base64（随 artifact 持久化，重启后可预览）。 */
+  thumbBase64?: string;
+  /** 输出文件此刻是否仍存在于本地（host 每次列历史时实时探测）。 */
+  fileExists?: boolean;
 }
 
 /** 判定一个 artifact 是否为科研绘图完成记录（kind=note, title^='draw: '）。 */
@@ -746,8 +755,8 @@ export function isDrawArtifact(a: Artifact): boolean {
   return a.kind === 'note' && !a.archived && a.title.startsWith('draw: ');
 }
 
-/** 把一条 draw note 富化成历史展示视图。 */
-export function drawHistoryView(a: Artifact): DrawHistoryView {
+/** 把一条 draw note 富化成历史展示视图。fileExists 为调用方实时探测结果。 */
+export function drawHistoryView(a: Artifact, fileExists?: boolean): DrawHistoryView {
   const meta = a.meta ?? {};
   const params = typeof meta.params === 'object' && meta.params !== null ? meta.params as Record<string, unknown> : {};
   return {
@@ -760,18 +769,42 @@ export function drawHistoryView(a: Artifact): DrawHistoryView {
     model: typeof meta.model === 'string' ? meta.model : undefined,
     size: typeof meta.size === 'string' ? meta.size : undefined,
     mode: typeof meta.mode === 'string' ? meta.mode : undefined,
+    thumbBase64: typeof meta.thumbBase64 === 'string' ? meta.thumbBase64 : undefined,
+    fileExists,
   };
 }
 
-/** 收集某会话最近 N 条绘图记录（按 createdAt 降序；researchCore 缺失时安全返回空）。 */
-export function collectDrawHistory(ctx: Context, sessionId?: string, limit = 50): DrawHistoryView[] {
+/** 收集某会话最近 N 条绘图记录（按 createdAt 降序；researchCore 缺失时安全返回空）。
+ *  fileExistsCheck 可注入（测试假 existsSync）；默认实时探测输出文件是否仍存在。 */
+export function collectDrawHistory(
+  ctx: Context,
+  sessionId?: string,
+  limit = 50,
+  fileExistsCheck?: (path: string) => boolean,
+): DrawHistoryView[] {
   const core = ctx.get?.('researchCore') as ResearchCoreService | undefined;
   if (!core?.artifacts) return [];
+  const check = fileExistsCheck ?? ((path: string): boolean => existsSync(expandHome(path)));
   return core.artifacts.list()
     .filter((a) => isDrawArtifact(a) && (!sessionId || typeof a.meta?.sessionId !== 'string' || a.meta.sessionId === sessionId))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit)
-    .map(drawHistoryView);
+    .map((a) => drawHistoryView(a, typeof a.meta?.outputPath === 'string' ? check(a.meta.outputPath) : undefined));
+}
+
+/** archive 一条 draw 记录（返回是否命中）；供 DELETE route 与单条删除。 */
+export function archiveDrawArtifact(core: ResearchCoreService, artifactId: string): boolean {
+  const a = core.artifacts.get(artifactId);
+  if (!a || !isDrawArtifact(a)) return false;
+  core.artifacts.archive(artifactId);
+  return true;
+}
+
+/** archive 某会话全部 draw 记录（无 sessionId 则全部），返回命中条数。 */
+export function archiveDrawHistory(core: ResearchCoreService, sessionId?: string): number {
+  const hits = core.artifacts.list().filter((a) => isDrawArtifact(a) && (!sessionId || a.meta?.sessionId === sessionId));
+  for (const a of hits) core.artifacts.archive(a.id);
+  return hits.length;
 }
 
 /** host 插件 body。 */
@@ -849,10 +882,40 @@ export function apply(ctx: Context, config: DrawPluginConfig = {}): (() => void)
         return Promise.resolve(Response.json({ items }, { headers: { 'cache-control': 'no-store' } }));
       },
     }) as unknown as () => void);
+    // 删除绘图记录：body { artifactId } 删单条；body { sessionId } 清空该会话；缺参 400。
+    disposers.push(ctx.connection.fetch.register({
+      path: DRAW_DELETE_PATH,
+      methods: ['POST'],
+      requestBody: 'buffered',
+      fetch: (request: Request) => Promise.resolve((async () => {
+        try {
+          const text = await request.text();
+          const body = (JSON.parse(text || '{}') ?? {}) as Record<string, unknown>;
+          const artifactId = typeof body.artifactId === 'string' ? body.artifactId : undefined;
+          const sessionId = typeof body.sessionId === 'string' ? body.sessionId : undefined;
+          const core2 = ctx.get?.('researchCore') as ResearchCoreService | undefined;
+          if (!core2?.artifacts) return Response.json({ ok: false, error: 'researchCore 不可用' }, { status: 500, headers: { 'cache-control': 'no-store' } });
+          if (artifactId) {
+            const hit = archiveDrawArtifact(core2, artifactId);
+            if (!hit) return Response.json({ ok: false, error: '记录不存在或非绘图记录' }, { status: 404, headers: { 'cache-control': 'no-store' } });
+            cliLog('[delete] artifact=', artifactId, 'session=', sessionId ?? '∅');
+            return Response.json({ ok: true, archived: 1 }, { headers: { 'cache-control': 'no-store' } });
+          }
+          if (sessionId !== undefined) {
+            const n = archiveDrawHistory(core2, sessionId);
+            cliLog('[delete] clear session=', sessionId, 'archived=', n);
+            return Response.json({ ok: true, archived: n }, { headers: { 'cache-control': 'no-store' } });
+          }
+          return Response.json({ ok: false, error: '需要 artifactId 或 sessionId' }, { status: 400, headers: { 'cache-control': 'no-store' } });
+        } catch (err) {
+          return Response.json({ ok: false, error: String((err as Error)?.message ?? err) }, { status: 400, headers: { 'cache-control': 'no-store' } });
+        }
+      })()),
+    }) as unknown as () => void);
     ctx.provide('researchDraw', manager);
   }
 
   ctx.logger?.(name).info('%s: %s — 右侧栏科研绘图（enabled=%s; local=%s; %d routes）',
-    name, enabled ? '挂载' : '禁用', String(enabled), defaultLocalConfig().bin, enabled ? 4 : 1);
+    name, enabled ? '挂载' : '禁用', String(enabled), defaultLocalConfig().bin, enabled ? 5 : 1);
   return () => { for (const d of disposers) d(); manager.dispose(); };
 }

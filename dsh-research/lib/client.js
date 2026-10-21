@@ -302,11 +302,13 @@ var DRAW_GENERATE_PATH = "/api/research.draw.generate";
 var DRAW_STATUS_PATH = "/api/research.draw.status";
 var DRAW_CONFIG_PATH = "/api/research.draw.config";
 var DRAW_HISTORY_PATH = "/api/research.draw.history";
+var DRAW_DELETE_PATH = "/api/research.draw.delete";
 var DRAW_DEBUG_PATH = "/api/research.draw.debug";
 var DRAW_GENERATE_ROUTE = DRAW_GENERATE_PATH.slice(1);
 var DRAW_STATUS_ROUTE = DRAW_STATUS_PATH.slice(1);
 var DRAW_CONFIG_ROUTE = DRAW_CONFIG_PATH.slice(1);
 var DRAW_HISTORY_ROUTE = DRAW_HISTORY_PATH.slice(1);
+var DRAW_DELETE_ROUTE = DRAW_DELETE_PATH.slice(1);
 var DRAW_DEBUG_ROUTE = DRAW_DEBUG_PATH.slice(1);
 function drawUrl(route, sessionId, extra) {
   const params = new URLSearchParams();
@@ -328,6 +330,9 @@ function drawConfigUrl() {
 }
 function drawHistoryUrl(sessionId) {
   return drawUrl(DRAW_HISTORY_ROUTE, sessionId);
+}
+function drawDeleteUrl() {
+  return DRAW_DELETE_ROUTE;
 }
 function drawDebugUrl() {
   return DRAW_DEBUG_ROUTE;
@@ -453,7 +458,9 @@ function parseDrawHistory(value) {
       provider: typeof item.provider === "string" ? item.provider : void 0,
       model: typeof item.model === "string" ? item.model : void 0,
       size: typeof item.size === "string" ? item.size : void 0,
-      mode: typeof item.mode === "string" ? item.mode : void 0
+      mode: typeof item.mode === "string" ? item.mode : void 0,
+      thumbBase64: typeof item.thumbBase64 === "string" ? item.thumbBase64 : void 0,
+      fileExists: typeof item.fileExists === "boolean" ? item.fileExists : void 0
     });
   }
   return out;
@@ -614,6 +621,7 @@ function DrawTab(props) {
   const [cfgState, setCfgState] = (0, import_react2.useState)({ phase: "loading" });
   const [history, setHistory] = (0, import_react2.useState)([]);
   const [run, setRun] = (0, import_react2.useState)({ phase: "idle" });
+  const [selectedId, setSelectedId] = (0, import_react2.useState)(void 0);
   const [prompt, setPrompt] = (0, import_react2.useState)("");
   const [provider, setProvider] = (0, import_react2.useState)("local");
   const [mode, setMode] = (0, import_react2.useState)("txt2img");
@@ -688,6 +696,59 @@ function DrawTab(props) {
   (0, import_react2.useEffect)(() => {
     loadHistory();
   }, [sessionId]);
+  const deleteRecord = (artifactId) => {
+    void (async () => {
+      try {
+        const res = await fetch(drawDeleteUrl(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ artifactId })
+        });
+        if (!res.ok) {
+          postDebug("warn", `[delete] \u5220\u9664\u5931\u8D25 ${res.status}`);
+          return;
+        }
+        postDebug("log", `[delete] \u5DF2\u5220\u9664\u8BB0\u5F55 ${artifactId}`);
+        setSelectedId((prev) => prev === artifactId ? void 0 : prev);
+        loadHistory();
+      } catch (err) {
+        postDebug("error", `[delete] \u5F02\u5E38: ${String(err?.message ?? err)}`);
+      }
+    })();
+  };
+  const clearSessionHistory = () => {
+    if (!sessionId) return;
+    if (!window.confirm(`\u786E\u5B9A\u6E05\u9664\u672C\u4F1A\u8BDD\u5168\u90E8 ${history.length} \u6761\u7ED8\u56FE\u8BB0\u5F55\uFF1F
+\u4EC5\u79FB\u9664\u8BB0\u5F55\uFF0C\u4E0D\u4F1A\u5220\u9664\u672C\u5730\u56FE\u7247\u6587\u4EF6\u3002`)) return;
+    void (async () => {
+      try {
+        const res = await fetch(drawDeleteUrl(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId })
+        });
+        if (!res.ok) {
+          postDebug("warn", `[delete] \u6E05\u7A7A\u5931\u8D25 ${res.status}`);
+          return;
+        }
+        postDebug("log", `[delete] \u5DF2\u6E05\u7A7A\u4F1A\u8BDD ${sessionId} \u8BB0\u5F55`);
+        setSelectedId(void 0);
+        loadHistory();
+      } catch (err) {
+        postDebug("error", `[delete-clear] \u5F02\u5E38: ${String(err?.message ?? err)}`);
+      }
+    })();
+  };
+  const regenerate = (h) => {
+    if (h.prompt) setPrompt(h.prompt);
+    if (h.provider === "api") setProvider("api");
+    const wasEdit = h.mode === "edit";
+    setMode("txt2img");
+    setRun({ phase: "idle" });
+    setSelectedId(void 0);
+    window.scrollTo?.({ top: 0, behavior: "smooth" });
+    postDebug("log", `[regen] \u5386\u53F2 ${h.artifactId} \u63D0\u793A\u8BCD\u5DF2\u56DE\u586B${wasEdit ? "\uFF08\u539F\u4E3A edit\uFF0C\u57AB\u56FE\u4E0D\u53EF\u8FD8\u539F \u2192 \u6309 txt2img\uFF09" : ""}\uFF0C\u8BF7\u786E\u8BA4\u540E\u518D\u6B21\u751F\u6210`);
+  };
   const poll = (jobId) => {
     runningRef.current = { jobId };
     let retryCount = 0;
@@ -786,7 +847,7 @@ function DrawTab(props) {
           return;
         }
         postDebug("log", `[generate] \u5DF2\u53D7\u7406 job=${json.jobId}`);
-        setRun({ phase: "running", jobId: json.jobId });
+        setRun({ phase: "running", jobId: json.jobId, logTail: [] });
         poll(json.jobId);
       } catch (err) {
         postDebug("error", `[generate] \u7F51\u7EDC/\u89E3\u6790\u5F02\u5E38: ${String(err?.message ?? err)}`);
@@ -931,7 +992,7 @@ function DrawTab(props) {
           "jobId: ",
           run.jobId
         ] }),
-        run.logTail.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: styles2.mono, children: run.logTail.slice(-4).map((l, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: { ...styles2.mono, margin: 0, whiteSpace: "pre-wrap" }, children: l }, `${run.jobId}-${i}`)) })
+        (run.logTail ?? []).length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: styles2.mono, children: (run.logTail ?? []).slice(-4).map((l, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: { ...styles2.mono, margin: 0, whiteSpace: "pre-wrap" }, children: l }, `${run.jobId}-${i}`)) })
       ] }),
       run.phase === "done" && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: styles2.card, children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.cardTitle, children: "\u5B8C\u6210" }),
@@ -950,25 +1011,67 @@ function DrawTab(props) {
       run.phase === "failed" && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: styles2.card, children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: { ...styles2.cardTitle, color: "var(--dsw-alias-state-error-primary, #dc2626)" }, children: "\u5931\u8D25" }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.errored, children: run.error }),
-        run.logTail.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: styles2.mono, children: run.logTail.slice(-4).map((l, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: { ...styles2.mono, margin: 0 }, children: l }, i)) })
+        (run.logTail ?? []).length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: styles2.mono, children: (run.logTail ?? []).slice(-4).map((l, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: { ...styles2.mono, margin: 0 }, children: l }, i)) })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: { ...styles2.cardTitle, marginBottom: "6px" }, children: [
-          "\u4F1A\u8BDD\u5185\u5386\u53F2\uFF08",
-          history.length,
-          "\uFF09"
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: { ...styles2.cardTitle, margin: 0 }, children: [
+            "\u4F1A\u8BDD\u5185\u5386\u53F2\uFF08",
+            history.length,
+            "\uFF09"
+          ] }),
+          history.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: styles2.button(false), onClick: clearSessionHistory, children: "\u6E05\u9664\u5386\u53F2" })
         ] }),
         history.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.empty, children: "\u8FD8\u6CA1\u6709\u7ED8\u56FE\u8BB0\u5F55\uFF08\u5173\u95ED\u540E\u91CD\u542F\u4ECD\u4F1A\u4FDD\u7559\uFF0C\u6309\u4F1A\u8BDD\u8FC7\u6EE4\uFF09\u3002" }),
-        history.map((h) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("section", { style: styles2.card, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.mono, children: h.title }),
-          h.outputPath && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.mono, children: h.outputPath }),
-          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: styles2.hint, children: [
-            h.size ?? "",
-            h.model ? ` \xB7 ${h.model}` : "",
-            " \xB7 ",
-            formatDate(h.createdAt)
-          ] })
-        ] }, h.artifactId))
+        history.map((h) => {
+          const selected = selectedId === h.artifactId;
+          return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+            "section",
+            {
+              style: { ...styles2.card, cursor: "pointer", borderColor: selected ? "var(--dsw-alias-state-business-primary, #4f46e5)" : "var(--dsw-alias-border-l2, #e5e7eb)" },
+              onClick: () => setSelectedId(selected ? void 0 : h.artifactId),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.mono, children: h.title }),
+                h.thumbBase64 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("img", { style: styles2.img, src: h.thumbBase64, alt: "\u5386\u53F2\u9884\u89C8" }),
+                h.outputPath && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.mono, children: h.outputPath }),
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: styles2.hint, children: [
+                  h.size ?? "",
+                  h.model ? ` \xB7 ${h.model}` : "",
+                  " \xB7 ",
+                  formatDate(h.createdAt)
+                ] }),
+                h.fileExists === false && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { borderTop: "0.5px solid var(--dsw-alias-border-l2, #e5e7eb)", paddingTop: "6px", display: "flex", flexDirection: "column", gap: "6px" }, children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.errored, children: "\u672C\u5730\u56FE\u7247\u6587\u4EF6\u5DF2\u4E0D\u5B58\u5728 \u2014\u2014 \u53EF\u5220\u9664\u8BB0\u5F55\u6216\u91CD\u65B0\u751F\u6210" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", gap: "6px" }, children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: styles2.button(false), onClick: (e) => {
+                      e.stopPropagation();
+                      deleteRecord(h.artifactId);
+                    }, children: "\u5220\u9664\u8BB0\u5F55" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: styles2.button(false), onClick: (e) => {
+                      e.stopPropagation();
+                      regenerate(h);
+                    }, children: "\u91CD\u65B0\u751F\u6210" })
+                  ] })
+                ] }),
+                selected && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: styles2.details, children: [
+                  h.prompt && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: styles2.mono, children: [
+                    "\u63D0\u793A\u8BCD\uFF1A",
+                    h.prompt
+                  ] }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: styles2.hint, children: [
+                    h.mode === "edit" ? "edit\uFF08\u57AB\u56FE\uFF09" : "txt2img",
+                    " \xB7 ",
+                    h.size ?? "",
+                    h.provider ? ` \xB7 ${h.provider}` : "",
+                    h.model ? ` \xB7 ${h.model}` : ""
+                  ] }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.hint, children: "\u70B9\u51FB\u5361\u7247\u53EF\u6536\u8D77\u8BE6\u60C5" })
+                ] })
+              ]
+            },
+            h.artifactId
+          );
+        })
       ] })
     ] })
   ] }) });

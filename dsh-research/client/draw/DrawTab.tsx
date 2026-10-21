@@ -14,9 +14,9 @@ import { Component, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  drawConfigUrl, drawDebugUrl, drawGenerateUrl, drawHistoryUrl, drawStatusUrl,
+  drawConfigUrl, drawDebugUrl, drawDeleteUrl, drawGenerateUrl, drawHistoryUrl, drawStatusUrl,
   parseDrawConfig, parseDrawHistory, parseDrawJob,
-  type DrawConfigView,
+  type DrawConfigView, type DrawHistoryItem,
 } from './route.ts'
 
 /** 本 type's body 的合成 props：框架 shares（useTabInfo/sessionId）+ 无自定义注入面。 */
@@ -219,6 +219,7 @@ export function DrawTab(props: DrawTabProps): ReactNode {
   const [cfgState, setCfgState] = useState<ReadyState>({ phase: 'loading' })
   const [history, setHistory] = useState<import('./route.ts').DrawHistoryItem[]>([])
   const [run, setRun] = useState<RunState>({ phase: 'idle' })
+  const [selectedId, setSelectedId] = useState<string | undefined>(undefined)
 
   // 表单状态
   const [prompt, setPrompt] = useState('')
@@ -294,6 +295,60 @@ export function DrawTab(props: DrawTabProps): ReactNode {
     })()
   }
   useEffect(() => { loadHistory() }, [sessionId])
+
+  // 删除单条绘图记录（本地图片文件已丢失时的清理；archive 到历史，重启不再列出）
+  const deleteRecord = (artifactId: string): void => {
+    void (async () => {
+      try {
+        const res = await fetch(drawDeleteUrl(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ artifactId }),
+        })
+        if (!res.ok) { postDebug('warn', `[delete] 删除失败 ${res.status}`); return }
+        postDebug('log', `[delete] 已删除记录 ${artifactId}`)
+        setSelectedId((prev) => (prev === artifactId ? undefined : prev))
+        loadHistory()
+      } catch (err) {
+        postDebug('error', `[delete] 异常: ${String((err as Error)?.message ?? err)}`)
+      }
+    })()
+  }
+
+  // 清空本会话全部绘图记录（仅移除记录与本地缩略图展示，不删图片文件本身）
+  const clearSessionHistory = (): void => {
+    if (!sessionId) return
+    if (!window.confirm(`确定清除本会话全部 ${history.length} 条绘图记录？
+仅移除记录，不会删除本地图片文件。`)) return
+    void (async () => {
+      try {
+        const res = await fetch(drawDeleteUrl(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId }),
+        })
+        if (!res.ok) { postDebug('warn', `[delete] 清空失败 ${res.status}`); return }
+        postDebug('log', `[delete] 已清空会话 ${sessionId} 记录`)
+        setSelectedId(undefined)
+        loadHistory()
+      } catch (err) {
+        postDebug('error', `[delete-clear] 异常: ${String((err as Error)?.message ?? err)}`)
+      }
+    })()
+  }
+
+  // 从历史记录回填表单重新生成（提示词回填 + 回到生成器 + 回顶）
+  // 注：edit 垫图原图未持久化，无法还原 → 统一按 txt2img 重新生成。
+  const regenerate = (h: DrawHistoryItem): void => {
+    if (h.prompt) setPrompt(h.prompt)
+    if (h.provider === 'api') setProvider('api')
+    const wasEdit = h.mode === 'edit'
+    setMode('txt2img')
+    setRun({ phase: 'idle' })
+    setSelectedId(undefined)
+    window.scrollTo?.({ top: 0, behavior: 'smooth' })
+    postDebug('log', `[regen] 历史 ${h.artifactId} 提示词已回填${wasEdit ? '（原为 edit，垫图不可还原 → 按 txt2img）' : ''}，请确认后再次生成`)
+  }
 
   // 轮询直到完成/失败（含白屏/卡死防御：状态不可解析或连续失败判失败，不上报 CLI 的每个 tick）
   const poll = (jobId: string): void => {
@@ -398,7 +453,7 @@ export function DrawTab(props: DrawTabProps): ReactNode {
           return
         }
         postDebug('log', `[generate] 已受理 job=${json.jobId}`)
-        setRun({ phase: 'running', jobId: json.jobId })
+        setRun({ phase: 'running', jobId: json.jobId, logTail: [] })
         poll(json.jobId)
       } catch (err) {
         postDebug('error', `[generate] 网络/解析异常: ${String((err as Error)?.message ?? err)}`)
@@ -581,9 +636,9 @@ export function DrawTab(props: DrawTabProps): ReactNode {
                 <div style={styles.progressFill(`${Math.round((run.progress ?? 0) * 100)}%`)} />
               </div>
               <p style={styles.mono}>jobId: {run.jobId}</p>
-              {run.logTail.length > 0 && (
+              {(run.logTail ?? []).length > 0 && (
                 <div style={styles.mono}>
-                  {run.logTail.slice(-4).map((l, i) => <p key={`${run.jobId}-${i}`} style={{ ...styles.mono, margin: 0, whiteSpace: 'pre-wrap' }}>{l}</p>)}
+                  {(run.logTail ?? []).slice(-4).map((l, i) => <p key={`${run.jobId}-${i}`} style={{ ...styles.mono, margin: 0, whiteSpace: 'pre-wrap' }}>{l}</p>)}
                 </div>
               )}
             </div>
@@ -600,20 +655,51 @@ export function DrawTab(props: DrawTabProps): ReactNode {
             <div style={styles.card}>
               <p style={{ ...styles.cardTitle, color: 'var(--dsw-alias-state-error-primary, #dc2626)' }}>失败</p>
               <p style={styles.errored}>{run.error}</p>
-              {run.logTail.length > 0 && <div style={styles.mono}>{run.logTail.slice(-4).map((l, i) => <p key={i} style={{ ...styles.mono, margin: 0 }}>{l}</p>)}</div>}
+              {(run.logTail ?? []).length > 0 && <div style={styles.mono}>{(run.logTail ?? []).slice(-4).map((l, i) => <p key={i} style={{ ...styles.mono, margin: 0 }}>{l}</p>)}</div>}
             </div>
           )}
 
           <div>
-            <p style={{ ...styles.cardTitle, marginBottom: '6px' }}>会话内历史（{history.length}）</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <p style={{ ...styles.cardTitle, margin: 0 }}>会话内历史（{history.length}）</p>
+              {history.length > 0 && (
+                <button type="button" style={styles.button(false)} onClick={clearSessionHistory}>清除历史</button>
+              )}
+            </div>
             {history.length === 0 && <p style={styles.empty}>还没有绘图记录（关闭后重启仍会保留，按会话过滤）。</p>}
-            {history.map((h) => (
-              <section key={h.artifactId} style={styles.card}>
-                <p style={styles.mono}>{h.title}</p>
-                {h.outputPath && <p style={styles.mono}>{h.outputPath}</p>}
-                <p style={styles.hint}>{h.size ?? ''}{h.model ? ` · ${h.model}` : ''} · {formatDate(h.createdAt)}</p>
-              </section>
-            ))}
+            {history.map((h) => {
+              const selected = selectedId === h.artifactId
+              return (
+                <section
+                  key={h.artifactId}
+                  style={{ ...styles.card, cursor: 'pointer', borderColor: selected ? 'var(--dsw-alias-state-business-primary, #4f46e5)' : 'var(--dsw-alias-border-l2, #e5e7eb)' }}
+                  onClick={() => setSelectedId(selected ? undefined : h.artifactId)}
+                >
+                  <p style={styles.mono}>{h.title}</p>
+                  {h.thumbBase64 && <img style={styles.img} src={h.thumbBase64} alt="历史预览" />}
+                  {h.outputPath && <p style={styles.mono}>{h.outputPath}</p>}
+                  <p style={styles.hint}>{h.size ?? ''}{h.model ? ` · ${h.model}` : ''} · {formatDate(h.createdAt)}</p>
+                  {h.fileExists === false && (
+                    <div style={{ borderTop: '0.5px solid var(--dsw-alias-border-l2, #e5e7eb)', paddingTop: '6px', display: 'flex', flexDirection: 'column' as const, gap: '6px' }}>
+                      <p style={styles.errored}>本地图片文件已不存在 —— 可删除记录或重新生成</p>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button type="button" style={styles.button(false)} onClick={(e) => { e.stopPropagation(); deleteRecord(h.artifactId) }}>删除记录</button>
+                        <button type="button" style={styles.button(false)} onClick={(e) => { e.stopPropagation(); regenerate(h) }}>重新生成</button>
+                      </div>
+                    </div>
+                  )}
+                  {selected && (
+                    <div style={styles.details}>
+                      {h.prompt && <p style={styles.mono}>提示词：{h.prompt}</p>}
+                      <p style={styles.hint}>
+                        {h.mode === 'edit' ? 'edit（垫图）' : 'txt2img'} · {h.size ?? ''}{h.provider ? ` · ${h.provider}` : ''}{h.model ? ` · ${h.model}` : ''}
+                      </p>
+                      <p style={styles.hint}>点击卡片可收起详情</p>
+                    </div>
+                  )}
+                </section>
+              )
+            })}
           </div>
         </>
       )}
