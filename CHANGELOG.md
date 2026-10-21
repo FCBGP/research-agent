@@ -1,3 +1,36 @@
+## 2026-10-21 · 科研绘图：两阶段混合落地 — 无文字底图 + PIL 精确文字叠加（方案 C，提交 442925f）
+
+需求（用户，2026-10-21）：Qwen-Image-2.1 生成图**文字/图形错乱**，如何处理 → 按 SKILL.md 推荐
+方案 C（两阶段混合）落成可用能力：① 图片模型出「无文字艺术底图」；② 本机 python3 + Pillow
+精确叠加文字层（零错字）。
+
+- **host**（`src/plugin-draw.ts`，route 8→**9 条**）：新增 `POST /api/research.draw.overlay` —
+  body `{ imagePath, labels（数组或多行文本）, outputDir? }` → 校验底图存在/扩展名（404/415）→
+  `probeOverlay` 探活 python3+Pillow（不可用 400 + 理由）→ spawn 合成 → 缩略图 + 写 draw artifact
+  （`draw: overlay · N 文字`，meta 含 outputPath/thumbBase64 → 进历史 stack）+ episodic + persist →
+  返回 `{ ok, outputPath, thumbnailBase64, width, height, basePath, artifactId }`。
+  探活/缩略图均经 `DrawRuntimeDeps` 注入（测试可 mock）；`require` → ESM 顶部导入
+  `execFileSync`（Node 24 strip-only 下 `require is not defined` 修复）。
+- **纯函数模块** `src/draw/overlay.ts`：`parseOverlayLines`（每行一个标签，`|` 分隔；
+  `x,y` 锚点/像素/百分比、`@字号`、`#rrggbb`/命名色、`b` 加粗、`n` 无描边、`#` 行首注释；
+  纯字母非锚点词→命名色，防误入位置段）+ `normalizeOverlayLabels`（size 10–300）+ 
+  `buildOverlayScript`（内嵌 Python+Pillow：macOS 字体族 Arial Bold/PingFang/Helvetica 回落
+  load_default；锚点/像素/百分比位置解析；黑描边 stroke_width=size/18；默认底部居中白字；
+  打印 `IMG_DIMS:WxH`）+ `buildOverlayCommand` + `parseOverlayDims`。
+- **paths**：`drawOverlayOutputName/Path` → `<outputRoot>/images/image-…-overlay.png`。
+- **client**：`route.ts` 加 `drawOverlayUrl / DrawOverlayView / parseDrawOverlay` + `config.overlay`；
+  `DrawTab.tsx` 加「两阶段混合：无文字底图模式（推荐）」checkbox（勾选后提交自动追加
+  「图中不要出现任何文字、字母或数字，纯图形构图，留出干净区域」）+「文字叠加」卡片
+  （底图下拉=历史中仍存在图片（fileExists 探测）、标签多行输入、合成文字、预览/大图/错误提示、
+  不成名则提示 `pip install Pillow`）。
+- **lib/client.js** 重建（75909 B）。
+- 测试：`node --test "src/**/*.test.ts"` = **269/269 全绿**（261 基线 + overlay 纯函数 8 +
+  OVERLAY route 端到端——假探活支持/假 spawn 出 `IMG_DIMS:2048x1152` → 200 成品+artifact 进历史 /
+  缺 imagePath 400 / 底图不存在 404 / 非图片 415）；apply() 路由测试 8→9。
+- 部署：重跑 `./dsh-research/scripts/deploy-profile.sh` 后**硬刷新浏览器**（Cmd+Shift+R）。
+- 待真机验收（用户侧）：勾选无文字底图生成 → 文字叠加卡片选底图 → 输入 2-3 标签 → 合成 →
+  放大逐字验收零错字；本机无 python3+Pillow 时应显示安装提示。
+
 ## 2026-10-21 · 科研绘图：文字/图形错乱处理纪律（提交 1b70eee）
 
 需求（用户，2026-10-21）：Qwen-Image-2.1（local mflux）生成的图**文字错乱、图形错乱**，如何处理。

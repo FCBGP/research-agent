@@ -413,3 +413,18 @@
   CLI 会打 `[dsh-research-draw] [client]` 具体栈）；右侧栏侧边栏与 TRIZ 面板**可滚动**；画一张后侧边栏
   出现会话下拉 → 切「全部会话 / 具体会话」看到记录、「清除历史」按会话清空、历史卡/完成卡点开**全屏大图**、
   删除本地图片文件后刷新历史出现「文件已缺失 → 删除记录 / 重新生成」提示。
+
+- [x] 两阶段混合落地（2026-10-21，方案 C，提交 442925f）：`src/draw/overlay.ts`（parseOverlayLines /
+  normalize / buildOverlayScript 内嵌 Python+Pillow / buildOverlayCommand / parseOverlayDims）+ 单测 8 例
+  + `paths.ts` drawOverlayOutputName/Path + host 新增第 9 条 route `POST /api/research.draw.overlay`
+  （探活 python3+Pillow → spawn 合成 → 缩略图 → 写 draw artifact 进历史 stack + episodic + persist），
+  `DrawConfigView.overlay`（overlay.supported/pythonBin/reason）；client `route.ts`（drawOverlayUrl /
+  DrawOverlayView / parseDrawOverlay）+ `DrawTab.tsx`（「无文字底图模式」checkbox 勾选自动追加无文字负约束 +
+  「文字叠加」卡片：底图下拉（历史中仍存在）→ 标签多行输入 → 合成文字 → 预览/大图/错误）；lib/client.js
+  重建；单测 **269/269 全绿**（261 基线 + overlay 纯函数 8 + OVERLAY route 假探活/假 spawn 端到端）。
+
+- [ ] 真机验收（两阶段混合，方案 C 落地后）：重跑 `./dsh-research/scripts/deploy-profile.sh` → **硬刷新浏览器**
+  （Cmd+Shift+R）→ research/paper 会话右栏「科研绘图」→ 勾选「两阶段混合：无文字底图模式（推荐）」生成一张
+  无字底图 → 在「文字叠加」卡片选底图 → 输入 2-3 个标签（每行一个，如 `eBGP|x,20|@40|#ffffff|b`）→ 点
+  「合成文字」→ 成品 `image-…-overlay.png` 进历史 stack、可点开**全屏大图**，放大逐字验收 **零错字**；
+  本机无 python3+Pillow 时卡片应显示 `pip install Pillow` 提示；底图被删后下拉不可选该张（fileExists 探测）。
