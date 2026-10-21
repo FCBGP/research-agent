@@ -12,6 +12,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { EventEmitter } from 'node:events';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DrawJobManager, collectDrawHistory, isDrawArtifact, type DrawRuntimeDeps, type DrawRequest } from '../plugin-draw.ts';
@@ -348,14 +349,14 @@ test('draw/plugin: 历史视图带 thumbBase64 + fileExists；archive 后从列�
 });
 
 // ---------------------------------------------------------------------------
-// apply() 路由挂载 —— 白屏可见性（2026-10-21）+ 历史管理（2026-10-21）：
-//   6 条路由（config / debug / generate / status / history / delete）都注册；
+// apply() 路由挂载 —— 白屏可见性（2026-10-21）+ 历史管理（2026-10-21）+ 会话筛选/图片回读（2026-10-21）：
+//   8 条路由（config / debug / generate / status / history / delete / sessions / image）都注册；
 //   debug route 收到浏览器端 error 上报时打印到 `dsh research` 终端；
 //   delete route 支持 artifactId 删单条 / sessionId 清空会话。
 // ---------------------------------------------------------------------------
-import { apply, archiveDrawArtifact, archiveDrawHistory, DRAW_CONFIG_PATH, DRAW_DEBUG_PATH, DRAW_DELETE_PATH, DRAW_GENERATE_PATH, DRAW_HISTORY_PATH, DRAW_STATUS_PATH } from '../plugin-draw.ts';
+import { apply, archiveDrawArtifact, archiveDrawHistory, collectDrawSessions, DRAW_CONFIG_PATH, DRAW_DEBUG_PATH, DRAW_DELETE_PATH, DRAW_GENERATE_PATH, DRAW_HISTORY_PATH, DRAW_IMAGE_PATH, DRAW_NO_SESSION, DRAW_SESSIONS_PATH, DRAW_STATUS_PATH, readDrawImage } from '../plugin-draw.ts';
 
-test('draw/plugin: apply() 挂 6 条路由 + debug 上报路由把客户端错误打到 CLI', async () => {
+test('draw/plugin: apply() 挂 8 条路由 + debug 上报路由把客户端错误打到 CLI', async () => {
   const routes: Array<{ path: string; methods?: string[]; fetch: (r: Request) => Promise<Response> }> = [];
   const provided = new Map<string, unknown>();
   const ctx = {
@@ -367,7 +368,7 @@ test('draw/plugin: apply() 挂 6 条路由 + debug 上报路由把客户端错�
   const disposer = apply(ctx as never, { enabled: true });
   try {
     const paths = routes.map((r) => r.path);
-    for (const p of [DRAW_CONFIG_PATH, DRAW_DEBUG_PATH, DRAW_GENERATE_PATH, DRAW_STATUS_PATH, DRAW_HISTORY_PATH, DRAW_DELETE_PATH]) {
+    for (const p of [DRAW_CONFIG_PATH, DRAW_DEBUG_PATH, DRAW_GENERATE_PATH, DRAW_STATUS_PATH, DRAW_HISTORY_PATH, DRAW_DELETE_PATH, DRAW_SESSIONS_PATH, DRAW_IMAGE_PATH]) {
       assert.ok(paths.includes(p), `路由已注册: ${p}`);
     }
     // service 提供
@@ -441,4 +442,89 @@ test('draw/plugin: DELETE route — artifactId 删单条 / sessionId 清空 / �
   } finally {
     disposer?.();
   }
+});
+
+// ---------------------------------------------------------------------------
+// 会话聚合 + 图片回读（2026-10-21）：侧边栏「按会话筛选」历史 + 在 dsh 内查看生成图
+// ---------------------------------------------------------------------------
+test('draw/plugin: collectDrawSessions 聚合会话（含无会话分组 label 键）', () => {
+  const artifacts = new ArtifactStore();
+  artifacts.put({ kind: 'note', title: 'draw: A', body: 'x', meta: { sessionId: 's-1', outputPath: '/o/1.png' } });
+  artifacts.put({ kind: 'note', title: 'draw: B', body: 'x', meta: { sessionId: 's-1', outputPath: '/o/2.png' } });
+  artifacts.put({ kind: 'note', title: 'draw: C', body: 'x', meta: { sessionId: 's-2', outputPath: '/o/3.png' } });
+  artifacts.put({ kind: 'note', title: 'draw: 无会话', body: 'x', meta: { outputPath: '/o/4.png' } });
+  artifacts.put({ kind: 'note', title: '普通笔记', body: 'x', meta: {} });
+
+  const ctx = { get: (n: string) => (n === 'researchCore' ? { artifacts } : undefined) } as never;
+  const sessions = collectDrawSessions(ctx);
+  // 3 个分组：s-1（2 条）、s-2（1 条）、__no_session__（1 条）
+  assert.equal(sessions.length, 3, '会话分组数');
+  const s1 = sessions.find((x) => x.sessionId === 's-1')!;
+  assert.equal(s1.count, 2, 's-1 聚合 2 条');
+  const none = sessions.find((x) => x.sessionId === DRAW_NO_SESSION)!;
+  assert.equal(none.count, 1, '无会话分组 1 条');
+  // 降序：lastAt 最新在前
+  const times = sessions.map((x) => x.lastAt);
+  assert.deepEqual(times, [...times].sort((a, b) => b.localeCompare(a)), '按 lastAt 降序');
+  // researchCore 缺失 → 空
+  assert.deepEqual(collectDrawSessions({ get: () => undefined } as never), []);
+});
+
+test('draw/plugin: SESSIONS 路由 + IMAGE 路由 — 聚合返回 + 图片二进制回读 / 404 / 415', async () => {
+  const tmp = join(tmpdir(), `dsh-draw-route-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  mkdirSync(tmp, { recursive: true });
+  const imgPath = join(tmp, 'shot.png');
+  const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+  writeFileSync(imgPath, PNG);
+  const txtPath = join(tmp, 'notes.txt');
+  writeFileSync(txtPath, Buffer.from('hello'));
+
+  const artifacts = new ArtifactStore();
+  artifacts.put({ kind: 'note', title: 'draw: A', body: 'x', meta: { sessionId: 's-1', outputPath: imgPath } });
+  const routes: Array<{ path: string; methods?: string[]; fetch: (r: Request) => Promise<Response> }> = [];
+  const provided = new Map<string, unknown>();
+  const ctx = {
+    get: (n: string) => provided.get(n),
+    provide: (n: string, v: unknown) => { provided.set(n, v); },
+    logger: () => ({ info() {}, warn() {} }),
+    connection: { fetch: { register: (r: { path: string; methods?: string[]; fetch: (req: Request) => Promise<Response> }) => { routes.push(r); return () => {}; } } },
+  };
+  provided.set('researchCore', { artifacts });
+  const disposer = apply(ctx as never, { enabled: true });
+  try {
+    // SESSIONS 路由：聚合出 s-1（1 条）
+    const sessRoute = routes.find((r) => r.path === DRAW_SESSIONS_PATH)!;
+    const sessJson = await (await sessRoute.fetch(new Request(`http://x${DRAW_SESSIONS_PATH}`, { method: 'GET' }))).json() as { sessions: Array<{ sessionId: string; count: number }> };
+    assert.equal(sessJson.sessions.find((x) => x.sessionId === 's-1')?.count, 1, 'SESSIONS 路由聚合');
+
+    // IMAGE 路由：回读 png（含 ~ 展开场景用绝对路径即可）+ 未知扩展名 415 + 缺失 404
+    const imgRoute = routes.find((r) => r.path === DRAW_IMAGE_PATH)!;
+    let res = await imgRoute.fetch(new Request(`http://x${DRAW_IMAGE_PATH}?path=${encodeURIComponent(imgPath)}`, { method: 'GET' }));
+    assert.equal(res.status, 200, '图片 200');
+    assert.equal(res.headers.get('content-type'), 'image/png', 'content-type png');
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    assert.deepEqual([...bytes], [...PNG], '回读字节一致');
+    // 缺 path → 400
+    res = await imgRoute.fetch(new Request(`http://x${DRAW_IMAGE_PATH}`, { method: 'GET' }));
+    assert.equal(res.status, 400, '缺 path 400');
+    // 非图片扩展名 → 415
+    res = await imgRoute.fetch(new Request(`http://x${DRAW_IMAGE_PATH}?path=${encodeURIComponent(txtPath)}`, { method: 'GET' }));
+    assert.equal(res.status, 415, '非图片 415');
+    // 不存在 → 404
+    res = await imgRoute.fetch(new Request(`http://x${DRAW_IMAGE_PATH}?path=${encodeURIComponent(join(tmp, 'nope.png'))}`, { method: 'GET' }));
+    assert.equal(res.status, 404, '缺失 404');
+  } finally {
+    disposer?.();
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('draw/plugin: readDrawImage 纯函数 —— ~ 展开 / 非法 URL 编码容错', () => {
+  const exists = (p: string): boolean => p.endsWith('images/image-20261021.png');
+  const read = (p: string): Buffer => Buffer.from(p);
+  // ~ 展开
+  const out = readDrawImage('~/Downloads/outputs/images/image-20261021.png',
+    read, exists) as { bytes: Buffer; contentType: string };
+  assert.equal(out.contentType, 'image/png', 'content-type');
+  assert.ok(out.bytes.toString().includes('/Downloads/outputs/images/image-20261021.png'), '~ 已展开');
 });

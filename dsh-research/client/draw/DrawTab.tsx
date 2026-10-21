@@ -14,9 +14,10 @@ import { Component, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  drawConfigUrl, drawDebugUrl, drawDeleteUrl, drawGenerateUrl, drawHistoryUrl, drawStatusUrl,
-  parseDrawConfig, parseDrawHistory, parseDrawJob,
-  type DrawConfigView, type DrawHistoryItem,
+  drawConfigUrl, drawDebugUrl, drawDeleteUrl, drawGenerateUrl, drawHistoryUrl, drawImageUrl,
+  drawSessionsUrl, drawStatusUrl,
+  parseDrawConfig, parseDrawHistory, parseDrawJob, parseDrawSessions, DRAW_NO_SESSION,
+  type DrawConfigView, type DrawHistoryItem, type DrawSessionItem,
 } from './route.ts'
 
 /** 本 type's body 的合成 props：框架 shares（useTabInfo/sessionId）+ 无自定义注入面。 */
@@ -65,6 +66,13 @@ function formatDate(value: string): string {
   return Number.isNaN(d.getTime()) ? (value || '—') : d.toLocaleString()
 }
 
+/** 会话筛选下拉的短标签：截断 UUID 类长 id，保留可辨识前缀。 */
+function formatSessionLabel(sn: DrawSessionItem): string {
+  const sid = sn.sessionId
+  if (sid.length <= 20) return sid
+  return `${sid.slice(0, 12)}…${sid.slice(-4)}`
+}
+
 // 全局兜底：浏览器里任何未捕获异常/未处理 rejection → 转发 CLI（只装一次）。
 if (typeof window !== 'undefined' && !(window as { __dshDrawDebugInstalled?: boolean }).__dshDrawDebugInstalled) {
   ;(window as { __dshDrawDebugInstalled?: boolean }).__dshDrawDebugInstalled = true
@@ -105,11 +113,20 @@ class DrawErrorBoundary extends Component<{ children: ReactNode }, { error: Erro
 
 /** 轮询最大连续网络失败次数（防「生成中…」永久卡死）。 */
 const MAX_POLL_RETRY = 6
+
+/** 会话筛选下拉的哨兵值：当前会话 / 全部会话。 */
+const SESSION_CURRENT = '__current__'
+const SESSION_ALL = '__all__'
 const styles = {
   root: {
     boxSizing: 'border-box' as const,
     width: '100%',
     minWidth: 0,
+    // 滚动修复：host 的 tabBody 是 height:100% + overflow:hidden 的 flex 容器，
+    // 本根节点必须 flex:1 + minHeight:0 才能收缩，overflowY:auto 提供滚动（2026-10-21 用户反馈侧边栏不可滚动）。
+    flex: '1 1 auto' as const,
+    minHeight: 0 as const,
+    overflowY: 'auto' as const,
     padding: '12px',
     display: 'flex',
     flexDirection: 'column' as const,
@@ -175,7 +192,35 @@ const styles = {
     background: primary ? 'var(--dsw-alias-state-business-primary, #4f46e5)' : 'var(--dsw-alias-interactive-bg-subtle, #eef2ff)',
     color: primary ? '#fff' : 'var(--dsw-alias-state-business-primary, #4f46e5)',
   }),
-  img: { maxWidth: '100%', borderRadius: '8px', border: '0.5px solid var(--dsw-alias-border-l2, #e5e7eb)' },
+  img: { maxWidth: '100%', borderRadius: '8px', border: '0.5px solid var(--dsw-alias-border-l2, #e5e7eb)', cursor: 'zoom-in' as const },
+  imgClickable: { maxWidth: '100%', borderRadius: '8px', border: '0.5px solid var(--dsw-alias-border-l2, #e5e7eb)', cursor: 'pointer' as const },
+  select: {
+    border: '0.5px solid var(--dsw-alias-border-l2, #e5e7eb)',
+    borderRadius: '8px',
+    padding: '4px 6px',
+    fontSize: '11px',
+    width: '100%',
+    boxSizing: 'border-box' as const,
+    background: 'var(--dsw-alias-bg-layer-1, #ffffff)',
+    color: 'inherit',
+  },
+  overlay: {
+    position: 'fixed' as const,
+    inset: 0,
+    background: 'rgba(15, 17, 21, 0.82)',
+    zIndex: 9999,
+    display: 'flex',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    padding: '18px',
+  },
+  overlayImg: {
+    maxWidth: '100%',
+    maxHeight: '100%',
+    objectFit: 'contain' as const,
+    borderRadius: '8px',
+    boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+  },
   mono: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '10px', wordBreak: 'break-all' as const, margin: 0 },
   empty: { color: 'var(--dsw-alias-label-tertiary, #6b7280)', fontSize: '11px', margin: 0 },
   errored: { color: 'var(--dsw-alias-state-error-primary, #dc2626)', fontSize: '11px', margin: 0 },
@@ -220,6 +265,11 @@ export function DrawTab(props: DrawTabProps): ReactNode {
   const [history, setHistory] = useState<import('./route.ts').DrawHistoryItem[]>([])
   const [run, setRun] = useState<RunState>({ phase: 'idle' })
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined)
+  // 会话筛选（下拉）：当前会话 / 全部会话 / 具体会话；sessions = 会话聚合列表
+  const [sessionFilter, setSessionFilter] = useState<string>(SESSION_CURRENT)
+  const [sessions, setSessions] = useState<DrawSessionItem[]>([])
+  // 大图查看：viewer 存 image src，点击打开全屏遮罩
+  const [viewer, setViewer] = useState<string | undefined>(undefined)
 
   // 表单状态
   const [prompt, setPrompt] = useState('')
@@ -284,17 +334,31 @@ export function DrawTab(props: DrawTabProps): ReactNode {
     }
   }, [signal])
 
-  // 会话历史拉取（挂载 + 每次成功后刷新）
+  // 会话历史拉取（挂载 + 每次成功后刷新；按 sessionFilter 决定目标会话）
+  const historyTarget = (): string | undefined =>
+    sessionFilter === SESSION_CURRENT ? sessionId : sessionFilter === SESSION_ALL ? undefined : sessionFilter
   const loadHistory = (): void => {
     void (async () => {
       try {
-        const res = await fetch(drawHistoryUrl(sessionId))
+        const res = await fetch(drawHistoryUrl(historyTarget()))
         if (!res.ok) return
         setHistory(parseDrawHistory(await res.json()))
       } catch { postDebug('error', '[history] 拉取绘图历史失败（静默）') }
     })()
   }
-  useEffect(() => { loadHistory() }, [sessionId])
+  useEffect(() => { loadHistory() }, [sessionId, sessionFilter])
+
+  // 会话聚合拉取（下拉候选；生成/删除/清空后刷新）
+  const refreshSessions = (): void => {
+    void (async () => {
+      try {
+        const res = await fetch(drawSessionsUrl())
+        if (!res.ok) return
+        setSessions(parseDrawSessions(await res.json()))
+      } catch { /* 静默 */ }
+    })()
+  }
+  useEffect(() => { refreshSessions() }, [sessionId])
 
   // 删除单条绘图记录（本地图片文件已丢失时的清理；archive 到历史，重启不再列出）
   const deleteRecord = (artifactId: string): void => {
@@ -309,28 +373,33 @@ export function DrawTab(props: DrawTabProps): ReactNode {
         postDebug('log', `[delete] 已删除记录 ${artifactId}`)
         setSelectedId((prev) => (prev === artifactId ? undefined : prev))
         loadHistory()
+        refreshSessions()
       } catch (err) {
         postDebug('error', `[delete] 异常: ${String((err as Error)?.message ?? err)}`)
       }
     })()
   }
 
-  // 清空本会话全部绘图记录（仅移除记录与本地缩略图展示，不删图片文件本身）
-  const clearSessionHistory = (): void => {
-    if (!sessionId) return
-    if (!window.confirm(`确定清除本会话全部 ${history.length} 条绘图记录？
+  // 清空绘图记录（仅移除记录与本地缩略图展示，不删图片文件本身）。
+  // 目标会话 = 下拉选中的具体会话；「当前会话/全部会话」时归到当前会话。
+  const clearHistoryFor = (): void => {
+    const target = sessionFilter !== SESSION_CURRENT && sessionFilter !== SESSION_ALL ? sessionFilter : sessionId
+    if (!target) return
+    const scopeLabel = target === sessionId ? '本会话' : '选中的会话'
+    if (!window.confirm(`确定清空${scopeLabel}的 ${history.length} 条绘图记录？
 仅移除记录，不会删除本地图片文件。`)) return
     void (async () => {
       try {
         const res = await fetch(drawDeleteUrl(), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId }),
+          body: JSON.stringify({ sessionId: target }),
         })
         if (!res.ok) { postDebug('warn', `[delete] 清空失败 ${res.status}`); return }
-        postDebug('log', `[delete] 已清空会话 ${sessionId} 记录`)
+        postDebug('log', `[delete] 已清空会话 ${target} 记录`)
         setSelectedId(undefined)
         loadHistory()
+        refreshSessions()
       } catch (err) {
         postDebug('error', `[delete-clear] 异常: ${String((err as Error)?.message ?? err)}`)
       }
@@ -374,6 +443,7 @@ export function DrawTab(props: DrawTabProps): ReactNode {
           postDebug('log', `[done] job=${jobId} → ${view.result.outputPath}`)
           setRun({ phase: 'done', result: view.result, artifactId: view.artifactId })
           loadHistory()
+          refreshSessions()
           return
         }
         if (view.phase === 'failed') {
@@ -646,7 +716,12 @@ export function DrawTab(props: DrawTabProps): ReactNode {
           {run.phase === 'done' && (
             <div style={styles.card}>
               <p style={styles.cardTitle}>完成</p>
-              {run.result.thumbnailBase64 && <img style={styles.img} src={run.result.thumbnailBase64} alt="生成结果预览" />}
+              {run.result.outputPath
+                ? <img style={styles.imgClickable} src={drawImageUrl(run.result.outputPath)} alt="生成结果预览" onClick={() => setViewer(drawImageUrl(run.result.outputPath))} />
+                : (run.result.thumbnailBase64 && <img style={styles.img} src={run.result.thumbnailBase64} alt="生成结果预览" />)}
+              {run.result.outputPath && (
+                <button type="button" style={styles.button(false)} onClick={() => setViewer(drawImageUrl(run.result.outputPath))}>查看大图</button>
+              )}
               <p style={styles.mono}>{run.result.outputPath}</p>
               <p style={styles.hint}>{run.result.size} · {run.result.model} · steps={run.result.steps} · seed={run.result.seed}</p>
             </div>
@@ -661,14 +736,29 @@ export function DrawTab(props: DrawTabProps): ReactNode {
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <p style={{ ...styles.cardTitle, margin: 0 }}>会话内历史（{history.length}）</p>
+              <p style={{ ...styles.cardTitle, margin: 0 }}>绘图历史（{history.length}）</p>
               {history.length > 0 && (
-                <button type="button" style={styles.button(false)} onClick={clearSessionHistory}>清除历史</button>
+                <button type="button" style={styles.button(false)} onClick={clearHistoryFor}>清除历史</button>
               )}
             </div>
+            {sessions.length > 0 && (
+              <div style={{ marginBottom: '8px' }}>
+                <span style={{ fontSize: '10px', color: 'var(--dsw-alias-label-tertiary, #6b7280)' }}>按会话筛选：</span>
+                <select style={styles.select} value={sessionFilter} onChange={(e) => setSessionFilter(e.target.value)}>
+                  <option value={SESSION_CURRENT}>当前会话</option>
+                  <option value={SESSION_ALL}>全部会话</option>
+                  {sessions.map((sn) => (
+                    <option key={sn.sessionId} value={sn.sessionId}>
+                      {sn.sessionId === DRAW_NO_SESSION ? '(无会话)' : formatSessionLabel(sn)} · {sn.count} 条
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             {history.length === 0 && <p style={styles.empty}>还没有绘图记录（关闭后重启仍会保留，按会话过滤）。</p>}
             {history.map((h) => {
               const selected = selectedId === h.artifactId
+              const realImg = h.outputPath && h.fileExists !== false ? drawImageUrl(h.outputPath) : undefined
               return (
                 <section
                   key={h.artifactId}
@@ -676,7 +766,12 @@ export function DrawTab(props: DrawTabProps): ReactNode {
                   onClick={() => setSelectedId(selected ? undefined : h.artifactId)}
                 >
                   <p style={styles.mono}>{h.title}</p>
-                  {h.thumbBase64 && <img style={styles.img} src={h.thumbBase64} alt="历史预览" />}
+                  {realImg
+                    ? <img style={styles.imgClickable} src={realImg} alt="历史预览（原图）" onClick={(e) => { e.stopPropagation(); setViewer(realImg) }} />
+                    : (h.thumbBase64 && <img style={styles.img} src={h.thumbBase64} alt="历史预览" />)}
+                  {realImg && (
+                    <button type="button" style={styles.button(false)} onClick={(e) => { e.stopPropagation(); setViewer(realImg) }}>查看大图</button>
+                  )}
                   {h.outputPath && <p style={styles.mono}>{h.outputPath}</p>}
                   <p style={styles.hint}>{h.size ?? ''}{h.model ? ` · ${h.model}` : ''} · {formatDate(h.createdAt)}</p>
                   {h.fileExists === false && (
@@ -702,6 +797,34 @@ export function DrawTab(props: DrawTabProps): ReactNode {
             })}
           </div>
         </>
+      )}
+      {viewer && (
+        <div
+          onClick={() => setViewer(undefined)}
+          style={styles.overlay}
+        >
+          <img src={viewer} alt="生成图大图" style={styles.overlayImg} />
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setViewer(undefined) }}
+            style={{
+              position: 'absolute' as const,
+              top: 14,
+              right: 14,
+              border: 'none',
+              borderRadius: 8,
+              padding: '6px 12px',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer' as const,
+              background: 'var(--dsw-alias-bg-layer-1, #ffffff)',
+              color: 'var(--dsw-alias-label-primary, #20242c)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+            }}
+          >
+            关闭
+          </button>
+        </div>
       )}
     </div>
     </DrawErrorBoundary>

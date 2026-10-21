@@ -25,6 +25,11 @@ const styles = {
     boxSizing: 'border-box' as const,
     width: '100%',
     minWidth: 0,
+    // 滚动修复：host 的 tabBody 是 height:100% + overflow:hidden 的 flex 容器，
+    // 本根节点必须 flex:1 + minHeight:0 才能收缩，overflowY:auto 提供滚动（2026-10-21 用户反馈 TRIZ 面板不可滚动）。
+    flex: '1 1 auto' as const,
+    minHeight: 0 as const,
+    overflowY: 'auto' as const,
     padding: '12px',
     display: 'flex',
     flexDirection: 'column' as const,

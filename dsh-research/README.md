@@ -115,7 +115,7 @@
 | `dsh-research-triz` | `src/plugin-triz.ts` | host | `researchTriz`（TRIZ 知识基 + 矛盾分析 / IFR / 假说生成） |
 | `dsh-research-triz-ui` | `src/plugin-triz-ui.ts` | host | 右侧栏「TRIZ 发明原理」面板数据源：`connection.fetch` 挂 `/api/research.triz.notes`（只读，不注册工具） |
 | `dsh-research-triz-auto` | `src/plugin-triz-auto.ts` | host | **每个最终回答自动映射到 TRIZ**：订阅 `session/event`（user/message→assistant/message→turn/end），`mapResult` 写 `triz: ` note artifact + episodic → 右侧栏面板自动更新（不注册工具，不 provide 服务） |
-| `dsh-research-draw` | `src/plugin-draw.ts` | host | `researchDraw`（科研绘图：local mflux CLI / api OpenAI 兼容双后端；4 条 /api/research.draw.* route；2 个 research_draw 工具的 host 后端） |
+| `dsh-research-draw` | `src/plugin-draw.ts` | host | `researchDraw`（科研绘图：local mflux CLI / api OpenAI 兼容双后端；8 条 /api/research.draw.* route；2 个 research_draw 工具的 host 后端） |
 | `dsh-research-director` | `src/plugin-director.ts` | host | `researchDirector`（DAG 调度） |
 | `dsh-research-experiment` | `src/plugin-experiment.ts` | host | `researchExperiment`（自动实验战役） |
 | `dsh-research-writer` | `src/plugin-writer.ts` | host | `researchWriter`（论文 / 幻灯片） |
@@ -470,7 +470,7 @@ patch 栈，冒烟时断言 `policy rules: 12`（L1）与 `chain defaults-only c
 > experiment / engineering / reviewer 默认不出现；生成记录**随会话持久化**。
 
 - **host 插件** `src/plugin-draw.ts`（exports `./draw`，inject `['connection']`，host 平面第 6 行
-  `cordis.patch.yml`）：提供 `researchDraw` 服务（submit / status / list / config）+ 4 条鉴权
+  `cordis.patch.yml`）：提供 `researchDraw` 服务（submit / status / list / config）+ 8 条鉴权
   route —— `POST /api/research.draw.generate`（provider+参数+垫图 base64 → `{jobId}`）、
   `GET /api/research.draw.status?jobId=`、`GET /api/research.draw.config`（enabled=false 仍挂，
   客户端空渲染）、`GET /api/research.draw.history?sessionId=`（重启后按会话列历史）。
@@ -505,6 +505,30 @@ patch 栈，冒烟时断言 `policy rules: 12`（L1）与 `chain defaults-only c
   `paper:OK[12/12] experiment:OK[10/10] engineering:OK[8/8] reviewer:OK[8/8]`、
   `draw=true`（双 provider、比例 10、默认 16:9/2K/high、job 可提交）。
 - **无 draw profile、无 preset-draw**（用户决策，不新增管理负担）。
+
+### 阶段 11.1 · 会话筛选 + 大图回读 + 侧边栏/TRIZ 滚动修复（2026-10-21，✅ 已实现并自测）
+
+> 需求（用户，2026-10-21）：右侧栏「科研绘图」要能 **选中会话历史 / 清除 draw 历史 / 直接在
+> dsh 内查看生成的图片**；本地图片文件被移除后要提示删除或重新生成；侧边栏与 TRIZ 面板
+> **内容可滚动**（原越界内容不可见）。
+
+- **host（`src/plugin-draw.ts`）**：新增 2 条鉴权 route —— `GET /api/research.draw.sessions`
+  （聚合全部含绘图记录的会话 `{sessionId,count,lastAt}`，按最近一次降序，无会话记录归
+  `__no_session__` 分组，供侧边栏下拉筛选）+ `GET /api/research.draw.image?path=<abs>`
+  （扩展名校验 → 图片二进制回读，展厅级查看生成大图；`~` 展开、非法 URL 编码容错、
+  400/404/415 语义）。`collectDrawSessions()` / `readDrawImage()` 独立成纯函数便于单测。
+- **浏览器（`client/draw/route.ts` + `DrawTab.tsx`）**：会话筛选下拉（当前会话 / 全部会话 /
+  具体会话）；「清除历史」按当前筛选目标会话执行；完成卡 + 历史卡直接回读**原图**（原
+  `drawImageUrl(outputPath)`，`fileExists !== false` 时不再只看缩略图），点击/「查看大图」开
+  全屏遮罩；删除/清空/生成后刷新会话聚合。fileExists=false 的「删除记录 / 重新生成」提示保留。
+- **滚动修复（根因）**：host CSS `.P3OORG_tabBody{height:100%;overflow:hidden}`，tab 根节点若非
+  滚动容器则越界内容不可见 —— `DrawTab.tsx` 与 `TrizTab.tsx` 的 `styles.root` 统一补
+  `flex:1 + minHeight:0 + overflowY:auto`（后续新增 tab 照此模式）。
+- **口径**：draw route 由 6 → **8 条**（config/debug/generate/status/history/delete/sessions/image）。
+- 测试：`node --test "src/**/*.test.ts"` = **260/260 全绿**（257 基线 + collectDrawSessions 聚合 /
+  SESSIONS+IMAGE 路由端到端（200 png / 400 缺参 / 415 非图 / 404 缺失）/ readDrawImage 纯函数 3 例）；
+  apply() 路由测试 6→8。
+
 
 
 ## npm 打包与一键部署（2026-10-09：TODO「一键部署」✅）

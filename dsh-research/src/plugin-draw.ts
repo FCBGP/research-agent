@@ -7,13 +7,15 @@
 // 本插件职责：
 //   1. 提供 `researchDraw` 服务（submit / status / list / config）——research_draw /
 //      research_draw_status 工具的 host 后端（仅 paper 预设 enableDraw=true 时注册工具）；
-//   2. 在 connection 鉴权栅栏内挂 4 条 route 供右侧栏「科研绘图」tab 取数/提交/轮询：
-//        POST /api/research.draw.generate   （provider + 参数 + 垫图 base64）→ { jobId }
+//   2. 在 connection 鉴权栅栏内挂 8 条 route 供右侧栏「科研绘图」tab 取数/提交/轮询：
+//        POST /api/research.draw.generate    （provider + 参数 + 垫图 base64）→ { jobId }
 //        GET  /api/research.draw.status?jobId= → { phase, progress?, logTail, result?, artifactId }
-//        GET  /api/research.draw.config     → { enabled, providers, 比例/分辨率/画质表, 默认值, outputRoot, sizePolicy }
+//        GET  /api/research.draw.config      → { enabled, providers, 比例/分辨率/画质表, 默认值, outputRoot, sizePolicy }
 //        GET  /api/research.draw.history?sessionId= → 最近绘图记录（写 artifact 的 draw: note，重启后仍可按会话列出；
 //             带 thumbBase64 预览 + fileExists 实时探测输出文件是否仍在本地）
-//        POST /api/research.draw.delete             → { artifactId } 删单条 / { sessionId } 清空该会话（archive）
+//        POST /api/research.draw.delete              → { artifactId } 删单条 / { sessionId } 清空该会话（archive）
+//        GET  /api/research.draw.sessions            → 聚合全部含绘图记录的会话 { sessionId, count, lastAt }（侧边栏筛选）
+//        GET  /api/research.draw.image?path=<abs>    → 回读本地图片文件（扩展名校验，侧边栏内查看生成图）
 //   3. 双后端 provider 抽象：
 //        local —— spawn 本机 mflux CLI（mflux-generate-qwen-2.1, Qwen-Image-2.1 模型，非驻留，
 //                 现场加载 → 并发上限 1）；edit 垫图（1 张参考图，style 0.4 / content 0.7）。
@@ -27,7 +29,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, extname, join } from 'node:path';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ArtifactStore, Artifact } from './core/artifact-store.ts';
 import type { ResearchCoreService } from './plugin-core.ts';
@@ -51,6 +53,25 @@ export const DRAW_HISTORY_PATH = '/api/research.draw.history';
 export const DRAW_DELETE_PATH = '/api/research.draw.delete';
 /** 客户端→CLI 报错/步骤上送（浏览器端白屏/异常也能在 `dsh research` 终端看到）。 */
 export const DRAW_DEBUG_PATH = '/api/research.draw.debug';
+/** 会话维度聚合：列出所有含绘图记录的会话（{ sessionId, count, lastAt }），供侧边栏筛选历史。 */
+export const DRAW_SESSIONS_PATH = '/api/research.draw.sessions';
+/** 按扩展名回读本地图片文件（GET ?path=<展开后的绝对路径> → image/* 二进制），侧边栏内查看生成图。 */
+export const DRAW_IMAGE_PATH = '/api/research.draw.image';
+
+/** 无会话绘图记录的分组键（collectDrawSessions 给缺失 sessionId 的记录用）；沿用
+ *  collectDrawHistory「无 sessionId 记录在任意会话筛选下都可见」的既有语义。 */
+export const DRAW_NO_SESSION = '__no_session__';
+
+/** image route 允许服务的扩展名 → Content-Type（避免回读任意本地文件）。 */
+const DRAW_IMAGE_CONTENT_TYPES: Record<string, string> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+  '.avif': 'image/avif',
+  '.bmp': 'image/bmp',
+};
 
 // ---------------------------------------------------------------------------
 // CLI 可见日志：`dsh research` 跑在终端里，白屏/失败也能在命令行看到发生了什么。
@@ -71,6 +92,22 @@ function cliError(...parts: unknown[]): void {
 }
 function safeString(value: unknown): string {
   try { return JSON.stringify(value ?? null); } catch { return String(value); }
+}
+
+/** URL 解码容错（非法 % 序列不抛 URIError，逐字符容错）。 */
+function safeDecodeURIComponent(value: string): string {
+  try { return decodeURIComponent(value); } catch {
+    let out = '';
+    for (let i = 0; i < value.length; i += 1) {
+      if (value[i] === '%' && i + 2 < value.length) {
+        const hex = value.slice(i + 1, i + 3);
+        const code = Number.parseInt(hex, 16);
+        if (!Number.isNaN(code)) { out += String.fromCharCode(code); i += 2; continue; }
+      }
+      out += value[i];
+    }
+    return out;
+  }
 }
 
 /** 需要 host 服务：connection（route 注册）；researchCore/researchMemory 经 ctx.get 惰性读取。 */
@@ -774,6 +811,47 @@ export function drawHistoryView(a: Artifact, fileExists?: boolean): DrawHistoryV
   };
 }
 
+/** 会话维度聚合视图：一个会话里有多少条绘图记录、最近一次何时。 */
+export interface DrawSessionView {
+  sessionId: string;
+  count: number;
+  lastAt: string;
+}
+
+/** 聚合全部绘图记录所属会话（按最近一次创建时间降序；无 sessionId 的记录归入
+ *  DRAW_NO_SESSION 分组）。供侧边栏「会话筛选」下拉取数。researchCore 缺失返回空。 */
+export function collectDrawSessions(ctx: Context): DrawSessionView[] {
+  const core = ctx.get?.('researchCore') as ResearchCoreService | undefined;
+  if (!core?.artifacts) return [];
+  const bySession = new Map<string, { count: number; lastAt: string }>();
+  for (const a of core.artifacts.list()) {
+    if (!isDrawArtifact(a)) continue;
+    const sid = typeof a.meta?.sessionId === 'string' && a.meta.sessionId ? a.meta.sessionId : DRAW_NO_SESSION;
+    const cur = bySession.get(sid);
+    if (!cur) {
+      bySession.set(sid, { count: 1, lastAt: a.createdAt });
+    } else {
+      cur.count += 1;
+      if (a.createdAt > cur.lastAt) cur.lastAt = a.createdAt;
+    }
+  }
+  return [...bySession.entries()]
+    .map(([sessionId, v]) => ({ sessionId, count: v.count, lastAt: v.lastAt }))
+    .sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+}
+
+/** 回读本地图片文件：展开 ~/ → 校验扩展名 → 不存在 404 / 非图片 415 → 返回二进制。
+ *  独立成函数便于单测（直接喂真实临时文件）。 */
+export function readDrawImage(path: string, read: (p: string) => Buffer, exists: (p: string) => boolean): { bytes: Buffer; contentType: string } | { status: 400 | 404 | 415; error: string } {
+  const decoded = safeDecodeURIComponent(path);
+  if (!decoded.trim()) return { status: 400, error: '缺 path 参数' };
+  const abs = expandHome(decoded.trim());
+  if (!exists(abs)) return { status: 404, error: '图片文件不存在' };
+  const contentType = DRAW_IMAGE_CONTENT_TYPES[extname(abs).toLowerCase()];
+  if (!contentType) return { status: 415, error: '非支持的图片类型' };
+  return { bytes: read(abs), contentType };
+}
+
 /** 收集某会话最近 N 条绘图记录（按 createdAt 降序；researchCore 缺失时安全返回空）。
  *  fileExistsCheck 可注入（测试假 existsSync）；默认实时探测输出文件是否仍存在。 */
 export function collectDrawHistory(
@@ -882,6 +960,37 @@ export function apply(ctx: Context, config: DrawPluginConfig = {}): (() => void)
         return Promise.resolve(Response.json({ items }, { headers: { 'cache-control': 'no-store' } }));
       },
     }) as unknown as () => void);
+    // 会话聚合：列出所有含绘图记录的会话（{ sessionId, count, lastAt }）供侧边栏筛选。
+    disposers.push(ctx.connection.fetch.register({
+      path: DRAW_SESSIONS_PATH,
+      methods: ['GET'],
+      requestBody: 'buffered',
+      fetch: () => {
+        const sessions = collectDrawSessions(ctx);
+        cliLog('GET sessions count=', sessions.length);
+        return Promise.resolve(Response.json({ sessions }, { headers: { 'cache-control': 'no-store' } }));
+      },
+    }) as unknown as () => void);
+    // 本地图片回读：GET ?path=<展开后的绝对路径> → image/* 二进制（侧边栏内查看生成图）。
+    disposers.push(ctx.connection.fetch.register({
+      path: DRAW_IMAGE_PATH,
+      methods: ['GET'],
+      requestBody: 'buffered',
+      fetch: (request: Request) => {
+        const raw = new URL(request.url).searchParams.get('path') ?? '';
+        const out = readDrawImage(raw, deps.readFileSync, deps.existsSync);
+        if ('status' in out) {
+          return Promise.resolve(Response.json({ error: out.error }, { status: out.status, headers: { 'cache-control': 'no-store' } }));
+        }
+        return Promise.resolve(new Response(out.bytes, {
+          headers: {
+            'content-type': out.contentType,
+            'content-length': String(out.bytes.length),
+            'cache-control': 'private, max-age=60',
+          },
+        }));
+      },
+    }) as unknown as () => void);
     // 删除绘图记录：body { artifactId } 删单条；body { sessionId } 清空该会话；缺参 400。
     disposers.push(ctx.connection.fetch.register({
       path: DRAW_DELETE_PATH,
@@ -916,6 +1025,6 @@ export function apply(ctx: Context, config: DrawPluginConfig = {}): (() => void)
   }
 
   ctx.logger?.(name).info('%s: %s — 右侧栏科研绘图（enabled=%s; local=%s; %d routes）',
-    name, enabled ? '挂载' : '禁用', String(enabled), defaultLocalConfig().bin, enabled ? 5 : 1);
+    name, enabled ? '挂载' : '禁用', String(enabled), defaultLocalConfig().bin, enabled ? 8 : 2);
   return () => { for (const d of disposers) d(); manager.dispose(); };
 }

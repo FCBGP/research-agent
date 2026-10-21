@@ -15,6 +15,11 @@ export const DRAW_CONFIG_PATH = '/api/research.draw.config'
 export const DRAW_HISTORY_PATH = '/api/research.draw.history'
 export const DRAW_DELETE_PATH = '/api/research.draw.delete'
 export const DRAW_DEBUG_PATH = '/api/research.draw.debug'
+export const DRAW_SESSIONS_PATH = '/api/research.draw.sessions'
+export const DRAW_IMAGE_PATH = '/api/research.draw.image'
+
+/** 无会话绘图记录的分组键（与 host 侧 DRAW_NO_SESSION 同名常量保持一致）。 */
+export const DRAW_NO_SESSION = '__no_session__'
 
 /** 浏览器侧 document-relative 形式（与 ui-deliverables 的 CHANGED_FILES_ROUTE 同款约定）。 */
 export const DRAW_GENERATE_ROUTE = DRAW_GENERATE_PATH.slice(1)
@@ -23,6 +28,8 @@ export const DRAW_CONFIG_ROUTE = DRAW_CONFIG_PATH.slice(1)
 export const DRAW_HISTORY_ROUTE = DRAW_HISTORY_PATH.slice(1)
 export const DRAW_DELETE_ROUTE = DRAW_DELETE_PATH.slice(1)
 export const DRAW_DEBUG_ROUTE = DRAW_DEBUG_PATH.slice(1)
+export const DRAW_SESSIONS_ROUTE = DRAW_SESSIONS_PATH.slice(1)
+export const DRAW_IMAGE_ROUTE = DRAW_IMAGE_PATH.slice(1)
 
 /** 会话维度：传入 sessionId 时 URL 带上（history / generate 记录按会话过滤/注解）。 */
 export function drawUrl(route: string, sessionId?: string, extra?: Record<string, string>): string {
@@ -50,6 +57,13 @@ export function drawDeleteUrl(): string {
 }
 export function drawDebugUrl(): string {
   return DRAW_DEBUG_ROUTE
+}
+export function drawSessionsUrl(): string {
+  return DRAW_SESSIONS_ROUTE
+}
+/** 回读本地图片的 document-relative URL（path 为展开后的绝对路径）。 */
+export function drawImageUrl(path: string): string {
+  return drawUrl(DRAW_IMAGE_ROUTE, undefined, { path })
 }
 
 // ---------------------------------------------------------------------------
@@ -254,6 +268,30 @@ export function parseDrawHistory(value: unknown): DrawHistoryItem[] {
       mode: typeof item.mode === 'string' ? item.mode : undefined,
       thumbBase64: typeof item.thumbBase64 === 'string' ? item.thumbBase64 : undefined,
       fileExists: typeof item.fileExists === 'boolean' ? item.fileExists : undefined,
+    })
+  }
+  return out
+}
+
+// ---------------------------------------------------------------------------
+// 会话聚合（/api/research.draw.sessions 返回形状）+ 解析
+// ---------------------------------------------------------------------------
+
+export interface DrawSessionItem {
+  sessionId: string
+  count: number
+  lastAt: string
+}
+
+export function parseDrawSessions(value: unknown): DrawSessionItem[] {
+  if (!isRecord(value) || !Array.isArray(value.sessions)) return []
+  const out: DrawSessionItem[] = []
+  for (const item of value.sessions) {
+    if (!isRecord(item) || typeof item.sessionId !== 'string') continue
+    out.push({
+      sessionId: item.sessionId,
+      count: typeof item.count === 'number' ? item.count : 0,
+      lastAt: typeof item.lastAt === 'string' ? item.lastAt : '',
     })
   }
   return out

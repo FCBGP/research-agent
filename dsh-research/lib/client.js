@@ -118,6 +118,11 @@ var styles = {
     boxSizing: "border-box",
     width: "100%",
     minWidth: 0,
+    // 滚动修复：host 的 tabBody 是 height:100% + overflow:hidden 的 flex 容器，
+    // 本根节点必须 flex:1 + minHeight:0 才能收缩，overflowY:auto 提供滚动（2026-10-21 用户反馈 TRIZ 面板不可滚动）。
+    flex: "1 1 auto",
+    minHeight: 0,
+    overflowY: "auto",
     padding: "12px",
     display: "flex",
     flexDirection: "column",
@@ -304,12 +309,17 @@ var DRAW_CONFIG_PATH = "/api/research.draw.config";
 var DRAW_HISTORY_PATH = "/api/research.draw.history";
 var DRAW_DELETE_PATH = "/api/research.draw.delete";
 var DRAW_DEBUG_PATH = "/api/research.draw.debug";
+var DRAW_SESSIONS_PATH = "/api/research.draw.sessions";
+var DRAW_IMAGE_PATH = "/api/research.draw.image";
+var DRAW_NO_SESSION = "__no_session__";
 var DRAW_GENERATE_ROUTE = DRAW_GENERATE_PATH.slice(1);
 var DRAW_STATUS_ROUTE = DRAW_STATUS_PATH.slice(1);
 var DRAW_CONFIG_ROUTE = DRAW_CONFIG_PATH.slice(1);
 var DRAW_HISTORY_ROUTE = DRAW_HISTORY_PATH.slice(1);
 var DRAW_DELETE_ROUTE = DRAW_DELETE_PATH.slice(1);
 var DRAW_DEBUG_ROUTE = DRAW_DEBUG_PATH.slice(1);
+var DRAW_SESSIONS_ROUTE = DRAW_SESSIONS_PATH.slice(1);
+var DRAW_IMAGE_ROUTE = DRAW_IMAGE_PATH.slice(1);
 function drawUrl(route, sessionId, extra) {
   const params = new URLSearchParams();
   if (sessionId) params.set("sessionId", sessionId);
@@ -336,6 +346,12 @@ function drawDeleteUrl() {
 }
 function drawDebugUrl() {
   return DRAW_DEBUG_ROUTE;
+}
+function drawSessionsUrl() {
+  return DRAW_SESSIONS_ROUTE;
+}
+function drawImageUrl(path) {
+  return drawUrl(DRAW_IMAGE_ROUTE, void 0, { path });
 }
 function fallbackDrawConfig() {
   return {
@@ -465,6 +481,19 @@ function parseDrawHistory(value) {
   }
   return out;
 }
+function parseDrawSessions(value) {
+  if (!isRecord2(value) || !Array.isArray(value.sessions)) return [];
+  const out = [];
+  for (const item of value.sessions) {
+    if (!isRecord2(item) || typeof item.sessionId !== "string") continue;
+    out.push({
+      sessionId: item.sessionId,
+      count: typeof item.count === "number" ? item.count : 0,
+      lastAt: typeof item.lastAt === "string" ? item.lastAt : ""
+    });
+  }
+  return out;
+}
 
 // client/draw/DrawTab.tsx
 var import_jsx_runtime2 = require("react/jsx-runtime");
@@ -485,6 +514,11 @@ function postDebug(level, msg, meta) {
 function formatDate(value) {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? value || "\u2014" : d.toLocaleString();
+}
+function formatSessionLabel(sn) {
+  const sid = sn.sessionId;
+  if (sid.length <= 20) return sid;
+  return `${sid.slice(0, 12)}\u2026${sid.slice(-4)}`;
 }
 if (typeof window !== "undefined" && !window.__dshDrawDebugInstalled) {
   ;
@@ -526,11 +560,18 @@ ${error.stack ?? ""}`);
   }
 };
 var MAX_POLL_RETRY = 6;
+var SESSION_CURRENT = "__current__";
+var SESSION_ALL = "__all__";
 var styles2 = {
   root: {
     boxSizing: "border-box",
     width: "100%",
     minWidth: 0,
+    // 滚动修复：host 的 tabBody 是 height:100% + overflow:hidden 的 flex 容器，
+    // 本根节点必须 flex:1 + minHeight:0 才能收缩，overflowY:auto 提供滚动（2026-10-21 用户反馈侧边栏不可滚动）。
+    flex: "1 1 auto",
+    minHeight: 0,
+    overflowY: "auto",
     padding: "12px",
     display: "flex",
     flexDirection: "column",
@@ -596,7 +637,35 @@ var styles2 = {
     background: primary ? "var(--dsw-alias-state-business-primary, #4f46e5)" : "var(--dsw-alias-interactive-bg-subtle, #eef2ff)",
     color: primary ? "#fff" : "var(--dsw-alias-state-business-primary, #4f46e5)"
   }),
-  img: { maxWidth: "100%", borderRadius: "8px", border: "0.5px solid var(--dsw-alias-border-l2, #e5e7eb)" },
+  img: { maxWidth: "100%", borderRadius: "8px", border: "0.5px solid var(--dsw-alias-border-l2, #e5e7eb)", cursor: "zoom-in" },
+  imgClickable: { maxWidth: "100%", borderRadius: "8px", border: "0.5px solid var(--dsw-alias-border-l2, #e5e7eb)", cursor: "pointer" },
+  select: {
+    border: "0.5px solid var(--dsw-alias-border-l2, #e5e7eb)",
+    borderRadius: "8px",
+    padding: "4px 6px",
+    fontSize: "11px",
+    width: "100%",
+    boxSizing: "border-box",
+    background: "var(--dsw-alias-bg-layer-1, #ffffff)",
+    color: "inherit"
+  },
+  overlay: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(15, 17, 21, 0.82)",
+    zIndex: 9999,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "18px"
+  },
+  overlayImg: {
+    maxWidth: "100%",
+    maxHeight: "100%",
+    objectFit: "contain",
+    borderRadius: "8px",
+    boxShadow: "0 12px 40px rgba(0,0,0,0.5)"
+  },
   mono: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: "10px", wordBreak: "break-all", margin: 0 },
   empty: { color: "var(--dsw-alias-label-tertiary, #6b7280)", fontSize: "11px", margin: 0 },
   errored: { color: "var(--dsw-alias-state-error-primary, #dc2626)", fontSize: "11px", margin: 0 },
@@ -622,6 +691,9 @@ function DrawTab(props) {
   const [history, setHistory] = (0, import_react2.useState)([]);
   const [run, setRun] = (0, import_react2.useState)({ phase: "idle" });
   const [selectedId, setSelectedId] = (0, import_react2.useState)(void 0);
+  const [sessionFilter, setSessionFilter] = (0, import_react2.useState)(SESSION_CURRENT);
+  const [sessions, setSessions] = (0, import_react2.useState)([]);
+  const [viewer, setViewer] = (0, import_react2.useState)(void 0);
   const [prompt, setPrompt] = (0, import_react2.useState)("");
   const [provider, setProvider] = (0, import_react2.useState)("local");
   const [mode, setMode] = (0, import_react2.useState)("txt2img");
@@ -682,10 +754,11 @@ function DrawTab(props) {
       signal?.removeEventListener("abort", abort);
     };
   }, [signal]);
+  const historyTarget = () => sessionFilter === SESSION_CURRENT ? sessionId : sessionFilter === SESSION_ALL ? void 0 : sessionFilter;
   const loadHistory = () => {
     void (async () => {
       try {
-        const res = await fetch(drawHistoryUrl(sessionId));
+        const res = await fetch(drawHistoryUrl(historyTarget()));
         if (!res.ok) return;
         setHistory(parseDrawHistory(await res.json()));
       } catch {
@@ -695,6 +768,19 @@ function DrawTab(props) {
   };
   (0, import_react2.useEffect)(() => {
     loadHistory();
+  }, [sessionId, sessionFilter]);
+  const refreshSessions = () => {
+    void (async () => {
+      try {
+        const res = await fetch(drawSessionsUrl());
+        if (!res.ok) return;
+        setSessions(parseDrawSessions(await res.json()));
+      } catch {
+      }
+    })();
+  };
+  (0, import_react2.useEffect)(() => {
+    refreshSessions();
   }, [sessionId]);
   const deleteRecord = (artifactId) => {
     void (async () => {
@@ -711,29 +797,33 @@ function DrawTab(props) {
         postDebug("log", `[delete] \u5DF2\u5220\u9664\u8BB0\u5F55 ${artifactId}`);
         setSelectedId((prev) => prev === artifactId ? void 0 : prev);
         loadHistory();
+        refreshSessions();
       } catch (err) {
         postDebug("error", `[delete] \u5F02\u5E38: ${String(err?.message ?? err)}`);
       }
     })();
   };
-  const clearSessionHistory = () => {
-    if (!sessionId) return;
-    if (!window.confirm(`\u786E\u5B9A\u6E05\u9664\u672C\u4F1A\u8BDD\u5168\u90E8 ${history.length} \u6761\u7ED8\u56FE\u8BB0\u5F55\uFF1F
+  const clearHistoryFor = () => {
+    const target = sessionFilter !== SESSION_CURRENT && sessionFilter !== SESSION_ALL ? sessionFilter : sessionId;
+    if (!target) return;
+    const scopeLabel = target === sessionId ? "\u672C\u4F1A\u8BDD" : "\u9009\u4E2D\u7684\u4F1A\u8BDD";
+    if (!window.confirm(`\u786E\u5B9A\u6E05\u7A7A${scopeLabel}\u7684 ${history.length} \u6761\u7ED8\u56FE\u8BB0\u5F55\uFF1F
 \u4EC5\u79FB\u9664\u8BB0\u5F55\uFF0C\u4E0D\u4F1A\u5220\u9664\u672C\u5730\u56FE\u7247\u6587\u4EF6\u3002`)) return;
     void (async () => {
       try {
         const res = await fetch(drawDeleteUrl(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId })
+          body: JSON.stringify({ sessionId: target })
         });
         if (!res.ok) {
           postDebug("warn", `[delete] \u6E05\u7A7A\u5931\u8D25 ${res.status}`);
           return;
         }
-        postDebug("log", `[delete] \u5DF2\u6E05\u7A7A\u4F1A\u8BDD ${sessionId} \u8BB0\u5F55`);
+        postDebug("log", `[delete] \u5DF2\u6E05\u7A7A\u4F1A\u8BDD ${target} \u8BB0\u5F55`);
         setSelectedId(void 0);
         loadHistory();
+        refreshSessions();
       } catch (err) {
         postDebug("error", `[delete-clear] \u5F02\u5E38: ${String(err?.message ?? err)}`);
       }
@@ -771,6 +861,7 @@ function DrawTab(props) {
           postDebug("log", `[done] job=${jobId} \u2192 ${view.result.outputPath}`);
           setRun({ phase: "done", result: view.result, artifactId: view.artifactId });
           loadHistory();
+          refreshSessions();
           return;
         }
         if (view.phase === "failed") {
@@ -996,7 +1087,8 @@ function DrawTab(props) {
       ] }),
       run.phase === "done" && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: styles2.card, children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.cardTitle, children: "\u5B8C\u6210" }),
-        run.result.thumbnailBase64 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("img", { style: styles2.img, src: run.result.thumbnailBase64, alt: "\u751F\u6210\u7ED3\u679C\u9884\u89C8" }),
+        run.result.outputPath ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("img", { style: styles2.imgClickable, src: drawImageUrl(run.result.outputPath), alt: "\u751F\u6210\u7ED3\u679C\u9884\u89C8", onClick: () => setViewer(drawImageUrl(run.result.outputPath)) }) : run.result.thumbnailBase64 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("img", { style: styles2.img, src: run.result.thumbnailBase64, alt: "\u751F\u6210\u7ED3\u679C\u9884\u89C8" }),
+        run.result.outputPath && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: styles2.button(false), onClick: () => setViewer(drawImageUrl(run.result.outputPath)), children: "\u67E5\u770B\u5927\u56FE" }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.mono, children: run.result.outputPath }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: styles2.hint, children: [
           run.result.size,
@@ -1016,15 +1108,29 @@ function DrawTab(props) {
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }, children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: { ...styles2.cardTitle, margin: 0 }, children: [
-            "\u4F1A\u8BDD\u5185\u5386\u53F2\uFF08",
+            "\u7ED8\u56FE\u5386\u53F2\uFF08",
             history.length,
             "\uFF09"
           ] }),
-          history.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: styles2.button(false), onClick: clearSessionHistory, children: "\u6E05\u9664\u5386\u53F2" })
+          history.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: styles2.button(false), onClick: clearHistoryFor, children: "\u6E05\u9664\u5386\u53F2" })
+        ] }),
+        sessions.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { marginBottom: "8px" }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { fontSize: "10px", color: "var(--dsw-alias-label-tertiary, #6b7280)" }, children: "\u6309\u4F1A\u8BDD\u7B5B\u9009\uFF1A" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("select", { style: styles2.select, value: sessionFilter, onChange: (e) => setSessionFilter(e.target.value), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: SESSION_CURRENT, children: "\u5F53\u524D\u4F1A\u8BDD" }),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: SESSION_ALL, children: "\u5168\u90E8\u4F1A\u8BDD" }),
+            sessions.map((sn) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("option", { value: sn.sessionId, children: [
+              sn.sessionId === DRAW_NO_SESSION ? "(\u65E0\u4F1A\u8BDD)" : formatSessionLabel(sn),
+              " \xB7 ",
+              sn.count,
+              " \u6761"
+            ] }, sn.sessionId))
+          ] })
         ] }),
         history.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.empty, children: "\u8FD8\u6CA1\u6709\u7ED8\u56FE\u8BB0\u5F55\uFF08\u5173\u95ED\u540E\u91CD\u542F\u4ECD\u4F1A\u4FDD\u7559\uFF0C\u6309\u4F1A\u8BDD\u8FC7\u6EE4\uFF09\u3002" }),
         history.map((h) => {
           const selected = selectedId === h.artifactId;
+          const realImg = h.outputPath && h.fileExists !== false ? drawImageUrl(h.outputPath) : void 0;
           return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
             "section",
             {
@@ -1032,7 +1138,14 @@ function DrawTab(props) {
               onClick: () => setSelectedId(selected ? void 0 : h.artifactId),
               children: [
                 /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.mono, children: h.title }),
-                h.thumbBase64 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("img", { style: styles2.img, src: h.thumbBase64, alt: "\u5386\u53F2\u9884\u89C8" }),
+                realImg ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("img", { style: styles2.imgClickable, src: realImg, alt: "\u5386\u53F2\u9884\u89C8\uFF08\u539F\u56FE\uFF09", onClick: (e) => {
+                  e.stopPropagation();
+                  setViewer(realImg);
+                } }) : h.thumbBase64 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("img", { style: styles2.img, src: h.thumbBase64, alt: "\u5386\u53F2\u9884\u89C8" }),
+                realImg && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: styles2.button(false), onClick: (e) => {
+                  e.stopPropagation();
+                  setViewer(realImg);
+                }, children: "\u67E5\u770B\u5927\u56FE" }),
                 h.outputPath && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.mono, children: h.outputPath }),
                 /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: styles2.hint, children: [
                   h.size ?? "",
@@ -1073,7 +1186,42 @@ function DrawTab(props) {
           );
         })
       ] })
-    ] })
+    ] }),
+    viewer && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+      "div",
+      {
+        onClick: () => setViewer(void 0),
+        style: styles2.overlay,
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("img", { src: viewer, alt: "\u751F\u6210\u56FE\u5927\u56FE", style: styles2.overlayImg }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "button",
+            {
+              type: "button",
+              onClick: (e) => {
+                e.stopPropagation();
+                setViewer(void 0);
+              },
+              style: {
+                position: "absolute",
+                top: 14,
+                right: 14,
+                border: "none",
+                borderRadius: 8,
+                padding: "6px 12px",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                background: "var(--dsw-alias-bg-layer-1, #ffffff)",
+                color: "var(--dsw-alias-label-primary, #20242c)",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.3)"
+              },
+              children: "\u5173\u95ED"
+            }
+          )
+        ]
+      }
+    )
   ] }) });
 }
 
