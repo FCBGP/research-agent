@@ -15,9 +15,9 @@ import type { ReactNode } from 'react'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   drawConfigUrl, drawDebugUrl, drawDeleteUrl, drawGenerateUrl, drawHistoryUrl, drawImageUrl,
-  drawSessionsUrl, drawStatusUrl,
-  parseDrawConfig, parseDrawHistory, parseDrawJob, parseDrawSessions, DRAW_NO_SESSION,
-  type DrawConfigView, type DrawHistoryItem, type DrawSessionItem,
+  drawOverlayUrl, drawSessionsUrl, drawStatusUrl,
+  parseDrawConfig, parseDrawHistory, parseDrawJob, parseDrawOverlay, parseDrawSessions, DRAW_NO_SESSION,
+  type DrawConfigView, type DrawHistoryItem, type DrawOverlayView, type DrawSessionItem,
 } from './route.ts'
 
 /** 本 type's body 的合成 props：框架 shares（useTabInfo/sessionId）+ 无自定义注入面。 */
@@ -113,6 +113,10 @@ class DrawErrorBoundary extends Component<{ children: ReactNode }, { error: Erro
 
 /** 轮询最大连续网络失败次数（防「生成中…」永久卡死）。 */
 const MAX_POLL_RETRY = 6
+
+/** 两阶段混合（SKILL.md 方案 C）：无文字底图模式下自动追加到提示词的无文字指令。
+ *  底图负责配色/质感/视觉冲击；文字由 /api/research.draw.overlay 以 PIL 精确叠加。 */
+const NO_TEXT_INSTRUCTION = '注意：本图为两阶段文字合成流程的底图，请图中不要出现任何文字、字母或数字，纯图形构图，留出干净区域。'
 
 /** 会话筛选下拉的哨兵值：当前会话 / 全部会话。 */
 const SESSION_CURRENT = '__current__'
@@ -310,6 +314,13 @@ export function DrawTab(props: DrawTabProps): ReactNode {
   const [refName, setRefName] = useState('')
   const [editPreset, setEditPreset] = useState<'style' | 'content'>('style')
   const [editStrength, setEditStrength] = useState(0.4)
+  // 两阶段混合（方案 C，2026-10-21）：无文字底图开关 + 精确文字叠加层（底图选择/标签输入/合成）
+  const [textFree, setTextFree] = useState(false)
+  const [overlayLines, setOverlayLines] = useState('')
+  const [overlayBase, setOverlayBase] = useState('')
+  const [overlayBusy, setOverlayBusy] = useState(false)
+  const [overlayResult, setOverlayResult] = useState<DrawOverlayView | null>(null)
+  const [overlayError, setOverlayError] = useState('')
 
   const pollTimer = useRef<number | undefined>(undefined)
   const runningRef = useRef<{ jobId: string } | null>(null)
@@ -357,7 +368,10 @@ export function DrawTab(props: DrawTabProps): ReactNode {
       try {
         const res = await fetch(drawHistoryUrl(historyTarget()))
         if (!res.ok) return
-        setHistory(parseDrawHistory(await res.json()))
+        const items = parseDrawHistory(await res.json())
+        setHistory(items)
+        // 默认底图 = 最近一张仍存在于本地的图片（叠加层下拉兜底）
+        setOverlayBase((prev) => prev || (items.find((it) => it.outputPath && it.fileExists !== false)?.outputPath ?? ''))
       } catch { postDebug('error', '[history] 拉取绘图历史失败（静默）') }
     })()
   }
@@ -493,8 +507,9 @@ export function DrawTab(props: DrawTabProps): ReactNode {
   const generate = (): void => {
     if (!canGenerate) return
     const cfg = cfgState.phase === 'ready' ? cfgState.cfg : undefined
+    const finalPrompt = textFree ? `${prompt}\n${NO_TEXT_INSTRUCTION}` : prompt
     const body: Record<string, unknown> = {
-      prompt,
+      prompt: finalPrompt,
       provider,
       mode,
       aspect,
@@ -522,7 +537,7 @@ export function DrawTab(props: DrawTabProps): ReactNode {
       body.editStrength = editStrength
     }
     setRun({ phase: 'submitting' })
-    postDebug('log', `[generate] 提交 provider=${provider} mode=${mode} ${aspect}/${resolution}/${quality} session=${sessionId ?? '∅'}`)
+    postDebug('log', `[generate] 提交 provider=${provider} mode=${mode} ${aspect}/${resolution}/${quality} textFree=${textFree ? 'yes' : 'no'} session=${sessionId ?? '∅'}`)
     void (async () => {
       try {
         const res = await fetch(drawGenerateUrl(sessionId), {
@@ -543,6 +558,51 @@ export function DrawTab(props: DrawTabProps): ReactNode {
       } catch (err) {
         postDebug('error', `[generate] 网络/解析异常: ${String((err as Error)?.message ?? err)}`)
         setRun({ phase: 'failed', error: String((err as Error)?.message ?? err), logTail: [] })
+      }
+    })()
+  }
+
+  // 文字叠加（两阶段混合，方案 C）：POST /api/research.draw.overlay
+  //   { imagePath: 底图, labels: 文本区多行, outputDir } → python3 + Pillow 精确合成成品。
+  // 底图候选 = 历史中仍存在于本地的图片（下拉选择）；成功后刷新历史 stack 并出预览。
+  const overlayBaseOptions = history.filter((h) => h.outputPath && h.fileExists !== false)
+  const overlaySupported = cfg?.overlay.supported ?? false
+  const canOverlay = overlaySupported && overlayBase.trim().length > 0 && overlayLines.trim().length > 0 && !overlayBusy
+  const composeOverlay = (): void => {
+    if (!canOverlay) return
+    setOverlayBusy(true)
+    setOverlayError('')
+    setOverlayResult(null)
+    const labelCount = overlayLines.split('\n').filter((l) => l.trim() && !l.trim().startsWith('#')).length
+    postDebug('log', `[overlay] 提交 base=${overlayBase} labels=${labelCount} session=${sessionId ?? '∅'}`)
+    void (async () => {
+      try {
+        const res = await fetch(drawOverlayUrl(sessionId), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imagePath: overlayBase,
+            labels: overlayLines,
+            outputDir: outputDir.trim() || undefined,
+          }),
+        })
+        const view = parseDrawOverlay(await res.json())
+        if (!view || !view.ok) {
+          const msg = view?.error ?? `合成失败 (${res.status})`
+          postDebug('error', `[overlay] 被拒：${msg}`)
+          setOverlayError(msg)
+          setOverlayBusy(false)
+          return
+        }
+        postDebug('log', `[overlay] done → ${view.outputPath ?? ''}`)
+        setOverlayResult(view)
+        setOverlayBusy(false)
+        loadHistory()
+        refreshSessions()
+      } catch (err) {
+        postDebug('error', `[overlay] 异常: ${String((err as Error)?.message ?? err)}`)
+        setOverlayError(String((err as Error)?.message ?? err))
+        setOverlayBusy(false)
       }
     })()
   }
@@ -578,6 +638,16 @@ export function DrawTab(props: DrawTabProps): ReactNode {
           <Field label="提示词（科研绘图）">
             <textarea style={styles.textarea} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="例：科研绘图：BGP 劫持检测时序图，横轴时间，纵轴置信度，冷色调，标注 RPKI 事件" />
           </Field>
+
+          <div style={styles.card}>
+            <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', cursor: 'pointer' }}>
+              <input type="checkbox" checked={textFree} onChange={(e) => setTextFree(e.target.checked)} style={{ marginTop: 2 }} />
+              <span>
+                <span style={{ fontWeight: 600, fontSize: '12px' }}>两阶段混合：无文字底图模式（推荐）</span>
+                <span style={styles.hint}><br />Qwen-Image-2.1 文字/图形会错乱 → 开出图「无文字底图」，文字随后在下方精确叠加（零错字）。勾选后提交时自动追加「图中不要出现任何文字」。</span>
+              </span>
+            </label>
+          </div>
 
           <Field label="后端 / 模型">
             <Segments
@@ -748,6 +818,48 @@ export function DrawTab(props: DrawTabProps): ReactNode {
               {(run.logTail ?? []).length > 0 && <div style={styles.mono}>{(run.logTail ?? []).slice(-4).map((l, i) => <p key={i} style={{ ...styles.mono, margin: 0 }}>{l}</p>)}</div>}
             </div>
           )}
+
+          {/* 文字叠加（两阶段混合，方案 C）：无文字底图 + PIL 精确文字（站点有 python3+Pillow 才可用） */}
+          <div style={styles.card}>
+            <p style={styles.cardTitle}>文字叠加 —— 把精确文字合成到底图（零错字）</p>
+            {!overlaySupported ? (
+              <p style={styles.errored}>本机未检测到 python3 + Pillow，文字叠加不可用：{cfg.overlay.reason}。可先跑 <code>pip install Pillow</code> 后刷新。</p>
+            ) : (
+              <>
+                <Field label="底图（历史中仍存在于本地的图片）">
+                  <select
+                    style={styles.select}
+                    value={overlayBase}
+                    onChange={(e) => { setOverlayBase(e.target.value); setOverlayResult(null); setOverlayError('') }}
+                  >
+                    {overlayBaseOptions.length === 0 && <option value="">（还没有可用的图片，请先「生成」一张无文字底图）</option>}
+                    {overlayBaseOptions.map((h) => (
+                      <option key={h.artifactId} value={h.outputPath}>{h.title.slice(0, 24)}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="文字标签（每行一个：文字 |x,y |@字号 |#颜色 |b加粗；缺省=底部居中白字描边）">
+                  <textarea
+                    style={styles.textarea}
+                    value={overlayLines}
+                    onChange={(e) => { setOverlayLines(e.target.value); setOverlayError('') }}
+                    placeholder={'eBGP | @48 | #ffffff | b\nautonomous system AS65000 | 20,15 | @40 | #ffffff | b\niBGP | 50%,80%'}
+                  />
+                </Field>
+                <button type="button" style={styles.button(true)} disabled={!canOverlay} onClick={composeOverlay}>
+                  {overlayBusy ? '合成中…' : '合成文字'}
+                </button>
+                {overlayError && <p style={styles.errored}>{overlayError}</p>}
+                {overlayResult?.thumbnailBase64 && (
+                  <img style={styles.img} src={overlayResult.thumbnailBase64} alt="文字合成预览" onClick={() => overlayResult.outputPath && setViewer(drawImageUrl(overlayResult.outputPath))} />
+                )}
+                {overlayResult?.outputPath && (
+                  <button type="button" style={styles.button(false)} onClick={() => setViewer(drawImageUrl(overlayResult.outputPath!))}>查看合成大图</button>
+                )}
+                {overlayResult?.outputPath && <p style={styles.mono}>{overlayResult.outputPath}</p>}
+              </>
+            )}
+          </div>
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>

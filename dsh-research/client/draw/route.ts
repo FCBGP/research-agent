@@ -1,10 +1,11 @@
 // client/draw/route.ts — 右侧栏「科研绘图」Tab 与 host 之间的数据契约。
 //
-// host 侧（src/plugin-draw.ts）在 connection 鉴权栅栏内挂 4 条 route：
+// host 侧（src/plugin-draw.ts）在 connection 鉴权栅栏内挂 9 条 route：
 //   POST /api/research.draw.generate    （provider + 参数 + 垫图 base64）→ { jobId, phase }
 //   GET  /api/research.draw.status?jobId= → { phase, progress?, logTail, result?, artifactId }
 //   GET  /api/research.draw.config      → { enabled, providers, 比例/分辨率/画质表, 默认值, ... }
 //   GET  /api/research.draw.history?sessionId= → { items: 最近绘图记录 }
+//   POST /api/research.draw.overlay           → { imagePath, labels } 文字叠加（两阶段混合）→ 成品+预览
 // 本文件只含 client 侧常量与解析函数；路径常量与 host 侧同名常量保持一致
 // （host 是 Node 侧、client 走浏览器 bundle，两侧不共享模块图）。
 
@@ -17,6 +18,7 @@ export const DRAW_DELETE_PATH = '/api/research.draw.delete'
 export const DRAW_DEBUG_PATH = '/api/research.draw.debug'
 export const DRAW_SESSIONS_PATH = '/api/research.draw.sessions'
 export const DRAW_IMAGE_PATH = '/api/research.draw.image'
+export const DRAW_OVERLAY_PATH = '/api/research.draw.overlay'
 
 /** 无会话绘图记录的分组键（与 host 侧 DRAW_NO_SESSION 同名常量保持一致）。 */
 export const DRAW_NO_SESSION = '__no_session__'
@@ -30,6 +32,7 @@ export const DRAW_DELETE_ROUTE = DRAW_DELETE_PATH.slice(1)
 export const DRAW_DEBUG_ROUTE = DRAW_DEBUG_PATH.slice(1)
 export const DRAW_SESSIONS_ROUTE = DRAW_SESSIONS_PATH.slice(1)
 export const DRAW_IMAGE_ROUTE = DRAW_IMAGE_PATH.slice(1)
+export const DRAW_OVERLAY_ROUTE = DRAW_OVERLAY_PATH.slice(1)
 
 /** 会话维度：传入 sessionId 时 URL 带上（history / generate 记录按会话过滤/注解）。 */
 export function drawUrl(route: string, sessionId?: string, extra?: Record<string, string>): string {
@@ -66,6 +69,11 @@ export function drawImageUrl(path: string): string {
   return drawUrl(DRAW_IMAGE_ROUTE, undefined, { path })
 }
 
+/** 文字叠加（两阶段混合）提交 URL（sessionId 用于成品记录归属会话）。 */
+export function drawOverlayUrl(sessionId?: string): string {
+  return drawUrl(DRAW_OVERLAY_ROUTE, sessionId)
+}
+
 // ---------------------------------------------------------------------------
 // 配置视图（/api/research.draw.config 返回形状）
 // ---------------------------------------------------------------------------
@@ -96,6 +104,8 @@ export interface DrawConfigView {
   api: { baseURL: string; modelId: string; keyProvided: boolean }
   thumbMax: number
   maxRefBytes: number
+  /** 文字叠加（两阶段混合）后端探活：python3 + Pillow 可用性。 */
+  overlay: { supported: boolean; pythonBin: string; reason?: string }
 }
 
 /** 兜底配置（host 拉取失败 / 未启用时用于空渲染或降级展示）。 */
@@ -119,6 +129,7 @@ export function fallbackDrawConfig(): DrawConfigView {
     api: { baseURL: '', modelId: '', keyProvided: false },
     thumbMax: 1024,
     maxRefBytes: 20 * 1024 * 1024,
+    overlay: { supported: false, pythonBin: 'python3', reason: '文字叠加需要本机 python3 + Pillow' },
   }
 }
 
@@ -170,6 +181,14 @@ export function parseDrawConfig(value: unknown): DrawConfigView {
     },
     thumbMax: typeof value.thumbMax === 'number' ? value.thumbMax : d.thumbMax,
     maxRefBytes: typeof value.maxRefBytes === 'number' ? value.maxRefBytes : d.maxRefBytes,
+    overlay: (() => {
+      const o = isRecord(value.overlay) ? value.overlay : {}
+      return {
+        supported: typeof o.supported === 'boolean' ? o.supported : d.overlay.supported,
+        pythonBin: typeof o.pythonBin === 'string' && o.pythonBin ? o.pythonBin : d.overlay.pythonBin,
+        reason: typeof o.reason === 'string' ? o.reason : d.overlay.reason,
+      }
+    })(),
   }
 }
 
@@ -295,4 +314,33 @@ export function parseDrawSessions(value: unknown): DrawSessionItem[] {
     })
   }
   return out
+}
+
+// ---------------------------------------------------------------------------
+// 文字叠加结果（/api/research.draw.overlay 返回形状）+ 解析
+// ---------------------------------------------------------------------------
+
+export interface DrawOverlayView {
+  ok: boolean
+  outputPath?: string
+  thumbnailBase64?: string
+  width: number
+  height: number
+  basePath?: string
+  artifactId?: string
+  error?: string
+}
+
+export function parseDrawOverlay(value: unknown): DrawOverlayView | null {
+  if (!isRecord(value)) return null
+  return {
+    ok: value.ok === true,
+    outputPath: typeof value.outputPath === 'string' ? value.outputPath : undefined,
+    thumbnailBase64: typeof value.thumbnailBase64 === 'string' ? value.thumbnailBase64 : undefined,
+    width: typeof value.width === 'number' ? value.width : 0,
+    height: typeof value.height === 'number' ? value.height : 0,
+    basePath: typeof value.basePath === 'string' ? value.basePath : undefined,
+    artifactId: typeof value.artifactId === 'string' ? value.artifactId : undefined,
+    error: typeof value.error === 'string' ? value.error : undefined,
+  }
 }

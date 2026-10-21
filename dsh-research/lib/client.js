@@ -24,7 +24,7 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-// client/index.ts
+// dsh-research/client/index.ts
 var index_exports = {};
 __export(index_exports, {
   apply: () => apply,
@@ -33,7 +33,7 @@ __export(index_exports, {
 });
 module.exports = __toCommonJS(index_exports);
 
-// client/definition.ts
+// dsh-research/client/definition.ts
 var TRIZ_EXPLAINER_KIND = "triz-explainer";
 var TRIZ_EXPLAINER_ID = "@basil/dsh-research-triz-explainer";
 var TRIZ_EXPLAINER_ADDRESS = "dsh-resource://triz-explainer/**";
@@ -58,10 +58,10 @@ function trizExplainerDefinition() {
   };
 }
 
-// client/TrizTab.tsx
+// dsh-research/client/TrizTab.tsx
 var import_react = require("react");
 
-// client/route.ts
+// dsh-research/client/route.ts
 var TRIZ_NOTES_PATH = "/api/research.triz.notes";
 var TRIZ_NOTES_ROUTE = TRIZ_NOTES_PATH.slice(1);
 function trizNotesUrl(sessionId) {
@@ -111,7 +111,7 @@ var CONTRADICTION_ORIGIN_LABEL = {
   "default": "\u9ED8\u8BA4\uFF08\u68C0\u6D4B\u2194\u590D\u6742\u5EA6\uFF09"
 };
 
-// client/TrizTab.tsx
+// dsh-research/client/TrizTab.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
 var styles = {
   root: {
@@ -274,7 +274,7 @@ function TrizTab(props) {
   ] });
 }
 
-// client/draw/definition.ts
+// dsh-research/client/draw/definition.ts
 var DRAW_STUDIO_KIND = "draw-studio";
 var DRAW_STUDIO_ID = "@basil/dsh-research-draw-studio";
 var DRAW_STUDIO_ADDRESS = "dsh-resource://draw-studio/**";
@@ -299,10 +299,10 @@ function drawStudioDefinition() {
   };
 }
 
-// client/draw/DrawTab.tsx
+// dsh-research/client/draw/DrawTab.tsx
 var import_react2 = require("react");
 
-// client/draw/route.ts
+// dsh-research/client/draw/route.ts
 var DRAW_GENERATE_PATH = "/api/research.draw.generate";
 var DRAW_STATUS_PATH = "/api/research.draw.status";
 var DRAW_CONFIG_PATH = "/api/research.draw.config";
@@ -311,6 +311,7 @@ var DRAW_DELETE_PATH = "/api/research.draw.delete";
 var DRAW_DEBUG_PATH = "/api/research.draw.debug";
 var DRAW_SESSIONS_PATH = "/api/research.draw.sessions";
 var DRAW_IMAGE_PATH = "/api/research.draw.image";
+var DRAW_OVERLAY_PATH = "/api/research.draw.overlay";
 var DRAW_NO_SESSION = "__no_session__";
 var DRAW_GENERATE_ROUTE = DRAW_GENERATE_PATH.slice(1);
 var DRAW_STATUS_ROUTE = DRAW_STATUS_PATH.slice(1);
@@ -320,6 +321,7 @@ var DRAW_DELETE_ROUTE = DRAW_DELETE_PATH.slice(1);
 var DRAW_DEBUG_ROUTE = DRAW_DEBUG_PATH.slice(1);
 var DRAW_SESSIONS_ROUTE = DRAW_SESSIONS_PATH.slice(1);
 var DRAW_IMAGE_ROUTE = DRAW_IMAGE_PATH.slice(1);
+var DRAW_OVERLAY_ROUTE = DRAW_OVERLAY_PATH.slice(1);
 function drawUrl(route, sessionId, extra) {
   const params = new URLSearchParams();
   if (sessionId) params.set("sessionId", sessionId);
@@ -353,6 +355,9 @@ function drawSessionsUrl() {
 function drawImageUrl(path) {
   return drawUrl(DRAW_IMAGE_ROUTE, void 0, { path });
 }
+function drawOverlayUrl(sessionId) {
+  return drawUrl(DRAW_OVERLAY_ROUTE, sessionId);
+}
 function fallbackDrawConfig() {
   return {
     enabled: false,
@@ -379,7 +384,8 @@ function fallbackDrawConfig() {
     local: { bin: "mflux-generate-qwen-2.1", model: "~/llm/models/Qwen-Image-2.1", defaultSteps: 50, defaultSeed: 42 },
     api: { baseURL: "", modelId: "", keyProvided: false },
     thumbMax: 1024,
-    maxRefBytes: 20 * 1024 * 1024
+    maxRefBytes: 20 * 1024 * 1024,
+    overlay: { supported: false, pythonBin: "python3", reason: "\u6587\u5B57\u53E0\u52A0\u9700\u8981\u672C\u673A python3 + Pillow" }
   };
 }
 function isRecord2(value) {
@@ -427,7 +433,15 @@ function parseDrawConfig(value) {
       keyProvided: isRecord2(value.api) && typeof value.api.keyProvided === "boolean" ? value.api.keyProvided : d.api.keyProvided
     },
     thumbMax: typeof value.thumbMax === "number" ? value.thumbMax : d.thumbMax,
-    maxRefBytes: typeof value.maxRefBytes === "number" ? value.maxRefBytes : d.maxRefBytes
+    maxRefBytes: typeof value.maxRefBytes === "number" ? value.maxRefBytes : d.maxRefBytes,
+    overlay: (() => {
+      const o = isRecord2(value.overlay) ? value.overlay : {};
+      return {
+        supported: typeof o.supported === "boolean" ? o.supported : d.overlay.supported,
+        pythonBin: typeof o.pythonBin === "string" && o.pythonBin ? o.pythonBin : d.overlay.pythonBin,
+        reason: typeof o.reason === "string" ? o.reason : d.overlay.reason
+      };
+    })()
   };
 }
 function parseDrawJob(value) {
@@ -494,8 +508,21 @@ function parseDrawSessions(value) {
   }
   return out;
 }
+function parseDrawOverlay(value) {
+  if (!isRecord2(value)) return null;
+  return {
+    ok: value.ok === true,
+    outputPath: typeof value.outputPath === "string" ? value.outputPath : void 0,
+    thumbnailBase64: typeof value.thumbnailBase64 === "string" ? value.thumbnailBase64 : void 0,
+    width: typeof value.width === "number" ? value.width : 0,
+    height: typeof value.height === "number" ? value.height : 0,
+    basePath: typeof value.basePath === "string" ? value.basePath : void 0,
+    artifactId: typeof value.artifactId === "string" ? value.artifactId : void 0,
+    error: typeof value.error === "string" ? value.error : void 0
+  };
+}
 
-// client/draw/DrawTab.tsx
+// dsh-research/client/draw/DrawTab.tsx
 var import_jsx_runtime2 = require("react/jsx-runtime");
 function postDebug(level, msg, meta) {
   try {
@@ -560,6 +587,7 @@ ${error.stack ?? ""}`);
   }
 };
 var MAX_POLL_RETRY = 6;
+var NO_TEXT_INSTRUCTION = "\u6CE8\u610F\uFF1A\u672C\u56FE\u4E3A\u4E24\u9636\u6BB5\u6587\u5B57\u5408\u6210\u6D41\u7A0B\u7684\u5E95\u56FE\uFF0C\u8BF7\u56FE\u4E2D\u4E0D\u8981\u51FA\u73B0\u4EFB\u4F55\u6587\u5B57\u3001\u5B57\u6BCD\u6216\u6570\u5B57\uFF0C\u7EAF\u56FE\u5F62\u6784\u56FE\uFF0C\u7559\u51FA\u5E72\u51C0\u533A\u57DF\u3002";
 var SESSION_CURRENT = "__current__";
 var SESSION_ALL = "__all__";
 var styles2 = {
@@ -730,6 +758,12 @@ function DrawTab(props) {
   const [refName, setRefName] = (0, import_react2.useState)("");
   const [editPreset, setEditPreset] = (0, import_react2.useState)("style");
   const [editStrength, setEditStrength] = (0, import_react2.useState)(0.4);
+  const [textFree, setTextFree] = (0, import_react2.useState)(false);
+  const [overlayLines, setOverlayLines] = (0, import_react2.useState)("");
+  const [overlayBase, setOverlayBase] = (0, import_react2.useState)("");
+  const [overlayBusy, setOverlayBusy] = (0, import_react2.useState)(false);
+  const [overlayResult, setOverlayResult] = (0, import_react2.useState)(null);
+  const [overlayError, setOverlayError] = (0, import_react2.useState)("");
   const pollTimer = (0, import_react2.useRef)(void 0);
   const runningRef = (0, import_react2.useRef)(null);
   (0, import_react2.useEffect)(() => {
@@ -775,7 +809,9 @@ function DrawTab(props) {
       try {
         const res = await fetch(drawHistoryUrl(historyTarget()));
         if (!res.ok) return;
-        setHistory(parseDrawHistory(await res.json()));
+        const items = parseDrawHistory(await res.json());
+        setHistory(items);
+        setOverlayBase((prev) => prev || (items.find((it) => it.outputPath && it.fileExists !== false)?.outputPath ?? ""));
       } catch {
         postDebug("error", "[history] \u62C9\u53D6\u7ED8\u56FE\u5386\u53F2\u5931\u8D25\uFF08\u9759\u9ED8\uFF09");
       }
@@ -908,8 +944,10 @@ function DrawTab(props) {
   const generate = () => {
     if (!canGenerate) return;
     const cfg2 = cfgState.phase === "ready" ? cfgState.cfg : void 0;
+    const finalPrompt = textFree ? `${prompt}
+${NO_TEXT_INSTRUCTION}` : prompt;
     const body = {
-      prompt,
+      prompt: finalPrompt,
       provider,
       mode,
       aspect,
@@ -937,7 +975,7 @@ function DrawTab(props) {
       body.editStrength = editStrength;
     }
     setRun({ phase: "submitting" });
-    postDebug("log", `[generate] \u63D0\u4EA4 provider=${provider} mode=${mode} ${aspect}/${resolution}/${quality} session=${sessionId ?? "\u2205"}`);
+    postDebug("log", `[generate] \u63D0\u4EA4 provider=${provider} mode=${mode} ${aspect}/${resolution}/${quality} textFree=${textFree ? "yes" : "no"} session=${sessionId ?? "\u2205"}`);
     void (async () => {
       try {
         const res = await fetch(drawGenerateUrl(sessionId), {
@@ -958,6 +996,47 @@ function DrawTab(props) {
       } catch (err) {
         postDebug("error", `[generate] \u7F51\u7EDC/\u89E3\u6790\u5F02\u5E38: ${String(err?.message ?? err)}`);
         setRun({ phase: "failed", error: String(err?.message ?? err), logTail: [] });
+      }
+    })();
+  };
+  const overlayBaseOptions = history.filter((h) => h.outputPath && h.fileExists !== false);
+  const overlaySupported = cfg?.overlay.supported ?? false;
+  const canOverlay = overlaySupported && overlayBase.trim().length > 0 && overlayLines.trim().length > 0 && !overlayBusy;
+  const composeOverlay = () => {
+    if (!canOverlay) return;
+    setOverlayBusy(true);
+    setOverlayError("");
+    setOverlayResult(null);
+    const labelCount = overlayLines.split("\n").filter((l) => l.trim() && !l.trim().startsWith("#")).length;
+    postDebug("log", `[overlay] \u63D0\u4EA4 base=${overlayBase} labels=${labelCount} session=${sessionId ?? "\u2205"}`);
+    void (async () => {
+      try {
+        const res = await fetch(drawOverlayUrl(sessionId), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            imagePath: overlayBase,
+            labels: overlayLines,
+            outputDir: outputDir.trim() || void 0
+          })
+        });
+        const view = parseDrawOverlay(await res.json());
+        if (!view || !view.ok) {
+          const msg = view?.error ?? `\u5408\u6210\u5931\u8D25 (${res.status})`;
+          postDebug("error", `[overlay] \u88AB\u62D2\uFF1A${msg}`);
+          setOverlayError(msg);
+          setOverlayBusy(false);
+          return;
+        }
+        postDebug("log", `[overlay] done \u2192 ${view.outputPath ?? ""}`);
+        setOverlayResult(view);
+        setOverlayBusy(false);
+        loadHistory();
+        refreshSessions();
+      } catch (err) {
+        postDebug("error", `[overlay] \u5F02\u5E38: ${String(err?.message ?? err)}`);
+        setOverlayError(String(err?.message ?? err));
+        setOverlayBusy(false);
       }
     })();
   };
@@ -985,6 +1064,16 @@ function DrawTab(props) {
     cfgState.phase === "disabled" && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.empty, children: "\u79D1\u7814\u7ED8\u56FE\u672A\u542F\u7528\uFF08host research-draw config.enabled=false\uFF09\u3002" }),
     cfg && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Field, { label: "\u63D0\u793A\u8BCD\uFF08\u79D1\u7814\u7ED8\u56FE\uFF09", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("textarea", { style: styles2.textarea, value: prompt, onChange: (e) => setPrompt(e.target.value), placeholder: "\u4F8B\uFF1A\u79D1\u7814\u7ED8\u56FE\uFF1ABGP \u52AB\u6301\u68C0\u6D4B\u65F6\u5E8F\u56FE\uFF0C\u6A2A\u8F74\u65F6\u95F4\uFF0C\u7EB5\u8F74\u7F6E\u4FE1\u5EA6\uFF0C\u51B7\u8272\u8C03\uFF0C\u6807\u6CE8 RPKI \u4E8B\u4EF6" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: styles2.card, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("label", { style: { display: "flex", gap: "8px", alignItems: "flex-start", cursor: "pointer" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("input", { type: "checkbox", checked: textFree, onChange: (e) => setTextFree(e.target.checked), style: { marginTop: 2 } }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { fontWeight: 600, fontSize: "12px" }, children: "\u4E24\u9636\u6BB5\u6DF7\u5408\uFF1A\u65E0\u6587\u5B57\u5E95\u56FE\u6A21\u5F0F\uFF08\u63A8\u8350\uFF09" }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { style: styles2.hint, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("br", {}),
+            "Qwen-Image-2.1 \u6587\u5B57/\u56FE\u5F62\u4F1A\u9519\u4E71 \u2192 \u5F00\u51FA\u56FE\u300C\u65E0\u6587\u5B57\u5E95\u56FE\u300D\uFF0C\u6587\u5B57\u968F\u540E\u5728\u4E0B\u65B9\u7CBE\u786E\u53E0\u52A0\uFF08\u96F6\u9519\u5B57\uFF09\u3002\u52FE\u9009\u540E\u63D0\u4EA4\u65F6\u81EA\u52A8\u8FFD\u52A0\u300C\u56FE\u4E2D\u4E0D\u8981\u51FA\u73B0\u4EFB\u4F55\u6587\u5B57\u300D\u3002"
+          ] })
+        ] })
+      ] }) }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Field, { label: "\u540E\u7AEF / \u6A21\u578B", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
         Segments,
         {
@@ -1120,6 +1209,50 @@ function DrawTab(props) {
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.errored, children: run.error }),
         (run.logTail ?? []).length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: styles2.mono, children: (run.logTail ?? []).slice(-4).map((l, i) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: { ...styles2.mono, margin: 0 }, children: l }, i)) })
       ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: styles2.card, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.cardTitle, children: "\u6587\u5B57\u53E0\u52A0 \u2014\u2014 \u628A\u7CBE\u786E\u6587\u5B57\u5408\u6210\u5230\u5E95\u56FE\uFF08\u96F6\u9519\u5B57\uFF09" }),
+        !overlaySupported ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: styles2.errored, children: [
+          "\u672C\u673A\u672A\u68C0\u6D4B\u5230 python3 + Pillow\uFF0C\u6587\u5B57\u53E0\u52A0\u4E0D\u53EF\u7528\uFF1A",
+          cfg.overlay.reason,
+          "\u3002\u53EF\u5148\u8DD1 ",
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("code", { children: "pip install Pillow" }),
+          " \u540E\u5237\u65B0\u3002"
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Field, { label: "\u5E95\u56FE\uFF08\u5386\u53F2\u4E2D\u4ECD\u5B58\u5728\u4E8E\u672C\u5730\u7684\u56FE\u7247\uFF09", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+            "select",
+            {
+              style: styles2.select,
+              value: overlayBase,
+              onChange: (e) => {
+                setOverlayBase(e.target.value);
+                setOverlayResult(null);
+                setOverlayError("");
+              },
+              children: [
+                overlayBaseOptions.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: "", children: "\uFF08\u8FD8\u6CA1\u6709\u53EF\u7528\u7684\u56FE\u7247\uFF0C\u8BF7\u5148\u300C\u751F\u6210\u300D\u4E00\u5F20\u65E0\u6587\u5B57\u5E95\u56FE\uFF09" }),
+                overlayBaseOptions.map((h) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("option", { value: h.outputPath, children: h.title.slice(0, 24) }, h.artifactId))
+              ]
+            }
+          ) }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Field, { label: "\u6587\u5B57\u6807\u7B7E\uFF08\u6BCF\u884C\u4E00\u4E2A\uFF1A\u6587\u5B57 |x,y |@\u5B57\u53F7 |#\u989C\u8272 |b\u52A0\u7C97\uFF1B\u7F3A\u7701=\u5E95\u90E8\u5C45\u4E2D\u767D\u5B57\u63CF\u8FB9\uFF09", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "textarea",
+            {
+              style: styles2.textarea,
+              value: overlayLines,
+              onChange: (e) => {
+                setOverlayLines(e.target.value);
+                setOverlayError("");
+              },
+              placeholder: "eBGP | @48 | #ffffff | b\nautonomous system AS65000 | 20,15 | @40 | #ffffff | b\niBGP | 50%,80%"
+            }
+          ) }),
+          /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: styles2.button(true), disabled: !canOverlay, onClick: composeOverlay, children: overlayBusy ? "\u5408\u6210\u4E2D\u2026" : "\u5408\u6210\u6587\u5B57" }),
+          overlayError && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.errored, children: overlayError }),
+          overlayResult?.thumbnailBase64 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("img", { style: styles2.img, src: overlayResult.thumbnailBase64, alt: "\u6587\u5B57\u5408\u6210\u9884\u89C8", onClick: () => overlayResult.outputPath && setViewer(drawImageUrl(overlayResult.outputPath)) }),
+          overlayResult?.outputPath && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: styles2.button(false), onClick: () => setViewer(drawImageUrl(overlayResult.outputPath)), children: "\u67E5\u770B\u5408\u6210\u5927\u56FE" }),
+          overlayResult?.outputPath && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.mono, children: overlayResult.outputPath })
+        ] })
+      ] }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }, children: [
           /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: { ...styles2.cardTitle, margin: 0 }, children: [
@@ -1248,7 +1381,7 @@ function DrawTab(props) {
   ] }) });
 }
 
-// client/index.ts
+// dsh-research/client/index.ts
 var name = "dsh-research-tabs";
 var inject = ["slots", "sidebarRightTabs"];
 function apply(ctx) {

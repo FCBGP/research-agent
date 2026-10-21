@@ -48,3 +48,14 @@ export function expandHome(path: string, home = process.env.HOME ?? ''): string 
 export function drawOutputPath(outputRoot: string, date: Date = new Date(), home = process.env.HOME ?? ''): string {
   return join(expandHome(outputRoot, home), DRAW_OUTPUT_SUBDIR, drawOutputName(date));
 }
+
+/** 文字叠加成品文件名：`image-YYYYMMDDHHmmSS-overlay.png`（两阶段混合，方案 C）。 */
+export function drawOverlayOutputName(date: Date = new Date(), seq = 0): string {
+  const base = drawOutputName(date, seq);
+  return base.replace(DRAW_OUTPUT_EXT, '-overlay' + DRAW_OUTPUT_EXT);
+}
+
+/** 文字叠加成品完整路径：`<outputRoot>/images/image-…-overlay.png`。 */
+export function drawOverlayOutputPath(outputRoot: string, date: Date = new Date(), home = process.env.HOME ?? ''): string {
+  return join(expandHome(outputRoot, home), DRAW_OUTPUT_SUBDIR, drawOverlayOutputName(date));
+}

@@ -349,14 +349,15 @@ test('draw/plugin: 历史视图带 thumbBase64 + fileExists；archive 后从列�
 });
 
 // ---------------------------------------------------------------------------
-// apply() 路由挂载 —— 白屏可见性（2026-10-21）+ 历史管理（2026-10-21）+ 会话筛选/图片回读（2026-10-21）：
-//   8 条路由（config / debug / generate / status / history / delete / sessions / image）都注册；
+// apply() 路由挂载 —— 白屏可见性（2026-10-21）+ 历史管理（2026-10-21）+ 会话筛选/图片回读（2026-10-21）+
+//   文字叠加（2026-10-21，方案 C）：9 条路由（config / debug / generate / status / history / delete /
+//   sessions / image / overlay）都注册；
 //   debug route 收到浏览器端 error 上报时打印到 `dsh research` 终端；
 //   delete route 支持 artifactId 删单条 / sessionId 清空会话。
 // ---------------------------------------------------------------------------
-import { apply, archiveDrawArtifact, archiveDrawHistory, collectDrawSessions, DRAW_CONFIG_PATH, DRAW_DEBUG_PATH, DRAW_DELETE_PATH, DRAW_GENERATE_PATH, DRAW_HISTORY_PATH, DRAW_IMAGE_PATH, DRAW_NO_SESSION, DRAW_SESSIONS_PATH, DRAW_STATUS_PATH, readDrawImage } from '../plugin-draw.ts';
+import { apply, archiveDrawArtifact, archiveDrawHistory, buildConfigView, collectDrawSessions, DRAW_CONFIG_PATH, DRAW_DEBUG_PATH, DRAW_DELETE_PATH, DRAW_GENERATE_PATH, DRAW_HISTORY_PATH, DRAW_IMAGE_PATH, DRAW_NO_SESSION, DRAW_OVERLAY_PATH, DRAW_SESSIONS_PATH, DRAW_STATUS_PATH, readDrawImage, type DrawRuntimeDeps } from '../plugin-draw.ts';
 
-test('draw/plugin: apply() 挂 8 条路由 + debug 上报路由把客户端错误打到 CLI', async () => {
+test('draw/plugin: apply() 挂 9 条路由 + debug 上报路由把客户端错误打到 CLI', async () => {
   const routes: Array<{ path: string; methods?: string[]; fetch: (r: Request) => Promise<Response> }> = [];
   const provided = new Map<string, unknown>();
   const ctx = {
@@ -368,7 +369,7 @@ test('draw/plugin: apply() 挂 8 条路由 + debug 上报路由把客户端错�
   const disposer = apply(ctx as never, { enabled: true });
   try {
     const paths = routes.map((r) => r.path);
-    for (const p of [DRAW_CONFIG_PATH, DRAW_DEBUG_PATH, DRAW_GENERATE_PATH, DRAW_STATUS_PATH, DRAW_HISTORY_PATH, DRAW_DELETE_PATH, DRAW_SESSIONS_PATH, DRAW_IMAGE_PATH]) {
+    for (const p of [DRAW_CONFIG_PATH, DRAW_DEBUG_PATH, DRAW_GENERATE_PATH, DRAW_STATUS_PATH, DRAW_HISTORY_PATH, DRAW_DELETE_PATH, DRAW_SESSIONS_PATH, DRAW_IMAGE_PATH, DRAW_OVERLAY_PATH]) {
       assert.ok(paths.includes(p), `路由已注册: ${p}`);
     }
     // service 提供
@@ -399,6 +400,88 @@ test('draw/plugin: apply() 挂 8 条路由 + debug 上报路由把客户端错�
     const cfgRoute = routes.find((r) => r.path === DRAW_CONFIG_PATH)!;
     const cfg = await (await cfgRoute.fetch(new Request(`http://x${DRAW_CONFIG_PATH}`, { method: 'GET' }))).json() as { enabled?: boolean };
     assert.equal(cfg.enabled, true);
+  } finally {
+    disposer?.();
+  }
+});
+
+test('draw/plugin: OVERLAY route — 假探活+假 spawn 合成、成品写 artifact 进历史（方案 C）', async () => {
+  const artifacts = new ArtifactStore();
+  const routes: Array<{ path: string; methods?: string[]; fetch: (r: Request) => Promise<Response> }> = [];
+  const provided = new Map<string, unknown>();
+  const persisted = { count: 0 };
+  const ctx = {
+    get: (n: string) => provided.get(n),
+    provide: (n: string, v: unknown) => { provided.set(n, v); },
+    logger: () => ({ info() {}, warn() {} }),
+    connection: { fetch: { register: (r: { path: string; methods?: string[]; fetch: (req: Request) => Promise<Response> }) => { routes.push(r); return () => {}; } } },
+  };
+  provided.set('researchCore', { artifacts });
+  provided.set('researchMemory', { episodic: { record: () => undefined, recent: () => [] }, persist: () => { persisted.count += 1; return undefined; } });
+
+  const spawnCalls: Array<{ bin: string; args: string[] }> = [];
+  const deps: DrawRuntimeDeps = {
+    spawn: ((bin: string, args: string[]) => {
+      spawnCalls.push({ bin, args });
+      const proc = new FakeProc();
+      queueMicrotask(() => {
+        proc.stdout.emit('data', 'IMG_DIMS:2048x1152\n');
+        proc.emit('close', 0);
+      });
+      return proc;
+    }) as never,
+    fetch: undefined,
+    mkdirSync: (() => {}) as never,
+    writeFileSync: (() => {}) as never,
+    readFileSync: (() => IMAGE_BYTES) as never,
+    // 底图/成品存在性：/Users/tester/ 或 .png 视为存在；/missing/ 前缀视为不存在（测试 404 分支）。
+    // 415 分支用 /Users/tester/Downloads/base.txt（存在但扩展名非法）。
+    existsSync: ((p: string) => !p.includes('/missing/') && (p.startsWith('/Users/tester/') || p.endsWith('.png'))) as never,
+    makeThumb: (() => {}) as never,
+    probeOverlay: () => ({ supported: true, pythonBin: 'python3' }),
+  };
+
+  const disposer = apply(ctx as never, { enabled: true, outputRoot: tmpdir() }, deps);
+  try {
+    const route = routes.find((r) => r.path === DRAW_OVERLAY_PATH)!;
+    // 缺 imagePath → 400
+    let res = await route.fetch(new Request(`http://x${DRAW_OVERLAY_PATH}?sessionId=s-9`, {
+      method: 'POST', body: JSON.stringify({ labels: '甲文字' }),
+    }));
+    assert.equal(res.status, 400, '缺 imagePath 400');
+    // 底图不存在 → 404；扩展名非法 → 415
+    res = await route.fetch(new Request(`http://x${DRAW_OVERLAY_PATH}`, { method: 'POST', body: JSON.stringify({ imagePath: '/missing/1.png', labels: '甲' }) }));
+    assert.equal(res.status, 404, '底图不存在 404');
+    res = await route.fetch(new Request(`http://x${DRAW_OVERLAY_PATH}`, { method: 'POST', body: JSON.stringify({ imagePath: '/Users/tester/Downloads/base.txt', labels: '甲' }) }));
+    assert.equal(res.status, 415, '非图片扩展名 415');
+    // 成功路径：文本区多行 → spawn python3 → 成品写 artifact
+    const ok = await route.fetch(new Request(`http://x${DRAW_OVERLAY_PATH}?sessionId=s-9`, {
+      method: 'POST',
+      body: JSON.stringify({
+        imagePath: '/Users/tester/Downloads/base.png',
+        labels: 'eBGP 域间路由|x,20|@40|#ffffff|b\nAS64500|right,bottom|n',
+      }),
+    }));
+    assert.equal(ok.status, 200, '合成成功 200');
+    const body = await ok.json() as { ok: boolean; outputPath: string; width: number; height: number; thumbnailBase64: string; artifactId: string; labels: number };
+    assert.equal(body.ok, true);
+    assert.match(body.outputPath, /-overlay\.png$/);
+    assert.equal(body.width, 2048);
+    assert.equal(body.height, 1152);
+    assert.ok(body.thumbnailBase64.startsWith('data:image/png;base64,'), 'thumb base64 可用');
+    assert.ok(body.artifactId, '写 draw artifact');
+    assert.equal(body.labels, 2);
+    assert.equal(spawnCalls.length, 1);
+    assert.equal(spawnCalls[0].bin, 'python3');
+    // 2 条标签都进了脚本 args（labelsJson 是最后一个 arg，含 UTF-8 文本）
+    const labelsJson = spawnCalls[0].args[spawnCalls[0].args.length - 1] as string;
+    assert.ok(labelsJson.includes('eBGP 域间路由'), 'labelsJson 含 eBGP 文本');
+    assert.ok(labelsJson.includes('AS64500'), 'labelsJson 含 AS64500 文本');
+    // 历史里有一条 draw: overlay
+    const hist = collectDrawHistory(ctx as never, 's-9');
+    assert.equal(hist.length, 1, '叠加成品进历史（stack）');
+    assert.match(hist[0].title, /^draw: overlay/);
+    assert.equal(persisted.count >= 1, true, 'memory persist 被调用');
   } finally {
     disposer?.();
   }

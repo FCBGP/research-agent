@@ -7,7 +7,7 @@
 // 本插件职责：
 //   1. 提供 `researchDraw` 服务（submit / status / list / config）——research_draw /
 //      research_draw_status 工具的 host 后端（仅 paper 预设 enableDraw=true 时注册工具）；
-//   2. 在 connection 鉴权栅栏内挂 8 条 route 供右侧栏「科研绘图」tab 取数/提交/轮询：
+//   2. 在 connection 鉴权栅栏内挂 9 条 route 供右侧栏「科研绘图」tab 取数/提交/轮询：
 //        POST /api/research.draw.generate    （provider + 参数 + 垫图 base64）→ { jobId }
 //        GET  /api/research.draw.status?jobId= → { phase, progress?, logTail, result?, artifactId }
 //        GET  /api/research.draw.config      → { enabled, providers, 比例/分辨率/画质表, 默认值, outputRoot, sizePolicy }
@@ -16,17 +16,19 @@
 //        POST /api/research.draw.delete              → { artifactId } 删单条 / { sessionId } 清空该会话（archive）
 //        GET  /api/research.draw.sessions            → 聚合全部含绘图记录的会话 { sessionId, count, lastAt }（侧边栏筛选）
 //        GET  /api/research.draw.image?path=<abs>    → 回读本地图片文件（扩展名校验，侧边栏内查看生成图）
+//        POST /api/research.draw.overlay            → 文字叠加（两阶段混合）：无字底图 + 程序精确文字合成
 //   3. 双后端 provider 抽象：
 //        local —— spawn 本机 mflux CLI（mflux-generate-qwen-2.1, Qwen-Image-2.1 模型，非驻留，
 //                 现场加载 → 并发上限 1）；edit 垫图（1 张参考图，style 0.4 / content 0.7）。
 //        api   —— POST {baseURL}/images/generations（OpenAI 兼容；Bearer；b64_json|url 双收）；
 //                 任意比例先发精确 WxH、失败回退最近标准尺寸（sizePolicy 开关）。
 //   4. 完成回调：输出 path + macOS sips -Z 1024 缩略图 base64（无 sips 回落整图）+ 写 artifact
+//      （文字叠加 route 用同一 helper 出缩略图 + 写 artifact，叠加成品进历史 stack）。
 //      （kind=note, title^='draw: ', meta.sessionId/params/outputPath）+ 会话持久化（复用阶段 10
 //      ArtifactStore + persistMemory + 按 sessionId 过滤）。
 //
 // config.enabled=false 时只挂 config route（客户端据此空渲染），generate/status 不挂。
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join } from 'node:path';
@@ -36,11 +38,12 @@ import type { ResearchCoreService } from './plugin-core.ts';
 import type { ResearchMemory } from './memory/index.ts';
 import type { AspectRatio, DrawMode, Quality, Resolution, SizePolicy } from './draw/dimensions.ts';
 import { ASPECT_RATIOS, DEFAULT_ASPECT, DEFAULT_QUALITY, DEFAULT_RESOLUTION, QUALITIES, QUALITY_STEPS, RESOLUTIONS, RESOLUTION_LONG_EDGE, sizeFor } from './draw/dimensions.ts';
-import { drawOutputPath, expandHome } from './draw/paths.ts';
+import { drawOutputPath, drawOverlayOutputPath, expandHome } from './draw/paths.ts';
 import type { LocalConfig } from './draw/local.ts';
 import { buildLocalArgs, defaultLocalConfig, parseMfluxProgress } from './draw/local.ts';
 import type { ApiConfig } from './draw/api.ts';
 import { base64ToBuffer, buildApiRequest, expandEnvVar, resolveApiResponseData } from './draw/api.ts';
+import { buildOverlayCommand, normalizeOverlayLabels, parseOverlayDims, parseOverlayLines, type OverlayLabel } from './draw/overlay.ts';
 
 export const name = 'dsh-research-draw';
 
@@ -57,6 +60,9 @@ export const DRAW_DEBUG_PATH = '/api/research.draw.debug';
 export const DRAW_SESSIONS_PATH = '/api/research.draw.sessions';
 /** 按扩展名回读本地图片文件（GET ?path=<展开后的绝对路径> → image/* 二进制），侧边栏内查看生成图。 */
 export const DRAW_IMAGE_PATH = '/api/research.draw.image';
+/** 文字叠加（两阶段混合，SKILL.md 方案 C）：POST { imagePath, labels } → 本机 python3 + Pillow
+ *  把程序控制的精确文字合成到底图上，返回新成品路径 + 预览缩略图 + 宽高。 */
+export const DRAW_OVERLAY_PATH = '/api/research.draw.overlay';
 
 /** 无会话绘图记录的分组键（collectDrawSessions 给缺失 sessionId 的记录用）；沿用
  *  collectDrawHistory「无 sessionId 记录在任意会话筛选下都可见」的既有语义。 */
@@ -225,6 +231,8 @@ export interface DrawConfigView {
   api: { baseURL: string; modelId: string; keyProvided: boolean };
   thumbMax: number;
   maxRefBytes: number;
+  /** 文字叠加（两阶段混合）后端探活结果：python3 + Pillow 可用性。 */
+  overlay: { supported: boolean; pythonBin: string; reason?: string };
 }
 
 export interface DrawService {
@@ -247,6 +255,8 @@ export interface DrawRuntimeDeps {
   existsSync: typeof existsSync;
   /** macOS 缩略图命令（无 → 回落整图）；测试可注入假命令。 */
   makeThumb?: (src: string, dst: string) => void;
+  /** 文字叠加后端探活（缺省 = 真实探测 python3 + Pillow）；测试可注入假探活。 */
+  probeOverlay?: () => { supported: boolean; pythonBin: string; reason?: string };
 }
 
 export function defaultDeps(): DrawRuntimeDeps {
@@ -260,12 +270,20 @@ export function defaultDeps(): DrawRuntimeDeps {
     makeThumb: (src, dst) => {
       // macOS 专用：sips -Z 1024 生成缩略图（失败静默 → 回落整图由调用方兜底）
       try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const { execFileSync } = require('node:child_process') as typeof import('node:child_process');
         execFileSync('sips', ['-Z', '1024', src, '--out', dst]);
       } catch {
         /* 非 mac / sips 缺失 → 回落整图 */
       }
+    },
+    probeOverlay: () => {
+      // 文字叠加（方案 C）需要 python3 + Pillow；逐个候选探测 import PIL。
+      for (const bin of ['python3', 'python']) {
+        try {
+          execFileSync(bin, ['-c', 'import PIL; import PIL.Image; import PIL.ImageDraw; import PIL.ImageFont'], { stdio: 'ignore' });
+          return { supported: true, pythonBin: bin };
+        } catch { /* 尝试下一个候选 */ }
+      }
+      return { supported: false, pythonBin: 'python3', reason: '文字叠加需要本机 python3 + Pillow（pip install Pillow）' };
     },
   };
 }
@@ -367,7 +385,7 @@ export class DrawJobManager {
   }
 
   config(): DrawConfigView {
-    return buildConfigView(this.deps.config);
+    return buildConfigView(this.deps.config, this.deps.runtime);
   }
 
   /** 终止所有活动执行（local 杀进程 / api abort）并清空队列。 */
@@ -688,28 +706,58 @@ export class DrawJobManager {
   }
 
   /** macOS sips -Z 缩略图 → base64（无 sips/失败回落整图 base64）。 */
-  private thumbnailBase64(path: string): string {
-    try {
-      const thumbPath = `${path}.thumb.png`;
-      if (this.deps.runtime.makeThumb) {
-        this.deps.runtime.makeThumb(path, thumbPath);
-        if (this.deps.runtime.existsSync(thumbPath)) {
-          const buf = this.deps.runtime.readFileSync(thumbPath);
-          return `data:image/png;base64,${buf.toString('base64')}`;
-        }
-      }
-    } catch { /* fallthrough */ }
-    try {
-      const buf = this.deps.runtime.readFileSync(path);
-      return `data:image/png;base64,${buf.toString('base64')}`;
-    } catch {
-      return undefined as unknown as string;
-    }
+  private thumbnailBase64(path: string): string | undefined {
+    return thumbnailBase64For(this.deps.runtime, path);
   }
 }
 
+/** 共享缩略图逻辑（manager 完成回调 + overlay route 都用）：sips -Z 1024 → base64，回落整图。 */
+function thumbnailBase64For(runtime: DrawRuntimeDeps, path: string): string | undefined {
+  try {
+    const thumbPath = `${path}.thumb.png`;
+    if (runtime.makeThumb) {
+      runtime.makeThumb(path, thumbPath);
+      if (runtime.existsSync(thumbPath)) {
+        const buf = runtime.readFileSync(thumbPath);
+        return `data:image/png;base64,${buf.toString('base64')}`;
+      }
+    }
+  } catch { /* fallthrough */ }
+  try {
+    const buf = runtime.readFileSync(path);
+    return `data:image/png;base64,${buf.toString('base64')}`;
+  } catch {
+    return undefined;
+  }
+}
+
+/** 文字叠加 spawn 封装（python3 -c script base out labelsJson）；stdout 供解析 IMG_DIMS。 */
+function spawnOverlay(
+  runtime: DrawRuntimeDeps,
+  bin: string,
+  args: string[],
+): Promise<{ code: number | null; stdout: string; stderr: string; error?: string }> {
+  return new Promise((resolve) => {
+    let proc: ChildProcessWithoutNullStreams;
+    try {
+      proc = runtime.spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch (err) {
+      resolve({ code: null, stdout: '', stderr: '', error: `spawn ${bin} 失败: ${String((err as Error)?.message ?? err)}` });
+      return;
+    }
+    let stdout = '';
+    let stderr = '';
+    proc.stdout?.on('data', (c: Buffer | string) => { stdout += typeof c === 'string' ? c : c.toString(); });
+    proc.stderr?.on('data', (c: Buffer | string) => { stderr += typeof c === 'string' ? c : c.toString(); });
+    proc.on('error', (err) => resolve({ code: null, stdout, stderr, error: String(err.message) }));
+    proc.on('close', (code) => resolve({ code, stdout, stderr }));
+  });
+}
+
 /** 组装 /api/research.draw.config 的视图（供侧边栏渲染所有可调参数）。 */
-export function buildConfigView(config: DrawPluginConfig): DrawConfigView {
+export function buildConfigView(config: DrawPluginConfig, runtime?: DrawRuntimeDeps): DrawConfigView {
+  const overlayProbe = (runtime?.probeOverlay ?? defaultDeps().probeOverlay)?.()
+    ?? { supported: false, pythonBin: 'python3', reason: '探活不可用' };
   const lc = { ...defaultLocalConfig(), ...config.local };
   const ac = { ...(config.api ?? {}) };
   const enabled = config.enabled !== false;
@@ -743,8 +791,10 @@ export function buildConfigView(config: DrawPluginConfig): DrawConfigView {
     api: { baseURL: ac.baseURL ?? '', modelId: ac.modelId ?? '', keyProvided: !!ac.apiKey },
     thumbMax: config.thumbMax ?? 1024,
     maxRefBytes: config.maxRefBytes ?? MAX_REF_BODY_BYTES,
+    overlay: overlayProbe,
   };
 }
+
 
 /** 解析 /api/research.draw.generate 的 POST body（宽松容错：非法字段取默认）。 */
 export function parseDrawRequest(body: unknown): DrawRequest {
@@ -888,8 +938,7 @@ export function archiveDrawHistory(core: ResearchCoreService, sessionId?: string
 }
 
 /** host 插件 body。 */
-export function apply(ctx: Context, config: DrawPluginConfig = {}): (() => void) | undefined {
-  const deps = defaultDeps();
+export function apply(ctx: Context, config: DrawPluginConfig = {}, deps: DrawRuntimeDeps = defaultDeps()): (() => void) | undefined {
   const core = ctx.get?.('researchCore') as ResearchCoreService | undefined;
   const memory = ctx.get?.('researchMemory') as (ResearchMemory & { persist?(dir?: string): string | undefined }) | undefined;
   const enabled = config.enabled !== false;
@@ -993,6 +1042,104 @@ export function apply(ctx: Context, config: DrawPluginConfig = {}): (() => void)
         }));
       },
     }) as unknown as () => void);
+    // 文字叠加（两阶段混合，SKILL.md 方案 C）：POST { imagePath, labels（数组或文本区多行字符串）, outputDir? }
+    //   → 本机 python3 + Pillow 把程序控制的精确文字合成到底图上（零错字）；
+    //   成品命名 image-…-overlay.png 并写 draw artifact（进历史 stack）。底图不存在/非图片 → 4xx。
+    disposers.push(ctx.connection.fetch.register({
+      path: DRAW_OVERLAY_PATH,
+      methods: ['POST'],
+      requestBody: 'buffered',
+      fetch: (request: Request) => Promise.resolve((async () => {
+        try {
+          const text = await request.text();
+          const body = (JSON.parse(text || '{}') ?? {}) as Record<string, unknown>;
+          const imagePath = typeof body.imagePath === 'string' ? body.imagePath.trim() : '';
+          if (!imagePath) return Response.json({ ok: false, error: '需要 imagePath（底图）' }, { status: 400, headers: { 'cache-control': 'no-store' } });
+          const basePath = expandHome(imagePath);
+          if (!deps.existsSync(basePath)) return Response.json({ ok: false, error: '底图文件不存在' }, { status: 404, headers: { 'cache-control': 'no-store' } });
+          if (!DRAW_IMAGE_CONTENT_TYPES[extname(basePath).toLowerCase()]) return Response.json({ ok: false, error: '底图非支持的图片类型' }, { status: 415, headers: { 'cache-control': 'no-store' } });
+          let labels: OverlayLabel[];
+          if (typeof body.labels === 'string') labels = parseOverlayLines(body.labels);
+          else if (Array.isArray(body.labels)) labels = normalizeOverlayLabels(body.labels as OverlayLabel[]);
+          else labels = [];
+          if (labels.length === 0) return Response.json({ ok: false, error: '需要至少一个文字标签' }, { status: 400, headers: { 'cache-control': 'no-store' } });
+          const probe = (deps.probeOverlay?.() ?? { supported: false, pythonBin: 'python3' });
+          if (!probe.supported) {
+            return Response.json({ ok: false, error: probe.reason ?? '文字叠加后端不可用（需 python3 + Pillow）' }, { status: 400, headers: { 'cache-control': 'no-store' } });
+          }
+          const outputRoot = (typeof body.outputDir === 'string' && body.outputDir.trim())
+            ? body.outputDir.trim()
+            : config.outputRoot ?? defaultLocalConfig().outputRoot!;
+          const outputPath = drawOverlayOutputPath(outputRoot);
+          deps.mkdirSync(dirname(outputPath), { recursive: true });
+          const sessionId = new URL(request.url).searchParams.get('sessionId') ?? undefined;
+          const cmd = buildOverlayCommand(probe.pythonBin, basePath, outputPath, labels);
+          cliLog('[overlay] base=', basePath, 'labels=', labels.length, 'python=', probe.pythonBin, '→', outputPath, 'session=', sessionId ?? '∅');
+          const rendered = await spawnOverlay(deps, cmd.bin, cmd.args);
+          if (rendered.error) return Response.json({ ok: false, error: rendered.error }, { status: 500, headers: { 'cache-control': 'no-store' } });
+          if (rendered.code !== 0) {
+            const tail = (rendered.stderr || rendered.stdout).split('\n').filter((l) => l.trim()).slice(-6).join('\n') || '(无输出)';
+            cliError('[overlay] failed code=', String(rendered.code), tail);
+            return Response.json({ ok: false, error: `文字合成失败（退出码 ${String(rendered.code)}）：${tail}` }, { status: 500, headers: { 'cache-control': 'no-store' } });
+          }
+          if (!deps.existsSync(outputPath)) return Response.json({ ok: false, error: '文字合成成功但未产生产物' }, { status: 500, headers: { 'cache-control': 'no-store' } });
+          const dims = parseOverlayDims(rendered.stdout) ?? { width: 0, height: 0 };
+          const thumb = thumbnailBase64For(deps, outputPath);
+          // 写 draw artifact（title ^= 'draw: ' → 进历史 stack）+ 情景记忆 + 持久化
+          let artifactId: string | undefined;
+          const core2 = ctx.get?.('researchCore') as ResearchCoreService | undefined;
+          if (core2?.artifacts) {
+            const labelSummary = labels.map((L) => L.text.slice(0, 30)).join(' / ');
+            const artifact: Artifact = core2.artifacts.put({
+              kind: 'note',
+              title: `draw: overlay · ${labels.length} 文字`,
+              body: [
+                `# 文字叠加（两阶段混合）`,
+                '',
+                `- base: ${basePath}`,
+                `- labels: ${labelSummary}`,
+                `- output: ${outputPath}`,
+                `- size: ${dims.width}x${dims.height}`,
+              ].join('\n'),
+              meta: {
+                sessionId,
+                params: { basePath, labels: labelSummary, kind: 'overlay' },
+                outputPath,
+                provider: 'overlay',
+                model: 'python3/Pillow',
+                mode: 'overlay',
+                width: dims.width,
+                height: dims.height,
+                size: dims.width > 0 ? `${dims.width}x${dims.height}` : undefined,
+                thumbBase64: thumb,
+              },
+            });
+            artifactId = artifact.id;
+          }
+          const mem2 = ctx.get?.('researchMemory') as (ResearchMemory & { persist?(dir?: string): string | undefined }) | undefined;
+          mem2?.episodic?.record?.({
+            kind: 'draw',
+            summary: `overlay: ${labels.length} 文字 → ${outputPath}`,
+            outcome: 'succeeded',
+          });
+          mem2?.persist?.();
+          cliLog('[overlay] done', outputPath, `${dims.width}x${dims.height}`, 'artifact=', artifactId ?? '∅');
+          return Response.json({
+            ok: true,
+            outputPath,
+            thumbnailBase64: thumb,
+            width: dims.width,
+            height: dims.height,
+            basePath,
+            artifactId,
+            labels: labels.length,
+          }, { headers: { 'cache-control': 'no-store' } });
+        } catch (err) {
+          cliError('[overlay] error=', String((err as Error)?.message ?? err));
+          return Response.json({ ok: false, error: String((err as Error)?.message ?? err) }, { status: 400, headers: { 'cache-control': 'no-store' } });
+        }
+      })()),
+    }) as unknown as () => void);
     // 删除绘图记录：body { artifactId } 删单条；body { sessionId } 清空该会话；缺参 400。
     disposers.push(ctx.connection.fetch.register({
       path: DRAW_DELETE_PATH,
@@ -1027,6 +1174,6 @@ export function apply(ctx: Context, config: DrawPluginConfig = {}): (() => void)
   }
 
   ctx.logger?.(name).info('%s: %s — 右侧栏科研绘图（enabled=%s; local=%s; %d routes）',
-    name, enabled ? '挂载' : '禁用', String(enabled), defaultLocalConfig().bin, enabled ? 8 : 2);
+    name, enabled ? '挂载' : '禁用', String(enabled), defaultLocalConfig().bin, enabled ? 9 : 2);
   return () => { for (const d of disposers) d(); manager.dispose(); };
 }
