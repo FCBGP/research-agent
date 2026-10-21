@@ -394,6 +394,11 @@
   fileExists=false 提示删除/重生成；`DrawTab.tsx`/`TrizTab.tsx` `styles.root` 补 `flex:1+minHeight:0+
   overflowY:auto` 修复 host CSS `.P3OORG_tabBody{overflow:hidden}` 导致的不滚动；route 6→**8 条**；
   单测 **260/260 全绿**（apply 路由测试 6→8 + collectDrawSessions/SESSIONS+IMAGE 路由/readDrawImage 3 例）。
+- [x] 历史改 **stack 堆叠卡片**（2026-10-21，d825731）：每行 = 左 100×100 缩略图（原图回读 + 点击全屏
+  大图）+ 右 `draw` 简要提示(title 单行省略) + 路径 + 尺寸/模型/日期 + 「查看大图」小按钮；host
+  collectDrawHistory 按 createdAt 降序 = 最近在最上（后进先出），注释锁定；文件缺失左列红框
+  「文件缺失」+ 删除/重新生成提示保留；lib/client.js 重建 66544 B；单测 260/260 全绿。
+
 
 - [ ] 真机（用户侧）：research 或 paper 会话右栏「科研绘图」→ local 默认参数 16:9/2K/高画质（**先重启
   `dsh research` 再操作**：点「生成」后观察 CLI 应依次出现 `[dsh-research-draw] submit → [start] →
