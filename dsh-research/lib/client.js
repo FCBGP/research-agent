@@ -725,7 +725,7 @@ function Field({ label, children }) {
 function Segments({ options, value, onChange }) {
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: styles2.segment, children: options.map((o) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: styles2.segBtn(o === value), onClick: () => onChange(o), children: o }, o)) });
 }
-function DrawTab(props) {
+function DrawTabInner(props) {
   const { useTabInfo } = props;
   const tabInfo = typeof useTabInfo === "function" ? useTabInfo() : void 0;
   const signal = tabInfo?.tab?.signal;
@@ -766,6 +766,7 @@ function DrawTab(props) {
   const [overlayError, setOverlayError] = (0, import_react2.useState)("");
   const pollTimer = (0, import_react2.useRef)(void 0);
   const runningRef = (0, import_react2.useRef)(null);
+  const cfg = cfgState.phase === "ready" ? cfgState.cfg : void 0;
   (0, import_react2.useEffect)(() => {
     let alive = true;
     const controller = new AbortController();
@@ -1000,7 +1001,7 @@ ${NO_TEXT_INSTRUCTION}` : prompt;
     })();
   };
   const overlayBaseOptions = history.filter((h) => h.outputPath && h.fileExists !== false);
-  const overlaySupported = cfg?.overlay.supported ?? false;
+  const overlaySupported = cfg?.overlay?.supported ?? false;
   const canOverlay = overlaySupported && overlayBase.trim().length > 0 && overlayLines.trim().length > 0 && !overlayBusy;
   const composeOverlay = () => {
     if (!canOverlay) return;
@@ -1050,9 +1051,8 @@ ${NO_TEXT_INSTRUCTION}` : prompt;
     };
     reader.readAsDataURL(file);
   };
-  const cfg = cfgState.phase === "ready" ? cfgState.cfg : void 0;
   const useEdit = mode === "edit" && provider === "local";
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(DrawErrorBoundary, { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: styles2.root, children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: styles2.root, children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.header, children: "\u79D1\u7814\u7ED8\u56FE" }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: styles2.hint, children: [
       "\u751F\u6210/\u7F16\u8F91\u79D1\u7814\u914D\u56FE\uFF1AQwen-Image-2.1\uFF08\u672C\u673A mflux\uFF0C\u975E\u9A7B\u7559\uFF09\u6216 OpenAI \u517C\u5BB9 API\u3002 \u8F93\u51FA\u56FA\u5B9A\u5230 ",
@@ -1213,7 +1213,7 @@ ${NO_TEXT_INSTRUCTION}` : prompt;
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.cardTitle, children: "\u6587\u5B57\u53E0\u52A0 \u2014\u2014 \u628A\u7CBE\u786E\u6587\u5B57\u5408\u6210\u5230\u5E95\u56FE\uFF08\u96F6\u9519\u5B57\uFF09" }),
         !overlaySupported ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: styles2.errored, children: [
           "\u672C\u673A\u672A\u68C0\u6D4B\u5230 python3 + Pillow\uFF0C\u6587\u5B57\u53E0\u52A0\u4E0D\u53EF\u7528\uFF1A",
-          cfg.overlay.reason,
+          cfg?.overlay?.reason ?? "\u9700\u8981\u5148\u5B89\u88C5 python3 + Pillow\uFF08pip install Pillow\uFF09",
           "\u3002\u53EF\u5148\u8DD1 ",
           /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("code", { children: "pip install Pillow" }),
           " \u540E\u5237\u65B0\u3002"
@@ -1378,7 +1378,10 @@ ${NO_TEXT_INSTRUCTION}` : prompt;
         ]
       }
     )
-  ] }) });
+  ] });
+}
+function DrawTab(props) {
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(DrawErrorBoundary, { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(DrawTabInner, { ...props }) });
 }
 
 // dsh-research/client/index.ts

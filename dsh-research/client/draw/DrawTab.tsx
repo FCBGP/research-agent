@@ -272,7 +272,7 @@ function Segments<T extends string>({ options, value, onChange }: { options: rea
  * 面板 body：挂载即拉取配置与历史，渲染「生成器 + 会话级历史」。
  * @param props - 框架 shares；本面板只用 useTabInfo（tab 生命周期 signal 做取数取消）。
  */
-export function DrawTab(props: DrawTabProps): ReactNode {
+function DrawTabInner(props: DrawTabProps): ReactNode {
   const { useTabInfo } = props
   const tabInfo = typeof useTabInfo === 'function' ? useTabInfo() : undefined
   const signal = tabInfo?.tab?.signal
@@ -324,6 +324,10 @@ export function DrawTab(props: DrawTabProps): ReactNode {
 
   const pollTimer = useRef<number | undefined>(undefined)
   const runningRef = useRef<{ jobId: string } | null>(null)
+
+  // 渲染期派生配置视图（组件函数体最上方即声明，避免后续引用落入 const TDZ 白屏坑）。
+  // 注：useEffect 回调里另有同名 cfg 局部量（parseDrawConfig 产物），作用域互不影响。
+  const cfg = cfgState.phase === 'ready' ? cfgState.cfg : undefined
 
   // 拉取配置 + 历史（含 tab 失活取消）
   useEffect(() => {
@@ -566,7 +570,7 @@ export function DrawTab(props: DrawTabProps): ReactNode {
   //   { imagePath: 底图, labels: 文本区多行, outputDir } → python3 + Pillow 精确合成成品。
   // 底图候选 = 历史中仍存在于本地的图片（下拉选择）；成功后刷新历史 stack 并出预览。
   const overlayBaseOptions = history.filter((h) => h.outputPath && h.fileExists !== false)
-  const overlaySupported = cfg?.overlay.supported ?? false
+  const overlaySupported = cfg?.overlay?.supported ?? false
   const canOverlay = overlaySupported && overlayBase.trim().length > 0 && overlayLines.trim().length > 0 && !overlayBusy
   const composeOverlay = (): void => {
     if (!canOverlay) return
@@ -618,11 +622,9 @@ export function DrawTab(props: DrawTabProps): ReactNode {
     reader.readAsDataURL(file)
   }
 
-  const cfg = cfgState.phase === 'ready' ? cfgState.cfg : undefined
   const useEdit = mode === 'edit' && provider === 'local'
 
   return (
-    <DrawErrorBoundary>
     <div style={styles.root}>
       <p style={styles.header}>科研绘图</p>
       <p style={styles.hint}>
@@ -823,7 +825,7 @@ export function DrawTab(props: DrawTabProps): ReactNode {
           <div style={styles.card}>
             <p style={styles.cardTitle}>文字叠加 —— 把精确文字合成到底图（零错字）</p>
             {!overlaySupported ? (
-              <p style={styles.errored}>本机未检测到 python3 + Pillow，文字叠加不可用：{cfg.overlay.reason}。可先跑 <code>pip install Pillow</code> 后刷新。</p>
+              <p style={styles.errored}>本机未检测到 python3 + Pillow，文字叠加不可用：{cfg?.overlay?.reason ?? '需要先安装 python3 + Pillow（pip install Pillow）'}。可先跑 <code>pip install Pillow</code> 后刷新。</p>
             ) : (
               <>
                 <Field label="底图（历史中仍存在于本地的图片）">
@@ -962,6 +964,15 @@ export function DrawTab(props: DrawTabProps): ReactNode {
         </div>
       )}
     </div>
+  )
+}
+
+/** 导出面板 body：外层错误边界包住 DrawTabInner，
+ *  使组件函数体（useState/useEffect/render 主体，含 TDZ 类崩溃）抛错也落入边界显示错误卡，不再整体白屏。 */
+export function DrawTab(props: DrawTabProps): ReactNode {
+  return (
+    <DrawErrorBoundary>
+      <DrawTabInner {...props} />
     </DrawErrorBoundary>
   )
 }
