@@ -381,7 +381,15 @@
   services **15** / bundle 插件 **11**（host 10 = core/triz/triza/triz-ui/triz-auto/draw/
   director/experiment/writer/operations + preset tools 1）/ tools research **15**、paper **12**、
   experiment 10、engineering 8、reviewer 8；**无 draw profile、无 preset-draw**）
-- [ ] 真机（用户侧）：research 或 paper 会话右栏「科研绘图」→ local 默认参数 16:9/2K/高画质
+- [x] 白屏可见性（2026-10-21，提交 f3dafab）：点「生成」白屏 / CLI 无输出问题 ——
+  浏览器端 error/unhandledrejection/面板渲染错误经 `POST /api/research.draw.debug` 上报，host 打印到
+  `dsh research` 终端（前缀 `[dsh-research-draw]`）；DrawErrorBoundary 就地错误卡 + 重试；formatDate
+  兜底防渲染崩溃；MAX_POLL_RETRY=6 轮询防永久卡死；5 条 route 挂载 + CLI 打印由 plugin-draw.test 新增
+  的 apply() 路由测试锁定（254/254 全绿）。
+
+- [ ] 真机（用户侧）：research 或 paper 会话右栏「科研绘图」→ local 默认参数 16:9/2K/高画质（**先重启
+  `dsh research` 再操作**：点「生成」后观察 CLI 应依次出现 `[dsh-research-draw] submit → [start] →
+  [done]/[failed]`；若仍白屏，CLI 会打出 `[client] [uncaught]/[unhandledrejection]/[tab-render]` 具体栈）
   出一张到 `~/Downloads/outputs/images/image-<ts>.png`；垫图风格/内容各一张；切 api 填
   baseURL/apiKey/modelId 出一张（按 OpenAI 兼容）；paper 会话 research_paper 流程里
   research_draw 出一张写入报告；重启会话记录仍在；experiment/engineering/reviewer 无此 tab

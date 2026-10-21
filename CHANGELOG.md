@@ -8,6 +8,39 @@
 
 ---
 
+## 2026-10-21 · 科研绘图白屏可见性修复（提交 `f3dafab`）
+
+问题（用户）：右侧栏「科研绘图」点「生成」后**白屏**，`dsh research` 终端无任何输出，
+无法定位原因。本轮把 draw 全链路错误打上 CLI，并让「白屏」本身**可见 / 自愈**。
+
+- **关键产物**：
+  - `src/plugin-draw.ts` —— 新增**恒挂** `POST /api/research.draw.debug` route：浏览器端
+    error / unhandledrejection / 面板渲染错误转发 host，以 `console.log/warn/error` 打印到
+    `dsh research` 终端（前缀 `[dsh-research-draw]`）；submit / `[start]` / `[done]` /
+    `[failed]` / `GET config` 关键钩子补 CLI 日志（拿得到 provider/size/steps/seed/输出路径）。
+  - `client/draw/route.ts` —— `DRAW_DEBUG_PATH` + `drawDebugUrl()`。
+  - `client/draw/DrawTab.tsx` —— `DrawErrorBoundary`（渲染抛错不白屏，就地红色错误卡 +
+    上报 CLI + 重试按钮）；全局 `error` / `unhandledrejection` 兜底上报（只装一次）；
+    `formatDate()` 兜底（无效日期不再抛 RangeError 防渲染崩溃）；`MAX_POLL_RETRY=6`
+    （状态不可解析 / 连续网络失败判失败，防「生成中…」永久卡死）；generate/status/config/
+    history 各步骤 `postDebug` 打点。
+  - `lib/client.js` —— 重跑 `scripts/build-client.mjs` 重建（51982 B，含全部新客户端代码）。
+  - `src/draw/plugin-draw.test.ts` —— 新增 `apply()` 路由挂载测试：5 条 route（config/debug/
+    generate/status/history）全注册、debug route 把客户端错误打到 CLI、`researchDraw` 服务
+    provide、config GET 可用。
+- **根因定位**：白屏根因尚未单点确定 —— 本轮先做**可见性 + 韧性加固**（错误边界 + 日期兜底
+  + 轮询防卡死 + 全链路 CLI 日志）；若真机再复现，终端会直接打出 `[dsh-research-draw]`
+  `[client] [uncaught]/[unhandledrejection]/[tab-render]` 的具体栈，据此可精准定位。
+- **行为变更**：浏览器端任何 draw 异常都会同步出现在 `dsh research` 终端；已存在部署需
+  重跑 `deploy-profile.sh` 并**重启 `dsh research`**（client bundle + 插件在 boot 加载）生效。
+
+实测：`node --test "src/**/*.test.ts"` = **254/254 全绿**（253 + apply 路由测试 1）。
+runtime-smoke 在本沙箱因**真实 mflux**（本机 `~/llm/models/Qwen-Image-2.1` + CLI 均存在）
+长时间出图 / 挂起无法跑完 —— 属环境产物而非代码问题（`b01be2e` 已证 SMOKE PASS；draw 全
+链路经 `plugin-draw.test.ts` 9 例端到端 + 本轮 apply() 路由测试覆盖）。真机「重启 dsh
+→ 点生成 → 看 CLI 打点」验收步骤留 TODO「在研 · 科研绘图」节。
+
+
 ## 2026-10-21 · 科研绘图「科研绘图」tab + research_draw 工具（阶段 11，提交 `b01be2e`）
 
 需求（用户）：dsh research 增加科研绘图。确认后的方案 = **不设独立 preset / profile**
