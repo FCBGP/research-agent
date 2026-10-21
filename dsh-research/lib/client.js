@@ -639,6 +639,21 @@ var styles2 = {
   }),
   img: { maxWidth: "100%", borderRadius: "8px", border: "0.5px solid var(--dsw-alias-border-l2, #e5e7eb)", cursor: "zoom-in" },
   imgClickable: { maxWidth: "100%", borderRadius: "8px", border: "0.5px solid var(--dsw-alias-border-l2, #e5e7eb)", cursor: "pointer" },
+  // 历史列表（stack，后进先出）左列：固定 100×100 缩略图（原图回读，cover 裁切）。
+  thumb: { width: 100, height: 100, objectFit: "cover", objectPosition: "center", borderRadius: "8px", border: "0.5px solid var(--dsw-alias-border-l2, #e5e7eb)", flexShrink: 0, cursor: "zoom-in", background: "var(--dsw-alias-bg-layer-2, #f3f4f6)" },
+  // 本地图片缺失时占位（红框提示，替代缩略图）。
+  thumbBad: { width: 100, height: 100, flexShrink: 0, borderRadius: "8px", border: "0.5px dashed var(--dsw-alias-state-error-primary, #dc2626)", background: "var(--dsw-alias-bg-layer-1, #ffffff)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--dsw-alias-state-error-primary, #dc2626)", fontSize: "11px", textAlign: "center" },
+  // 紧凑小按钮（历史行「查看大图」）。
+  smallButton: (primary) => ({
+    border: "none",
+    borderRadius: "6px",
+    padding: "3px 10px",
+    fontSize: "11px",
+    fontWeight: 600,
+    cursor: "pointer",
+    background: primary ? "var(--dsw-alias-state-business-primary, #4f46e5)" : "var(--dsw-alias-interactive-bg-subtle, #eef2ff)",
+    color: primary ? "#fff" : "var(--dsw-alias-state-business-primary, #4f46e5)"
+  }),
   select: {
     border: "0.5px solid var(--dsw-alias-border-l2, #e5e7eb)",
     borderRadius: "8px",
@@ -1137,21 +1152,29 @@ function DrawTab(props) {
               style: { ...styles2.card, cursor: "pointer", borderColor: selected ? "var(--dsw-alias-state-business-primary, #4f46e5)" : "var(--dsw-alias-border-l2, #e5e7eb)" },
               onClick: () => setSelectedId(selected ? void 0 : h.artifactId),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.mono, children: h.title }),
-                realImg ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("img", { style: styles2.imgClickable, src: realImg, alt: "\u5386\u53F2\u9884\u89C8\uFF08\u539F\u56FE\uFF09", onClick: (e) => {
-                  e.stopPropagation();
-                  setViewer(realImg);
-                } }) : h.thumbBase64 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("img", { style: styles2.img, src: h.thumbBase64, alt: "\u5386\u53F2\u9884\u89C8" }),
-                realImg && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: styles2.button(false), onClick: (e) => {
-                  e.stopPropagation();
-                  setViewer(realImg);
-                }, children: "\u67E5\u770B\u5927\u56FE" }),
-                h.outputPath && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.mono, children: h.outputPath }),
-                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: styles2.hint, children: [
-                  h.size ?? "",
-                  h.model ? ` \xB7 ${h.model}` : "",
-                  " \xB7 ",
-                  formatDate(h.createdAt)
+                /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", gap: "10px", alignItems: "flex-start", minWidth: 0 }, children: [
+                  realImg ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("img", { style: styles2.thumb, src: realImg, alt: "\u5386\u53F2\u9884\u89C8", onClick: (e) => {
+                    e.stopPropagation();
+                    setViewer(realImg);
+                  } }) : /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: styles2.thumbBad, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { children: [
+                    "\u6587\u4EF6",
+                    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("br", {}),
+                    "\u7F3A\u5931"
+                  ] }) }),
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", flexDirection: "column", gap: "4px", minWidth: 0, flex: 1 }, children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: { ...styles2.mono, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }, children: h.title }),
+                    h.outputPath && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: { ...styles2.mono, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }, title: h.outputPath, children: h.outputPath }),
+                    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("p", { style: styles2.hint, children: [
+                      h.size ?? "",
+                      h.model ? ` \xB7 ${h.model}` : "",
+                      " \xB7 ",
+                      formatDate(h.createdAt)
+                    ] }),
+                    realImg && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { type: "button", style: styles2.smallButton(false), onClick: (e) => {
+                      e.stopPropagation();
+                      setViewer(realImg);
+                    }, children: "\u67E5\u770B\u5927\u56FE" }) })
+                  ] })
                 ] }),
                 h.fileExists === false && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { borderTop: "0.5px solid var(--dsw-alias-border-l2, #e5e7eb)", paddingTop: "6px", display: "flex", flexDirection: "column", gap: "6px" }, children: [
                   /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { style: styles2.errored, children: "\u672C\u5730\u56FE\u7247\u6587\u4EF6\u5DF2\u4E0D\u5B58\u5728 \u2014\u2014 \u53EF\u5220\u9664\u8BB0\u5F55\u6216\u91CD\u65B0\u751F\u6210" }),

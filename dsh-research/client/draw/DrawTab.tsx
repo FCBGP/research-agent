@@ -194,6 +194,21 @@ const styles = {
   }),
   img: { maxWidth: '100%', borderRadius: '8px', border: '0.5px solid var(--dsw-alias-border-l2, #e5e7eb)', cursor: 'zoom-in' as const },
   imgClickable: { maxWidth: '100%', borderRadius: '8px', border: '0.5px solid var(--dsw-alias-border-l2, #e5e7eb)', cursor: 'pointer' as const },
+  // 历史列表（stack，后进先出）左列：固定 100×100 缩略图（原图回读，cover 裁切）。
+  thumb: { width: 100, height: 100, objectFit: 'cover' as const, objectPosition: 'center' as const, borderRadius: '8px', border: '0.5px solid var(--dsw-alias-border-l2, #e5e7eb)', flexShrink: 0, cursor: 'zoom-in' as const, background: 'var(--dsw-alias-bg-layer-2, #f3f4f6)' },
+  // 本地图片缺失时占位（红框提示，替代缩略图）。
+  thumbBad: { width: 100, height: 100, flexShrink: 0, borderRadius: '8px', border: '0.5px dashed var(--dsw-alias-state-error-primary, #dc2626)', background: 'var(--dsw-alias-bg-layer-1, #ffffff)', display: 'flex' as const, alignItems: 'center' as const, justifyContent: 'center' as const, color: 'var(--dsw-alias-state-error-primary, #dc2626)', fontSize: '11px', textAlign: 'center' as const },
+  // 紧凑小按钮（历史行「查看大图」）。
+  smallButton: (primary: boolean) => ({
+    border: 'none',
+    borderRadius: '6px',
+    padding: '3px 10px',
+    fontSize: '11px',
+    fontWeight: 600,
+    cursor: 'pointer' as const,
+    background: primary ? 'var(--dsw-alias-state-business-primary, #4f46e5)' : 'var(--dsw-alias-interactive-bg-subtle, #eef2ff)',
+    color: primary ? '#fff' : 'var(--dsw-alias-state-business-primary, #4f46e5)',
+  }),
   select: {
     border: '0.5px solid var(--dsw-alias-border-l2, #e5e7eb)',
     borderRadius: '8px',
@@ -756,6 +771,8 @@ export function DrawTab(props: DrawTabProps): ReactNode {
               </div>
             )}
             {history.length === 0 && <p style={styles.empty}>还没有绘图记录（关闭后重启仍会保留，按会话过滤）。</p>}
+            {/* 历史列表 = stack（后进先出）：host collectDrawHistory 按 createdAt 降序，
+                最近的在最上。每行 = 左 100×100 缩略图 + 右「draw(简要提示) + 路径 + 查看大图」。 */}
             {history.map((h) => {
               const selected = selectedId === h.artifactId
               const realImg = h.outputPath && h.fileExists !== false ? drawImageUrl(h.outputPath) : undefined
@@ -765,15 +782,21 @@ export function DrawTab(props: DrawTabProps): ReactNode {
                   style={{ ...styles.card, cursor: 'pointer', borderColor: selected ? 'var(--dsw-alias-state-business-primary, #4f46e5)' : 'var(--dsw-alias-border-l2, #e5e7eb)' }}
                   onClick={() => setSelectedId(selected ? undefined : h.artifactId)}
                 >
-                  <p style={styles.mono}>{h.title}</p>
-                  {realImg
-                    ? <img style={styles.imgClickable} src={realImg} alt="历史预览（原图）" onClick={(e) => { e.stopPropagation(); setViewer(realImg) }} />
-                    : (h.thumbBase64 && <img style={styles.img} src={h.thumbBase64} alt="历史预览" />)}
-                  {realImg && (
-                    <button type="button" style={styles.button(false)} onClick={(e) => { e.stopPropagation(); setViewer(realImg) }}>查看大图</button>
-                  )}
-                  {h.outputPath && <p style={styles.mono}>{h.outputPath}</p>}
-                  <p style={styles.hint}>{h.size ?? ''}{h.model ? ` · ${h.model}` : ''} · {formatDate(h.createdAt)}</p>
+                  <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', minWidth: 0 }}>
+                    {realImg
+                      ? <img style={styles.thumb} src={realImg} alt="历史预览" onClick={(e) => { e.stopPropagation(); setViewer(realImg) }} />
+                      : <div style={styles.thumbBad}><span>文件<br />缺失</span></div>}
+                    <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '4px', minWidth: 0, flex: 1 }}>
+                      <p style={{ ...styles.mono, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.title}</p>
+                      {h.outputPath && <p style={{ ...styles.mono, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={h.outputPath}>{h.outputPath}</p>}
+                      <p style={styles.hint}>{h.size ?? ''}{h.model ? ` · ${h.model}` : ''} · {formatDate(h.createdAt)}</p>
+                      {realImg && (
+                        <div>
+                          <button type="button" style={styles.smallButton(false)} onClick={(e) => { e.stopPropagation(); setViewer(realImg) }}>查看大图</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   {h.fileExists === false && (
                     <div style={{ borderTop: '0.5px solid var(--dsw-alias-border-l2, #e5e7eb)', paddingTop: '6px', display: 'flex', flexDirection: 'column' as const, gap: '6px' }}>
                       <p style={styles.errored}>本地图片文件已不存在 —— 可删除记录或重新生成</p>

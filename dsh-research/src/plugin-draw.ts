@@ -865,6 +865,8 @@ export function collectDrawHistory(
   const check = fileExistsCheck ?? ((path: string): boolean => existsSync(expandHome(path)));
   return core.artifacts.list()
     .filter((a) => isDrawArtifact(a) && (!sessionId || typeof a.meta?.sessionId !== 'string' || a.meta.sessionId === sessionId))
+    // 历史列表 = stack（后进先出，最近的在最上）：按 createdAt 降序 → 返回后客户端
+    // 原样渲染即为「最近的图片在最上」（DrawTab 历史行）。
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit)
     .map((a) => drawHistoryView(a, typeof a.meta?.outputPath === 'string' ? check(a.meta.outputPath) : undefined));
