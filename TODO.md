@@ -424,6 +424,8 @@
   重建；单测 **269/269 全绿**（261 基线 + overlay 纯函数 8 + OVERLAY route 假探活/假 spawn 端到端）。
 
 - [ ] 真机验收（两阶段混合，方案 C 落地后）：重跑 `./dsh-research/scripts/deploy-profile.sh` → **硬刷新浏览器**
+  （**注意**：两阶段混合落地后的「打开即白屏」已定位并修复 —— DrawTab 组件体 `const cfg`
+  TDZ 崩溃，见 CHANGELOG 提交 66fe9fc；本项验收即按下面步骤重跑即可，白屏不再复现。）
   （Cmd+Shift+R）→ research/paper 会话右栏「科研绘图」→ 勾选「两阶段混合：无文字底图模式（推荐）」生成一张
   无字底图 → 在「文字叠加」卡片选底图 → 输入 2-3 个标签（每行一个，如 `eBGP|x,20|@40|#ffffff|b`）→ 点
   「合成文字」→ 成品 `image-…-overlay.png` 进历史 stack、可点开**全屏大图**，放大逐字验收 **零错字**；

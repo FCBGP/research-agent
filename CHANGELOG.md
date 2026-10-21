@@ -1,3 +1,28 @@
+## 2026-10-21 · 科研绘图白屏回归修复 — DrawTab 组件体 const cfg TDZ（提交 66fe9fc）
+
+现象（用户，2026-10-21，两阶段混合落地后）：科研绘图打开即白屏；DrawErrorBoundary 错误卡未出现。
+
+- **根因**：`442925f` 新增文字叠加代码在组件函数体里
+  `const overlaySupported = cfg?.overlay.supported ?? false` 引用 `cfg`，而组件体的
+  `const cfg = cfgState.phase === 'ready' ? cfgState.cfg : undefined` 声明在其后 ——
+  同名 `const` 存在 **TDZ（temporal dead zone）**，每次渲染抛
+  `ReferenceError: Cannot access 'cfg' before initialization`。该异常发生在 DrawTab
+  **自身函数体**（错误边界只包住 return 的 JSX children），DrawErrorBoundary 捕获不到
+  → 面板整体白屏（「加载中…/数据源错误」都不出现，因为还没到 return）。
+- **修复**：
+  1. 组件体 `const cfg` 上移到函数体最上方（refs 之后、useEffect 之前），消除 TDZ；
+  2. `overlaySupported` / `cfg.overlay.reason` 全部 optional-chain 兜底
+     （`cfg?.overlay?.`，reason 补默认文案），不再裸依赖 config 形状缺失；
+  3. DrawTab 重构为 **`DrawTabInner` + 导出 `DrawTab` 外层包 `DrawErrorBoundary`** ——
+     组件函数体（useState/useEffect/render 主体）抛错也落入边界显示红色错误卡 + 经
+     `POST /api/research.draw.debug` 上报 CLI，杜绝再出现「整体白屏、CLI 无输出」。
+- **lib/client.js** 重建（75909 → 76111 B）；`node --check` 通过；括号/大括号平衡核对通过。
+- 测试：`node --test "dsh-research/src/**/*.test.ts"` = **269/269 全绿**。
+- 部署：`~/.dsh/profiles/research/node_modules/@basil/dsh-research` symlink 指向仓库，
+  新 lib/client.js 即时生效，无需重跑 deploy；用户**硬刷新浏览器**（Cmd+Shift+R）即可。
+  若仍有问题，CLI 会打印 `[dsh-research-draw] [client] [tab-render]` 具体栈（本轮已增强
+  可捕获函数体错误）。
+
 ## 2026-10-21 · 科研绘图：两阶段混合落地 — 无文字底图 + PIL 精确文字叠加（方案 C，提交 442925f）
 
 需求（用户，2026-10-21）：Qwen-Image-2.1 生成图**文字/图形错乱**，如何处理 → 按 SKILL.md 推荐
