@@ -15,3 +15,12 @@ research/
 
 # archive-research.mjs 默认落盘目录（research/ 归档快照，不入 git）
 /storage/
+
+# 报告构建暂存（沙箱 workaround 脚本副本，不入 git）
+.tmp-report-word-scripts/
+
+# 调研报告分篇拼装草稿（私有权限 + 拼装删标记，主报告 md 为唯一交付物）
+docs/域间路由意图-分篇/
+
+# 科研绘图 prompt 草稿（待绘图专题另行处理）
+ebgp-ibgp-科研绘图-prompts.md
