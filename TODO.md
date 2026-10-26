@@ -272,6 +272,20 @@
 - [ ] 轻核 claim：「RPKI 结构性不支持 RFC 9315 广义 IBN 意图（偏好/优化/时变/条件）」——
   research_verify 一票（G3 主线）
 
+## 在研 · 域间路由安全调研报告 分篇撰写（2026-10-26 起；主题：BGP / RPKI-ROA-ROV / BGPsec / ASPA / SLURM / 路由过滤 / BGP CAR）
+
+> 已确认口径（2026-10-26，分篇 01 已按此成篇并归档 CHANGELOG）：以「扩写现有意图分篇 01」为
+> 起点独立成系列；每分篇载独立编号 [1]-[N]（不延续意图报告 [1]-[14]）；13 个待引用来源已逐一
+> 核验（larus 2026 部署数据为二手转述 / IRV = Huston APNIC 2021-07-09 / SCION 专著 Springer
+> 2017 / ASPA 锁定 draft-ietf-sidrops-aspa-profile-29 + verification-29，按 Internet-Draft
+> 引用并注明「尚未成为 RFC」）；每篇按 research-report-word 规范成稿，先跑
+> `python3 scripts/check_references.py` 再过稿。
+
+- [ ] 后续机制分篇：既有分篇 02–08 按「每分篇独立 [1]-[N] + 自含参考文献、check_references.py
+  通过」口径复审；BGPsec（RFC 8205）为首个机制分篇，钉死槽位防编号漂移；SLURM（RFC 8416）/
+  路由过滤（RFC 7115）/ ASPA（profile-29 + verification-29）/ RFC 9774 / BGP CAR（RFC 9871）/
+  结论局限与下一步（分篇 08）
+
 ## 决策备忘 · Paperclip 接入（dsh_local adapter）可行性调研（2026-10-15 起；仅备忘，未动工）
 
 > 需求：能否把 https://github.com/paperclipai/paperclip 在 dsh 中用起来（本质 multi-agent 交互）。
