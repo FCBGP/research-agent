@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ArtifactStore } from './core/artifact-store.ts';
 import { createTrizService } from './triz/index.ts';
-import { createAutoTrizMiddleware, extractMessageText, isFinalAnswerText, recordAnswerMapping, MIN_FINAL_ANSWER_LENGTH } from './plugin-triz-auto.ts';
+import { createAutoTrizMiddleware, extractMessageText, isFinalAnswerText, isInternalUserText, nextRoundId, recordAnswerMapping, MIN_FINAL_ANSWER_LENGTH } from './plugin-triz-auto.ts';
 import type { TrizAutoDeps } from './plugin-triz-auto.ts';
 import { isTrizArtifact } from './plugin-triz-ui.ts';
 
@@ -227,4 +227,60 @@ test('createAutoTrizMiddleware：短中间 step 被阈值过滤，仍按实质 s
   assert.equal(notes[0].meta.final, true);
   assert.equal(persistCalls, 1, 'turn/end 批量映射后调 persist() 落盘（重启恢复）');
   assert.equal(episodes.filter((e) => (e as { kind: string }).kind === 'triz').length, 1, 'episodic 同步一条');
+});
+
+test('isInternalUserText：识别 harness 内部控制/检查消息；真实任务问题不误判', () => {
+  assert.equal(isInternalUserText('This is an automatically generated check'), true);
+  assert.equal(isInternalUserText('Time sampled while preparing turn 1, step 3...'), true);
+  assert.equal(isInternalUserText('<goal_complete>\nObjective: \"调研\"...'), true);
+  assert.equal(isInternalUserText('这是自动生成的检查消息，用于内部巡检。'), true);
+  assert.equal(isInternalUserText('   '), true, '空文本视为内部（无可缓存内容）');
+  assert.equal(isInternalUserText('分析 RPKI+BGPsec 的安全能力边界'), false, '真实任务问题不误判');
+  assert.equal(isInternalUserText('以下文字帮我生成一张绘图prompt: 销售回款到账后，启动业财对账RPA程序。'), false);
+});
+
+test('nextRoundId：每次调用返回不同标识（轮聚合键单调不撞号）', () => {
+  const a = nextRoundId();
+  const b = nextRoundId();
+  assert.notEqual(a, b, '两次调用应得到不同 roundId');
+  assert.ok(a.startsWith('round-'), 'roundId 前缀 round- 便于排障');
+});
+
+test('createAutoTrizMiddleware：内部控制消息不设问题、不重置轮；本轮 note 带 roundId', () => {
+  const { deps, artifacts } = makeDeps();
+  const { ctx, emit } = makeEventCtx(deps);
+  applyVia(ctx, deps);
+  emit('s-round', 'user/message', { role: 'user', content: [{ type: 'text', text: PROBLEM }] });
+  // 内部子轮（自动检查/采样）不该换轮、不该盖掉真实问题
+  emit('s-round', 'user/message', { role: 'user', content: [{ type: 'text', text: 'This is an automatically generated check' }] });
+  emit('s-round', 'assistant/message', { turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: '先检索。' }] }, stream: [] });
+  emit('s-round', 'assistant/message', { turn: 2, step: 2, message: { role: 'assistant', content: [{ type: 'text', text: FINAL }] }, stream: [] });
+  emit('s-round', 'turn/end', { turn: 2, reason: 'complete' });
+  const notes = artifacts.list().filter((a) => a.title.startsWith('triz: '));
+  assert.equal(notes.length, 1, '内部 user 消息不重置轮 → 只有一次轮结束，短 step1 被阈值过滤，落 1 条');
+  assert.equal(notes[0].meta.step, 2);
+  assert.equal(notes[0].meta.final, true);
+  assert.ok(String(notes[0].title).includes(PROBLEM.slice(0, 10)), 'title 以最初真实任务开头，未被内部消息覆盖');
+  assert.equal(typeof notes[0].meta.roundId, 'string', '本轮 note 带 roundId（客户端总览卡分组键）');
+});
+
+test('createAutoTrizMiddleware：新真实 user 消息开新轮 → 新 roundId，与上一轮不同', () => {
+  const { deps, artifacts } = makeDeps();
+  const { ctx, emit } = makeEventCtx(deps);
+  applyVia(ctx, deps);
+  emit('s-r2', 'user/message', { role: 'user', content: [{ type: 'text', text: PROBLEM }] });
+  emit('s-r2', 'assistant/message', { turn: 1, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: FINAL }] }, stream: [] });
+  emit('s-r2', 'turn/end', { turn: 1, reason: 'complete' });
+  emit('s-r2', 'user/message', { role: 'user', content: [{ type: 'text', text: '下一步：反证 BGPsec 局限' }] });
+  emit('s-r2', 'assistant/message', { turn: 2, step: 1, message: { role: 'assistant', content: [{ type: 'text', text: 'BGPsec 验证 AS_PATH 抗路径操纵；局限在部署覆盖与机密性。'.repeat(4) }] }, stream: [] });
+  emit('s-r2', 'turn/end', { turn: 2, reason: 'complete' });
+  const notes = artifacts.list().filter((a) => a.title.startsWith('triz: '));
+  assert.equal(notes.length, 2, '两轮各落一条');
+  const [first, second] = notes;
+  assert.equal(first.meta.final, true);
+  assert.equal(second.meta.final, true);
+  assert.equal(typeof first.meta.roundId, 'string');
+  assert.equal(typeof second.meta.roundId, 'string');
+  assert.notEqual(first.meta.roundId, second.meta.roundId, '不同轮 roundId 不同（总览卡不跨轮合并）');
+  assert.ok(String(second.title).includes('反证'), '第二轮问题是新真实任务，非内部消息');
 });

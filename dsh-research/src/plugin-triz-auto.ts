@@ -59,14 +59,50 @@ interface MessageBlockLike {
   text?: string;
 }
 
-/** 写入 TRIZ note 的可选元信息：会话级持久化维度 + 生成步序。 */
+/** 写入 TRIZ note 的可选元信息：会话级持久化维度 + 生成步序 + 轮聚合维度。 */
 export interface TrizNoteMeta {
   /** 所属会话 id（session/event 的 session.id）——侧边栏按会话过滤、重启恢复的键。 */
   sessionId?: string;
+  /** 本轮唯一标识（一次 user 任务 = 一轮；内部控制消息不换轮）——客户端按它聚合「本轮总览卡」。 */
+  roundId?: string;
   /** 本生成内容在轮内的步号（step）；末步之外的就是「中间生成结果」。 */
   step?: number;
   /** 是否为该轮最终答案（turn/end 时最后一步）。 */
   final?: boolean;
+}
+
+/**
+ * 内部控制/检查类用户消息的特征前缀（自动巡检、“Time sampled while preparing…”、
+ * goal_complete 等自动生成的消息）——不作为本轮「问题」、也不重置本轮：
+ *  1) 不污染右侧栏「问题」标题（此前会把自动检查消息当任务问题）；
+ *  2) 不把一次自主运行内的内部子轮拆成多个碎片「轮」（总览卡按轮聚合的前提）。
+ */
+const INTERNAL_USER_PREFIXES: readonly string[] = [
+  'this is an automatically generated check',
+  'time sampled while preparing',
+  '<goal_complete',
+]
+/** 内部控制/检查类用户消息的特征子串（自动生成的检查等）。 */
+const INTERNAL_USER_SUBSTRINGS: readonly string[] = [
+  '<goal_complete>',
+  '自动生成的检查',
+  '自动生成检查',
+]
+
+/** 判定一条 user 文本是否为 harness 内部控制/检查消息（不当作任务问题、不重置轮）。 */
+export function isInternalUserText(text: string): boolean {
+  const t = (text ?? '').trim().toLowerCase()
+  if (!t) return true // 空文本无内容可缓存
+  for (const p of INTERNAL_USER_PREFIXES) if (t.startsWith(p)) return true
+  for (const s of INTERNAL_USER_SUBSTRINGS) if (t.includes(s.toLowerCase())) return true
+  return false
+}
+
+/** 生成一轮唯一标识（进程内单调，避免同毫秒撞号）。 */
+let roundSeq = 0
+export function nextRoundId(): string {
+  roundSeq += 1
+  return `round-${Date.now().toString(36)}-${roundSeq}`
 }
 
 /**
@@ -140,6 +176,7 @@ export function recordAnswerMapping(
     contradictionOrigin: mapping.contradictionOrigin, // tool/extracted/default 如实标注
   };
   if (noteMeta?.sessionId !== undefined) meta.sessionId = noteMeta.sessionId; // 会话级持久化维度
+  if (noteMeta?.roundId !== undefined) meta.roundId = noteMeta.roundId;         // 轮聚合维度（客户端总览卡）——旧 note 无此字段 → 前端回落启发式分组
   if (noteMeta?.step !== undefined) meta.step = noteMeta.step;                 // 生成步序
   meta.final = noteMeta?.final ?? false;                                       // 是否最终答案
 
@@ -172,6 +209,7 @@ interface SessionEventLike {
 export function createAutoTrizMiddleware(getDeps: () => TrizAutoDeps) {
   const problems = new Map<string, string>();
   const answers = new Map<string, Map<number, string>>();
+  const roundIds = new Map<string, string>(); // 会话 → 本轮唯一标识（总览卡聚合键）
 
   return function onSessionEvent(session: { id?: unknown }, event: SessionEventLike): void {
     const sid = typeof session?.id === 'string' && session.id ? session.id : undefined;
@@ -179,9 +217,12 @@ export function createAutoTrizMiddleware(getDeps: () => TrizAutoDeps) {
     try {
       if (event.type === 'user/message') {
         const t = extractMessageText(event.data).trim();
-        if (t) {
+        // 内部控制/检查消息（自动巡检、采样、goal_complete…）不入问题、不重置轮：
+        // 避免子轮碎片化 + 问题标题失真（2026-10-26 轮总览卡改造）。
+        if (!isInternalUserText(t)) {
           problems.set(sid, t);
           answers.set(sid, new Map()); // 新轮开始：重置本会话 step 缓存
+          roundIds.set(sid, nextRoundId()); // 新轮唯一标识
         }
         return;
       }
@@ -203,10 +244,11 @@ export function createAutoTrizMiddleware(getDeps: () => TrizAutoDeps) {
         if (problem && steps && steps.size > 0) {
           const nums = [...steps.keys()].sort((a, b) => a - b);
           const last = nums[nums.length - 1];
+          const roundId = roundIds.get(sid);
           for (const step of nums) {
             const text = steps.get(step)!;
             // 只映射有实质正文的 step（短文本被阈值过滤）；末步标记为 final。
-            recordAnswerMapping(getDeps(), problem, text, { sessionId: sid, step, final: step === last });
+            recordAnswerMapping(getDeps(), problem, text, { sessionId: sid, roundId, step, final: step === last });
           }
           // 一轮写完即落盘：统一 ArtifactStore 后 persist 覆盖 TRIZ note，
           // 重启后 loadMemoryInto 还原、侧边栏按 sessionId 恢复。

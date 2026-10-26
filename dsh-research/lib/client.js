@@ -85,6 +85,8 @@ function parseTrizNotes(value) {
     const lines = Array.isArray(hypotheses) ? hypotheses.filter((h) => typeof h === "string") : [];
     const step = typeof item.step === "number" && Number.isInteger(item.step) ? item.step : void 0;
     const fin = typeof item.final === "boolean" ? item.final : void 0;
+    const roundId = typeof item.roundId === "string" && item.roundId.length > 0 ? item.roundId : void 0;
+    const sessionId = typeof item.sessionId === "string" && item.sessionId.length > 0 ? item.sessionId : void 0;
     notes.push({
       artifactId,
       title,
@@ -95,7 +97,9 @@ function parseTrizNotes(value) {
       hypotheses: lines,
       createdAt: typeof item.createdAt === "string" ? item.createdAt : "",
       step,
-      final: fin
+      final: fin,
+      roundId,
+      sessionId
     });
   }
   return notes;
@@ -110,6 +114,95 @@ var CONTRADICTION_ORIGIN_LABEL = {
   "extracted": "\u6587\u672C\u89C4\u5219\u63D0\u53D6",
   "default": "\u9ED8\u8BA4\uFF08\u68C0\u6D4B\u2194\u590D\u6742\u5EA6\uFF09"
 };
+function isInternalProblemText(text) {
+  const t = (text ?? "").trim().toLowerCase();
+  if (!t) return true;
+  const markers = [
+    "this is an automatically generated check",
+    "time sampled while preparing",
+    "<goal_complete>",
+    "\u81EA\u52A8\u751F\u6210\u7684\u68C0\u67E5",
+    "\u81EA\u52A8\u751F\u6210\u68C0\u67E5"
+  ];
+  for (const m of markers) if (t.includes(m)) return true;
+  return false;
+}
+function roundBucketKey(n) {
+  if (typeof n.roundId === "string" && n.roundId) return `rid:${n.roundId}`;
+  return `legacy:${n.createdAt ?? ""}:${n.sessionId ?? ""}`;
+}
+function toRoundView(sorted) {
+  const finalNote = [...sorted].reverse().find((n) => n.final === true) ?? sorted[sorted.length - 1];
+  const seen = /* @__PURE__ */ new Set();
+  const candidates = [];
+  for (const n of sorted) {
+    for (const c of n.candidates ?? []) {
+      if (seen.has(c.no)) continue;
+      seen.add(c.no);
+      candidates.push(c);
+    }
+  }
+  const detail = sorted.map((n) => ({
+    step: typeof n.step === "number" ? n.step : 0,
+    final: n.final === true,
+    source: n.source,
+    contradictionOrigin: n.contradictionOrigin,
+    candidates: n.candidates ?? [],
+    hypotheses: n.hypotheses ?? []
+  }));
+  const problem = finalNote?.problem ?? sorted[0]?.problem ?? "";
+  return {
+    roundKey: finalNote?.roundId ?? `round-${finalNote?.createdAt ?? ""}-${finalNote?.step ?? 0}`,
+    problem,
+    problemInternal: isInternalProblemText(problem),
+    source: finalNote?.source ?? sorted[0]?.source ?? "curated-matrix",
+    contradictionOrigin: finalNote?.contradictionOrigin ?? "default",
+    createdAt: finalNote?.createdAt ?? sorted[0]?.createdAt ?? "",
+    candidates,
+    hypotheses: finalNote?.hypotheses ?? [],
+    stepCount: sorted.length,
+    finalStep: typeof finalNote?.step === "number" ? finalNote.step : void 0,
+    detail
+  };
+}
+function aggregateTrizRounds(notes) {
+  const manual = [];
+  const auto = [];
+  for (const n of notes) {
+    if (typeof n.step === "number") auto.push(n);
+    else manual.push(n);
+  }
+  const buckets = /* @__PURE__ */ new Map();
+  for (const n of auto) {
+    const k = roundBucketKey(n);
+    const b = buckets.get(k) ?? [];
+    b.push(n);
+    buckets.set(k, b);
+  }
+  const rounds = [];
+  for (const group of buckets.values()) {
+    const sorted = [...group].sort((a, b) => (a.step ?? 0) - (b.step ?? 0));
+    if (typeof group[0].roundId === "string" && group[0].roundId) {
+      rounds.push(toRoundView(sorted));
+    } else {
+      let cur = [sorted[0]];
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = sorted[i - 1];
+        const curN = sorted[i];
+        const adjacent = typeof prev.step === "number" && typeof curN.step === "number" && prev.step + 1 === curN.step;
+        if (adjacent) cur.push(curN);
+        else {
+          rounds.push(toRoundView(cur));
+          cur = [curN];
+        }
+      }
+      rounds.push(toRoundView(cur));
+    }
+  }
+  rounds.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || (b.finalStep ?? 0) - (a.finalStep ?? 0));
+  manual.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return { manual, rounds };
+}
 
 // dsh-research/client/TrizTab.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
@@ -172,6 +265,14 @@ var styles = {
     fontSize: "10px",
     color: "var(--dsw-alias-label-tertiary, #6b7280)"
   },
+  sectionLabel: {
+    margin: "2px 0 0",
+    fontSize: "10px",
+    fontWeight: 600,
+    color: "var(--dsw-alias-label-secondary, #4b5563)",
+    textTransform: "uppercase",
+    letterSpacing: "0.03em"
+  },
   principle: {
     display: "flex",
     flexDirection: "column",
@@ -201,11 +302,35 @@ var styles = {
   summary: { margin: 0, color: "var(--dsw-alias-label-secondary, #4b5563)" },
   hintLine: { margin: 0, fontSize: "11px", color: "var(--dsw-alias-label-tertiary, #6b7280)" },
   ul: { margin: 0, paddingLeft: "16px", display: "flex", flexDirection: "column", gap: "4px" },
+  details: {
+    border: "0.5px solid var(--dsw-alias-border-l2, #e5e7eb)",
+    borderRadius: "8px",
+    padding: "6px 8px"
+  },
+  summaryText: {
+    cursor: "pointer",
+    fontSize: "10px",
+    fontWeight: 600,
+    color: "var(--dsw-alias-state-business-primary, #4f46e5)",
+    userSelect: "none"
+  },
+  detailBlock: { margin: "4px 0 0", paddingLeft: "4px", display: "flex", flexDirection: "column", gap: "4px" },
   empty: { color: "var(--dsw-alias-label-tertiary, #6b7280)", fontSize: "11px", margin: 0 },
   errored: { color: "var(--dsw-alias-state-error-primary, #dc2626)", fontSize: "11px", margin: 0 }
 };
 function sourceText(source) {
   return SOURCE_LABEL[source] ?? source;
+}
+function PrincipleList({ candidates }) {
+  if (candidates.length === 0) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", { style: styles.ul, children: candidates.map((c) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { style: styles.principle, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: styles.principleHead, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: styles.principleNo, children: c.no }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: c.name })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.summary, children: c.summary }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.hintLine, children: c.routingHint })
+  ] }, c.no)) });
 }
 function TrizNoteCard({ note }) {
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { style: styles.card, children: [
@@ -215,21 +340,54 @@ function TrizNoteCard({ note }) {
       "\u77DB\u76FE\u6765\u6E90\uFF1A",
       CONTRADICTION_ORIGIN_LABEL[note.contradictionOrigin] ?? note.contradictionOrigin
     ] }),
-    typeof note.step === "number" && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { style: styles.originLine, children: [
-      "\u751F\u6210\u6B65\u5E8F\uFF1A\u7B2C ",
-      note.step,
-      " \u6B65",
-      note.final ? "\uFF08\u8BE5\u8F6E\u6700\u7EC8\u7B54\u6848\uFF09" : "\uFF08\u4E2D\u95F4\u751F\u6210\u7ED3\u679C\uFF09"
-    ] }),
-    note.candidates.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", { style: styles.ul, children: note.candidates.map((c) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("li", { style: styles.principle, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: styles.principleHead, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("b", { style: styles.principleNo, children: c.no }),
-        /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: c.name })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.summary, children: c.summary }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.hintLine, children: c.routingHint })
-    ] }, c.no)) }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PrincipleList, { candidates: note.candidates }),
     note.hypotheses.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", { style: styles.ul, children: note.hypotheses.map((h, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { style: styles.hintLine, children: h }, `${note.artifactId}-${i}`)) })
+  ] });
+}
+function TrizRoundCard({ round }) {
+  const title = round.problemInternal ? "\uFF08\u672C\u8F6E\u95EE\u9898\u4E3A\u81EA\u52A8\u751F\u6210\u7684\u5185\u90E8\u68C0\u67E5\u6D88\u606F\uFF0C\u672A\u6355\u83B7\u5B9E\u8D28\u4EFB\u52A1\u95EE\u9898\uFF09" : round.problem;
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { style: styles.card, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h3", { style: styles.cardTitle, children: title }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: styles.badge, children: sourceText(round.source) }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { style: styles.originLine, children: [
+      "\u8FD9\u4E00\u8F6E\u5171 ",
+      round.stepCount,
+      " \u4E2A\u5B9E\u8D28\u751F\u6210\u6B65\u9AA4",
+      typeof round.finalStep === "number" && `\uFF08\u6700\u7EC8\u7B54\u6848\u5728\u7B2C ${round.finalStep} \u6B65\uFF09`,
+      "\uFF1B\u77DB\u76FE\u6765\u6E90\uFF1A",
+      CONTRADICTION_ORIGIN_LABEL[round.contradictionOrigin] ?? round.contradictionOrigin
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { style: styles.sectionLabel, children: [
+      "\u539F\u7406\u5408\u96C6\uFF08",
+      round.candidates.length,
+      "\uFF09"
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(PrincipleList, { candidates: round.candidates }),
+    round.hypotheses.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.sectionLabel, children: "\u6700\u7EC8\u7ED3\u8BBA" }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", { style: styles.ul, children: round.hypotheses.map((h, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { style: styles.hintLine, children: h }, `${round.roundKey}-concl-${i}`)) })
+    ] }),
+    round.detail.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("details", { style: styles.details, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("summary", { style: styles.summaryText, children: [
+        "\u5C55\u5F00\u5404\u6B65\u9AA4\u660E\u7EC6\uFF08",
+        round.detail.length,
+        "\uFF09"
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: styles.detailBlock, children: round.detail.map((d) => /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("p", { style: styles.originLine, children: [
+          "\u7B2C ",
+          d.step,
+          " \u6B65",
+          d.final ? "\uFF08\u6700\u7EC8\u7B54\u6848\uFF09" : "\uFF08\u4E2D\u95F4\u751F\u6210\u7ED3\u679C\uFF09",
+          "\u2014\u2014 ",
+          sourceText(d.source),
+          " / \u77DB\u76FE\u6765\u6E90\uFF1A",
+          CONTRADICTION_ORIGIN_LABEL[d.contradictionOrigin] ?? d.contradictionOrigin,
+          d.candidates.length > 0 && ` / \u539F\u7406\uFF1A${d.candidates.map((c) => `#${c.no} ${c.name}`).join("\u3001")}`
+        ] }),
+        d.hypotheses.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("ul", { style: styles.ul, children: d.hypotheses.map((h, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("li", { style: styles.hintLine, children: h }, `${round.roundKey}-step-${d.step}-${i}`)) })
+      ] }, `${round.roundKey}-step-${d.step}`)) })
+    ] })
   ] });
 }
 function TrizTab(props) {
@@ -265,12 +423,16 @@ function TrizTab(props) {
       signal?.removeEventListener("abort", abort);
     };
   }, [signal, sessionId]);
+  const { manual, rounds } = state.phase === "ready" ? aggregateTrizRounds(state.notes) : { manual: [], rounds: [] };
+  const hasAny = state.phase === "ready" && (manual.length > 0 || rounds.length > 0);
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: styles.root, children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.header, children: "TRIZ \u53D1\u660E\u539F\u7406\u8BF4\u660E" }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.hint, children: "\u5C55\u793A\u672C\u6B21\u7814\u7A76\u8FC7\u7A0B\u4E2D research_triz \u5DE5\u5177\u5206\u6790\u51FA\u7684\u53D1\u660E\u539F\u7406\u4E0E\u63A8\u7406\u94FE\u3002 \u6240\u6709\u63A8\u8350\u5747\u4E3A\u5F85\u6838\u9A8C\u5047\u8BF4\uFF08source=triz, confidence=0.5\uFF09\uFF0C\u987B\u7ECF research_verify / research_campaign \u9A8C\u8BC1\u540E\u624D\u6210\u4E3A\u7ED3\u8BBA\u3002" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.hint, children: "\u540C\u4E00\u6B21\u7814\u7A76\u8F6E\u5185\u7684\u5B9E\u8D28\u751F\u6210\u6B65\u9AA4\u4F1A\u805A\u5408\u6210\u4E00\u5F20\u300C\u672C\u8F6E\u603B\u89C8\u5361\u300D\uFF08\u95EE\u9898 + \u539F\u7406\u5408\u96C6 + \u6700\u7EC8\u7ED3\u8BBA\uFF09\uFF0C \u53EF\u5C55\u5F00\u5404\u6B65\u9AA4\u660E\u7EC6\uFF1B\u77ED\u6B65\u9AA4 / \u5DE5\u5177\u8C03\u7528\u4E0D\u5355\u72EC\u751F\u6210 TRIZ \u8BF4\u660E\u3002\u63A8\u8350\u5747\u4E3A\u5F85\u6838\u9A8C\u5047\u8BF4 \uFF08source=triz, confidence=0.5\uFF09\uFF0C\u987B\u7ECF research_verify / research_campaign \u9A8C\u8BC1\u540E\u624D\u6210\u4E3A\u7ED3\u8BBA\u3002" }),
     state.phase === "loading" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.empty, children: "\u52A0\u8F7D\u4E2D\u2026" }),
     state.phase === "error" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.errored, children: "\u6682\u65E0 TRIZ \u5206\u6790\u8BB0\u5F55\uFF0C\u6216\u6570\u636E\u6E90\u6682\u4E0D\u53EF\u7528\u3002" }),
-    state.phase === "ready" && (state.notes.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.empty, children: "\u8FD8\u6CA1\u6709 TRIZ \u5206\u6790\u8BB0\u5F55\u3002\u53EF\u5728\u7814\u7A76\u4F1A\u8BDD\u4E2D\u8C03\u7528 research_triz \u5DE5\u5177\u751F\u6210\u3002" }) : state.notes.map((note) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TrizNoteCard, { note }, note.artifactId)))
+    state.phase === "ready" && !hasAny && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: styles.empty, children: "\u8FD8\u6CA1\u6709 TRIZ \u5206\u6790\u8BB0\u5F55\u3002\u53EF\u5728\u7814\u7A76\u4F1A\u8BDD\u4E2D\u8C03\u7528 research_triz \u5DE5\u5177\u751F\u6210\u3002" }),
+    state.phase === "ready" && rounds.map((round) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TrizRoundCard, { round }, round.roundKey)),
+    state.phase === "ready" && manual.map((note) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(TrizNoteCard, { note }, note.artifactId))
   ] });
 }
 

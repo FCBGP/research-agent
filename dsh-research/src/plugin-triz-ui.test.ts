@@ -160,18 +160,23 @@ test('collectTrizNotes：按 sessionId 过滤（只显示该会话 + 无 session
   assert.equal(all.length, 3, '无会话参数 → 全部可见（兼容旧行为）');
 });
 
-test('toTrizNoteView：透传生成步序 step/final（中间生成结果逐段映射的展示维度）', () => {
-  const intermediate = trizNote({ meta: { source: 'curated-matrix', candidates: [2], sessionId: 'sess-a', step: 2, final: false } });
+test('toTrizNoteView：透传生成步序 step/final + 轮聚合维度 roundId/sessionId', () => {
+  const intermediate = trizNote({ meta: { source: 'curated-matrix', candidates: [2], sessionId: 'sess-a', roundId: 'round-x', step: 2, final: false } });
   const view = toTrizNoteView(intermediate);
   assert.equal(view.step, 2);
   assert.equal(view.final, false);
-  const finalNote = trizNote({ meta: { source: 'curated-matrix', candidates: [3], sessionId: 'sess-a', step: 3, final: true } });
+  assert.equal(view.roundId, 'round-x', '轮聚合键透传');
+  assert.equal(view.sessionId, 'sess-a', '会话维度透传');
+  const finalNote = trizNote({ meta: { source: 'curated-matrix', candidates: [3], sessionId: 'sess-a', roundId: 'round-x', step: 3, final: true } });
   const fin = toTrizNoteView(finalNote);
   assert.equal(fin.step, 3);
   assert.equal(fin.final, true);
+  assert.equal(fin.roundId, 'round-x', '同轮两 note 共享 roundId');
   const manual = trizNote({ meta: { source: 'curated-matrix', candidates: [1] } });
   assert.equal(toTrizNoteView(manual).step, undefined, '手动 note 无 step');
   assert.equal(toTrizNoteView(manual).final, undefined);
+  assert.equal(toTrizNoteView(manual).roundId, undefined, '手动 note 无 roundId');
+  assert.equal(toTrizNoteView(manual).sessionId, undefined, '手动 note 无 sessionId');
 });
 
 test('sessionIdFromRequest：解析 ?sessionId=；缺省 / 非法 URL → undefined', () => {

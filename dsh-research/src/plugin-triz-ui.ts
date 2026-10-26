@@ -25,8 +25,9 @@ export const name = 'dsh-research-triz-ui'
 /** Web 鉴权 GET route（进 connection 鉴权栅栏；浏览器侧相对路径 = 去掉前导 '/'）。 */
 export const TRIZ_NOTES_PATH = '/api/research.triz.notes'
 
-/** 一次返回最多多少条 TRIZ 分析 note（最近 N 条；阶段 10 扩大以容纳中间生成结果的逐段映射）。 */
-export const MAX_TRIZ_NOTES = 30
+/** 一次返回最多多少条 TRIZ 分析 note（最近 N 条；阶段 10 扩大以容纳中间生成结果的逐段映射，
+ *  阶段 12 客户端按轮聚合总览卡——放宽到 200，避免同 createdAt 多条的「轮」在截断处被拆开）。 */
+export const MAX_TRIZ_NOTES = 200
 
 /** research_triz 工具写入 meta.source 的三态（具 TRIZ 语义的判定集合）。 */
 export const TRIZ_SOURCES: readonly string[] = ['curated-matrix', 'heuristic-fallback', 'unresolved']
@@ -57,6 +58,10 @@ export interface TrizNoteView {
   step?: number
   /** 是否该轮最终答案（末步）；中间生成结果为 false / 缺省未标注。 */
   final?: boolean
+  /** 本轮唯一标识（triz-auto 阶段 12 起写入）——客户端按它把同轮多步聚合为「本轮总览卡」；旧 note 缺省。 */
+  roundId?: string
+  /** 所属会话 id（会话级持久化维度；客户端分组与展示用）——缺省为无会话的手动 note。 */
+  sessionId?: string
 }
 
 const PRINCIPLE_BY_NO = new Map<number, { no: number; name: string; summary: string; routingHint: string }>(
@@ -93,6 +98,8 @@ export function toTrizNoteView(a: Artifact): TrizNoteView {
   const hypotheses = a.body.split('\n').map((s) => s.trim()).filter((s) => s.length > 0)
   const step = typeof a.meta?.step === 'number' ? a.meta.step : undefined
   const final = typeof a.meta?.final === 'boolean' ? a.meta.final : undefined
+  const roundId = typeof a.meta?.roundId === 'string' && a.meta.roundId ? a.meta.roundId : undefined
+  const sessionId = typeof a.meta?.sessionId === 'string' && a.meta.sessionId ? a.meta.sessionId : undefined
   return {
     artifactId: a.id,
     title: a.title,
@@ -105,6 +112,8 @@ export function toTrizNoteView(a: Artifact): TrizNoteView {
     createdAt: a.createdAt,
     step,
     final,
+    roundId,
+    sessionId,
   }
 }
 
