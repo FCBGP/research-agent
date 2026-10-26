@@ -1,3 +1,31 @@
+## 2026-10-26 · 域间路由安全调研报告 分篇 01 扩写（提交 4307b0e）
+
+需求（用户，2026-10-26）：推进《域间路由安全调研报告》分篇撰写——先并行复核 APNIC/SCION/IRV
+三个待引用来源，随后以「扩写现有意图分篇 01」为起点开写分篇系列（不复用意图报告 [1]-[14]，
+每分篇独立 [1]-[N] 编号）。
+
+- **13 源核验（撰写前逐条完成）**：[1] BGP-4（RFC 4271）事实标准；[2] origin-hijack /
+  path-forgery / route-leak 攻击分类；[3] BGP「属性+本地策略」网格＋IBN 意图定义；
+  [4][5] P4 larus 部署现状（**二手转述**，正文与数据口径均明确标注）；[6] SLURM（RFC 8416）；
+  [7] BGPsec（RFC 8205）；[8][9] ASPA profile-29 + verification-29（按 Internet-Draft 引用并
+  注明「-29 尚未成为 RFC」）；[10] RFC 7115（BCP185）路由过滤；[11] RFC 9774 废弃
+  AS_SET/AS_CONFED_SET；[12] BGP CAR（RFC 9871）；[13] SCION 专著（Perrig A, et al., Berlin:
+  Springer, 2017，无 URL）。禁用过期数据（2021 年 ROA 覆盖率、HE RPKI rollout 等）确认未出现。
+- **关键产物**：`docs/域间路由意图-分篇/01-背景与目标.md`（分篇草稿，0600 私有权限 + 拼装删
+  标记，按 `.gitignore` 设计不入库；主报告 md 为唯一交付物）——研究背景 / 术语与口径两节；
+  body 首现引用序 [1]-[13] 连续不跳号；正文按 Fact / Result / Hypothesis / Assumption /
+  Interpretation 区分；含实验口径块（engine=sim、mulberry32 seed 20261016、evidence grade
+  上限 C、supportThreshold=0.8）＋二手数据口径附注。
+- **分篇系列口径（定稿）**：以「扩写现有意图分篇 01」为起点独立成系列；每分篇独立编号
+  [1]-[N]（不延续意图报告 [1]-[14]）；每篇自含 `参考文献` 纯文本块、先跑
+  `python3 scripts/check_references.py` 再过稿；后续机制分篇 02–08 按此口径复审，BGPsec
+  （RFC 8205）为首个机制分篇、钉死槽位防编号漂移。
+- **测试与 SMOKE**：`check_references.py` 对分篇 01 → **13/13 唯一引用 ↔ 13 条参考文献，
+  REFERENCE CHECK OK**。功能提交 `4307b0e` 仅含 TODO.md（在研段置新：已确认口径 + 后续机制
+  分篇轮）；分篇草稿按 .gitignore 不入库；`.gitignore` 自身仅余用户新增 `export/` 未提交。
+
+---
+
 ## 2026-10-26 · TRIZ 侧边栏按「轮」聚合总览卡（提交 bcd0ab3）
 
 需求（用户，2026-10-26）：选型「方案 3 · 需要总览卡片」——triz-auto 对一轮内每个实质 step
