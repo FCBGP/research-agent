@@ -1,3 +1,33 @@
+## 2026-10-26 · TRIZ 侧边栏按「轮」聚合总览卡（提交 bcd0ab3）
+
+需求（用户，2026-10-26）：选型「方案 3 · 需要总览卡片」——triz-auto 对一轮内每个实质 step
+各落一条 note，而侧边栏只显示「最后两步」令人困惑 → 改为按「轮」聚合为一张总览卡，而非零散
+step 碎片卡。
+
+- **关键产物**：`client/TrizTab.tsx` 渲染 `TrizRoundCard`（本轮总览卡）+ `client/route.ts` 新增
+  `aggregateTrizRounds()`；`src/plugin-triz-auto.ts` note meta 新增 `roundId`（`nextRoundId()`
+  进程内单调）+ `isInternalUserText()`；`src/plugin-triz-ui.ts` `MAX_TRIZ_NOTES` 由 30→200
+  （避免同 createdAt 多条轮在截断处被拆开）；`lib/client.js` 重建（76111→84243 B）。
+- **总览卡语义**：一次 user 任务 = 一轮；卡 = 问题 + 全步骤原理合集（去重）+ 最终答案步结论
+  + 可折叠各步骤明细；手动 `research_triz` 调用（无 step）保持逐条单卡；面板提示说明聚合语义
+  （短步骤/工具调用不单独生成）。
+- **根因修复**：内部控制/检查类 user 消息（`This is an automatically generated check` /
+  `Time sampled while preparing` / `<goal_complete>`）不再写入「问题」、也不再重置轮——修复
+  「问题标题失真」与「自主运行内部子轮碎片化」；旧数据（2026-10-21 同毫秒多轮混存快照）前端
+  回落 `createdAt+sessionId+step` 相邻性启发式分组，`problemInternal` 问题标题脱敏为
+  「（本轮问题为自动生成的内部检查消息…）」。
+- **为何此前只显示两步**：`MIN_FINAL_ANSWER_LENGTH = 40` 字符阈值——40 步中仅最后两步有实质
+  正文（≥40 字符），其余 1–38 步为工具调用/短文本被过滤；并非「取最后两步」。
+- **测试与实测**：`node --test "dsh-research/src/**/*.test.ts"` = **278/278 全绿**（+4 auto、
+  +5 aggregate）；`node --check lib/client.js` 通过。真实持久化数据验证：当前会话 step39/40
+  两条 note → 聚合 1 张总览卡（原理合集 [1,2,24,23,6]，problemInternal=true 正确脱敏）；
+  legacy 同毫秒多轮正确拆分为多轮。
+- **部署**：`~/.dsh/profiles/research/node_modules/@basil/dsh-research` 为 symlink 指向仓库，
+  新 lib/client.js 经 symlink 即时生效；用户浏览器硬刷新（Cmd+Shift+R）即可。真机确认留待
+  用户验证（见 TODO）。
+
+---
+
 ## 2026-10-22 · 域间路由意图调研报告 8 章重构版（提交 3a26af0）
 
 需求（用户，2026-10-22）：主报告去掉独立「TRIZ 机制方向」章——该章内容多为未核验假说，不宜挂在
