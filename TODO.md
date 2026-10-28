@@ -221,7 +221,7 @@
 > 部署侧已落地（2026-10-10）：仓库模板声明 weknora（`profiles/research/package.json`
 > bundles/dependencies + `cordis.patch.yml` 配置行），`deploy-profile.sh` 首次自动装插件、
 > 重跑不丢（`DEPLOY_AUTO_PLUGINS=0` 可关）。沙箱已证：dump-config 组合树含配置行；插件在
-> dsh 0.2.0-rc.2 加载并注册 4 工具；插件未装时 bundle/配置行被非致命丢弃不阻塞 boot。
+> dsh 0.2.1-rc.2 加载并注册 4 工具；插件未装时 bundle/配置行被非致命丢弃不阻塞 boot。
 > 以下真机验证依赖用户建库 + 配 API key，沙箱无法完成。
 
 - [ ] 真机一键 deploy 后验证 `weknora_*` 四工具连通：
@@ -230,7 +230,7 @@
   `dsh research` 会话里 `weknora_list_knowledge_bases` / `weknora_search` /
   `weknora_read_document` / `weknora_ask` 连通并带引用回答
   （先在建好知识库传 RFC/论文，步骤见 README「WeKnora」行动清单）
-- [ ] dsh 0.2.0-rc.2 兼容性真机回归：沙箱已证插件在 0.2.0-rc.2 加载 + 4 工具注册；端到端检索
+- [ ] dsh 0.2.1-rc.2 兼容性真机回归：沙箱已证插件在当前 0.2.1-rc.2 加载 + 4 工具注册；端到端检索
   仍需真机 WeKnora 服务确认（官方验证口径为 dsh 0.1.0-rc.8）；若工具契约破坏性变更，
   记录到 README / 反馈上游
 

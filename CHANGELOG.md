@@ -25,6 +25,27 @@ research` 及各角色 preset 全部起不来。
   真机路径 `dsh --profile research --no-open --port 4199` 真实 boot 出 Web UI URL；engineering
   角色 profile 亦 boot 且 `default: engineering`。
 
+## 2026-10-28 · README 双语重构 + `deepseek-harness` submodule 移除 + 文档版本对齐 0.2.1-rc.2（本次全量提交）
+
+需求（用户，2026-10-28）：`dsh research` 0.2.1-rc.2 兼容修复（b5336c2）收尾后，把文档对齐到
+当前版本（运行时 dsh v0.2.1-rc.2；`deepseek-harness` 不再入库），并全量提交一次（本提交）。
+
+- **README 双语重构（用户）**：外层 `README.md` 重构为 13 节双语结构——中英定位 / 架构总览 /
+  `deepseek-harness` 说明 / 快速开始（模式 A 开发部署 + 模式 B npm 打包双通道）/ 5 套 Profile 与
+  角色视图 / 数据模型 + 15 个 `research_*` 工具 / 模型配置（Provider-Neutral）/ 领域知识分层 /
+  可选集成（WeKnora / 联网搜索 / 科研绘图）/ 目录结构 / 开发与贡献 / 发布 npm 包 / License。
+- **仓储瘦身（用户）**：`deepseek-harness` submodule 从 git 跟踪移除——gitlink 删除、目录进
+  `.gitignore`（`deepseek-harness/`）；本提交再删除 `.gitmodules`，彻底与上游解耦，dsh = 纯前置
+  依赖（`npm install -g @deepseek-ai/dsh`）。上游源码如需参考自行本地 clone，仓库不再持有 pin。
+- **profiles/README.md（用户）**：追加三块可选集成文档——WeKnora 知识库（4 个只读工具 + 配置 +
+  排查表）/ 联网搜索切换（dsh-web-search-plugin 9 后端）/ 科研绘图右侧栏（research-draw 双后端）。
+- **文档版本对齐（v2 收尾）**：AGENTS.md「仓库状态」运行时版 dsh → **0.2.1-rc.2**、submodule 条目
+  改为「已从 git 跟踪移除」，并新增「阶段 12 · 0.2.1-rc.2 兼容 + 仓储瘦身 + 文档对齐」快照；
+  README §3/§10/§11/§13 的 submodule 措辞与目录树同步为「本地可选参考、不入库」；TODO.md
+  WeKnora 兼容性条目由 0.2.0-rc.2 更新为 0.2.1-rc.2。
+- **测试与 SMOKE**：文档/仓储轮零代码改动——`node --test "src/**/*.test.ts"` = **278/278 全绿**；
+  runtime-smoke → **SMOKE PASS**（services 15/15、tools 15/15、roles 全 OK），与 b5336c2 口径一致。
+
 ---
 
 ## 2026-10-26 · 域间路由安全调研报告 分篇 01 扩写（提交 4307b0e）

@@ -230,11 +230,14 @@ dsh research "分析 RPKI+BGPsec 的安全能力边界"     # == dsh --profile r
   按 A/B/C/D/E 分阶段列可勾选子项），并同步更新「里程碑」口径。
 - **规则本文件收口**：本规则（10.1）即流程定义；任何一轮的 TODO↔CHANGELOG 整理都照此执行。
 
-## 仓库状态（2026-10-08 快照）
+## 仓库状态（2026-10-28 更新；历史快照见下文各阶段）
 
-- `deepseek-harness/`：官方上游 **git submodule**（pin `5badb15009`, dsh-v0.2.1-alpha.1），只读参考。
-  升级：`git -C deepseek-harness fetch origin && git -C deepseek-harness checkout origin/v0.2.1-alpha.1 && git add deepseek-harness && git commit`（或用 `git submodule update --remote`）。
-- **运行时 dsh**：npm 全局 `dsh v0.2.0-rc.2`，走 `$DSH_HOME/profiles`（沙箱内用 `DSH_HOME=/tmp/dsh-home`）。
+- **运行时 dsh**：npm 全局 `dsh v0.2.1-rc.2`，走 `$DSH_HOME/profiles`（沙箱内用 `DSH_HOME=/tmp/dsh-home`）。真机升到
+  0.2.1-rc.2 后 `dsh research` 曾无法 boot，根因与修复见阶段 12（移除 tool-subagent 的
+  `toolFilter` / `backgroundMode`，对齐 0.2.1-rc.2 standard 口径）。
+- `deepseek-harness/`：**已从 git 跟踪移除**（2026-10-28，见阶段 12）——gitlink 与 `.gitmodules`
+  删除、目录进 `.gitignore`，不再作为 submodule 挂载、不再持有上游 pin；dsh 为**纯前置依赖**
+  （`npm install -g @deepseek-ai/dsh`）。如需上游源码参考，自行 clone 到本地任意目录（不入库）。
 - 阶段 0 基线（`docs/baseline/` 的 web-profile 插件树 dump）已随 2026-10-08 瘦身删除；阶段 0 分析结论保留在 `docs/research-agent-architecture.md`。
 - **阶段 1 + 运行时挂载已完成并实测**（2026-10-08）：
   - `dsh-research/src/core/` 六件（goal/dag/claim/evidence/verification/artifact）纯 TS，`node --test` 全绿；
@@ -642,3 +645,35 @@ experiment 10 / engineering 8 / reviewer 8；**无 draw profile、无 preset-dra
 「科研绘图」tab —— 选 local（默认 Qwen-Image-2.1 mflux）或 api（填 baseURL/apiKey/modelId），
 调比例/分辨率/画质/垫图与输出目录出图到 `~/Downloads/outputs/images/image-<ts>.png`；
 paper 会话里 `research_draw` 随 report 出图、`research_draw_status` 轮询，重启后记录仍在。
+
+---
+---
+
+## 阶段 12 · dsh 0.2.1-rc.2 兼容修复 + 仓储瘦身 + 文档版本对齐（2026-10-28，✅ 已实现并自测）
+
+需求（用户，2026-10-28）：真机 dsh 由 0.2.0-rc.2 升到 0.2.1-rc.2 后 `dsh research` 无法正常运行，
+修正它；随后把文档对齐到当前版本（运行时 0.2.1-rc.2、`deepseek-harness` 不再入库），全量提交一次。
+
+- **0.2.1-rc.2 兼容修复（提交 b5336c2）**：`@deepseek-ai/dsh-tool-subagent` 在 0.2.1-rc.2 不再支持
+  `toolFilter` / `persona` 配置（改由 Agent Preset 承载、以 `agentPreset` 选中），preset 生效
+  （acquireScope / recompose）时对每个 delegation 工具实例抛 `agent-preset/invalid` → 组合 boot
+  失败，`dsh research` 及各角色 preset 全部起不来。修复 = 移除
+  `dsh-research/presets/research.patch.yml` + `roles.patch.yml` delegation 组的 `toolFilter.deny`
+  块与 `backgroundMode` 键（spawn/fork/codex/claude-code 四处），对齐 0.2.1-rc.2
+  `dsh-web-app/presets/standard.patch.yml` 口径；语义不变（research/角色 preset 本就不挂
+  tool-schedule，toolFilter 冗余；continuable 已是 dsh-subagent 默认）。
+- **实测**：`node --test "src/**/*.test.ts"` = **278/278 全绿**；runtime-smoke → **SMOKE PASS**
+  （services 15/15、tools 15/15、roles paper/experiment/engineering/reviewer 全 OK、verdict=verified、
+  domain/search/campaign/policy/autonomous/job/schedule/reflect/subagents/triz/triza/triz-ui/
+  clientGraph/triz-auto/draw 全 true）；`--patch` 链（chain-research-policy+bgp-research+
+  fcbgp-experiment）同样 **SMOKE PASS**；`--dump-config` 组合树含 `preset-research` +
+  `default: research`；真机 `dsh --profile research` 真实 boot 出 Web UI URL。
+- **仓储瘦身**：`deepseek-harness` submodule 从 git 跟踪移除（gitlink + `.gitmodules` 删除、目录
+  进 `.gitignore`），本仓库不再持有上游 pin；dsh = 纯前置依赖；外层 README 重构为 13 节双语结构
+  + `profiles/README.md` 补 WeKnora / 联网搜索 / 科研绘图三块集成文档 +「仓库状态」/ TODO.md 版本
+  口径更新到 0.2.1-rc.2（本次全量提交）。
+
+**口径延续（自阶段 11 起，本阶段未变）**：host 平面 = **10 行 / 15 服务**、bundle 插件 = **11 个**
+（host 10 = core/triz/triza/triz-ui/triz-auto/draw/director/experiment/writer/operations +
+preset tools 1）、`research_*` 工具 = **15 全量**（research）、paper **12**（+research_draw/
+research_draw_status）、experiment 10 / engineering 8 / reviewer 8。
