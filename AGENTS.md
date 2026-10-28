@@ -677,3 +677,28 @@ paper 会话里 `research_draw` 随 report 出图、`research_draw_status` 轮�
 （host 10 = core/triz/triza/triz-ui/triz-auto/draw/director/experiment/writer/operations +
 preset tools 1）、`research_*` 工具 = **15 全量**（research）、paper **12**（+research_draw/
 research_draw_status）、experiment 10 / engineering 8 / reviewer 8。
+
+---
+
+## 阶段 13 · persona suffix 移除 {{cwd}} 变量（2026-10-28，✅ 已实现并自测）
+
+需求（用户，2026-10-28）：阶段 12 修复后真机 `dsh research` 会话启动仍失败——
+`This turn failed unknown prompt variable "{{cwd}}" in section "deployment:persona-suffix";
+registered variables: provider, model`。
+
+- **根因（提交 c2b706f）**：`dsh-research/presets/research.patch.yml` + `roles.patch.yml` 的
+  persona `suffix` 字段写死 `Your working directory is {{cwd}}.`。0.2.1-rc.2 提示词循环只注册
+  `provider` / `model` 两个变量、不注册 `{{cwd}}` → 任何模型请求前提示词组装抛
+  `unknown prompt variable`（官方 `dsh-system-prompt/README.zh.md` persona 模板约束：自定义
+  persona 不得依赖内置 `{{cwd}}`；工作目录由 working-directory 服务自动注入，suffix 冗余）。
+- **修复**：两个 preset 文件 **5 处** persona 的 `suffix` 字段整体删除（research ×1 + roles 的
+  paper / experiment / engineering / reviewer ×4），`prefix` 原样保留、`config:` 不为空；host
+  平面 / profile / 代码零改动，symlink 部署即时生效、无需重装。
+- **实测**：`node --test "src/**/*.test.ts"` = **278/278 全绿**；runtime-smoke → **SMOKE PASS**
+  （services 15/15、tools 15/15、roles 全 OK，与阶段 12 口径一致）。注：该报错发生在真实会话
+  提示词组装阶段，runtime-smoke 不发起真实 LLM 请求、无法直接捕获；修复依据官方文档确定。
+
+**口径延续（自阶段 11 起，本阶段未变）**：host 平面 = **10 行 / 15 服务**、bundle 插件 = **11 个**
+（host 10 = core/triz/triza/triz-ui/triz-auto/draw/director/experiment/writer/operations +
+preset tools 1）、`research_*` 工具 = **15 全量**（research）、paper **12**（+research_draw/
+research_draw_status）、experiment 10 / engineering 8 / reviewer 8。

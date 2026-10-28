@@ -1,3 +1,24 @@
+## 2026-10-28 · persona suffix 移除 {{cwd}} 变量修复（提交 c2b706f）
+
+需求（用户，2026-10-28）：真机 dsh research 会话启动即失败——
+`This turn failed unknown prompt variable "{{cwd}}" in section "deployment:persona-suffix"; registered variables: provider, model`
+（阶段 12 tool-subagent 兼容修复之后，preset 的 persona 配置在 0.2.1-rc.2 提示词组装环节暴露的新问题）。
+
+- **根因定位**：`dsh-research/presets/research.patch.yml` 与 `roles.patch.yml` 的 persona
+  `suffix` 字段写死 `Your working directory is {{cwd}}.`；0.2.1-rc.2 的提示词循环只注册
+  `provider` / `model` 两个变量、不注册 `{{cwd}}`，任何模型请求前提示词组装即抛
+  `unknown prompt variable`（官方 `dsh-system-prompt/README.zh.md` persona 模板约束：自定义
+  persona 不得依赖内置 `{{cwd}}`——循环不注册它；工作目录由 working-directory 服务自动注入，
+  该 suffix 冗余）。
+- **修复（关键产物）**：两个 preset 文件 **5 处** persona 的 `suffix` 字段整体删除
+  （research ×1 + roles 的 paper / experiment / engineering / reviewer ×4），`prefix` 原样保留、
+  `config:` 不为空；host 平面 / profile / 代码零改动，symlink 部署即时生效、无需重装。
+- **测试与 SMOKE（DSH_HOME=/tmp/dsh-home）**：`node --test "src/**/*.test.ts"` = **278/278 全绿**；
+  runtime-smoke → **SMOKE PASS**（services 15/15、tools 15/15、roles 全 OK，与阶段 12 口径一致）。
+  注：该报错发生在真实会话提示词组装阶段（模型请求前），runtime-smoke 不发起真实 LLM 请求、
+  无法直接捕获；修复依据官方文档（dsh-system-prompt persona 模板约束）确定。
+
+---
 ## 2026-10-28 · dsh 0.2.1-rc.2 兼容修复（提交 b5336c2）
 
 需求（用户，2026-10-28）：真机 dsh 由 0.2.0-rc.2 升到 0.2.1-rc.2 后 `dsh research` 无法正常
