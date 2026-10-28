@@ -1,6 +1,6 @@
 {
   "name": "dsh-profile-paper",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Deployable paper profile: web base + @basil/dsh-research, default preset = paper (Paper Agent).",
   "type": "module",
   "dsh": {

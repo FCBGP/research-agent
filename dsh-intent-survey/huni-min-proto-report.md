@@ -44,9 +44,9 @@ compliant。审计含跨家族 join 扫描（分散）vs 对象内核查（统�
 复现：
 
 ```bash
-cd /Users/basil/2500/agents/research-agents/dsh-research
-/Users/basil/.nvm/versions/node/v24.21.0/bin/node --test "src/intent/intent.test.ts"   # 6 用例
-/Users/basil/.nvm/versions/node/v24.21.0/bin/node --test "src/**/*.test.ts"            # 全量 194
+cd dsh-research
+node --test "src/intent/intent.test.ts"   # 6 用例
+node --test "src/**/*.test.ts"            # 全量 194
 ```
 
 ## 4. 结果（S1）

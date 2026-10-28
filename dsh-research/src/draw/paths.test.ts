@@ -23,10 +23,10 @@ test('draw/paths: 同秒冲突 → 追加序号', () => {
 
 test('draw/paths: drawOutputPath 固定追加 images/ 子目录 + 展开 ~/', () => {
   const d = new Date(2026, 9, 21, 10, 5, 7);
-  const home = '/Users/basil';
+  const home = '/Users/example';
   assert.equal(
     drawOutputPath('~/Downloads/outputs', d, home),
-    '/Users/basil/Downloads/outputs/images/image-20261021100507.png',
+    '/Users/example/Downloads/outputs/images/image-20261021100507.png',
   );
   // 无 ~ 前缀原样
   assert.equal(

@@ -1,6 +1,6 @@
 {
   "name": "dsh-profile-research",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "dsh-routing-research profile (domain naming; command stays `dsh research`): base + web front-end (Web UI) + @basil/dsh-research + @wxg-prc-cpg/dsh-weknora (WeKnora knowledge plane) + dsh-web-search-plugin (unified web search, replaces the built-in one, both declared here so re-deploy never drops the plugins). Built-in domain vocabulary: BGP / RPKI / BGPsec / ASPA / VRO / CRC / FC-BGP / FRR / VPP.",
   "type": "module",
   "dsh": {

@@ -1,7 +1,7 @@
 {
   "name": "@basil/dsh-research",
   "version": "0.2.1",
-  "description": "dsh-routing-research bundle for dsh: inter-domain routing security (BGP / RPKI / BGPsec / ASPA / VRO / CRC / FC-BGP; FRR / VPP executors) research/verification/experiment loops, artifact store, domain skills, Web right-sidebar TRIZ explainer. Operational command stays `dsh research`.",
+  "description": "dsh-routing-research bundle for dsh: inter-domain routing security (BGP / RPKI / BGPsec / ASPA / VRO / CRC / FC-BGP; FRR / VPP executors) research/verification/experiment loops, artifact store, domain skills, Web right-sidebar TRIZ explainer. Operational command stays `dsh research`. Built for the dsh runtime v0.2.1-rc.2 (see README for the plugin version-alignment table).",
   "type": "module",
   "scripts": {
     "test": "node --test \"src/**/*.test.ts\"",

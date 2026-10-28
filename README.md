@@ -120,6 +120,20 @@ dsh research                                      # starts the Web UI (http://12
   npm 实装包在 `pack.sh` 里会被预编译为 JS，本地 symlink 开发模式无此问题）。
 - **全局 dsh 运行时**：`npm install -g @deepseek-ai/dsh`（v0.2.x，走 `$DSH_HOME/profiles`
   的 two-anchor 解析）。
+
+> **版本对齐（兼容性声明，v0.2.1）**：本仓库与 `@basil/dsh-research` 当前按以下版本组合构建与
+> 验证，发版即以该组合为准：
+>
+> | 组件 | 版本 | 说明 |
+> | --- | --- | --- |
+> | `@deepseek-ai/dsh`（运行时） | `0.2.1-rc.2` | `npm install -g @deepseek-ai/dsh`；走 `$DSH_HOME/profiles` two-anchor |
+> | `@basil/dsh-research`（本仓库 bundle） | `0.2.1` | 见 `dsh-research/package.json`（对齐 dsh 0.2.x 主版本） |
+> | `@wxg-prc-cpg/dsh-weknora`（知识平面 RAG） | `0.1.0` | WeKnora 知识库插件 |
+> | `dsh-web-search-plugin`（联网搜索） | `0.5.1` | 替换 dsh 内置 web 搜索 |
+>
+> 对齐方式：`profiles/<name>/package.json` 的 bundles `/ dependencies` 声明与
+> `dsh-research/package.json` 一一对应；升级 dsh 运行时请参照 `CHANGELOG.md` 的兼容修复记录
+> （如 0.2.1-rc.2 需移除 preset 的 `toolFilter` / `backgroundMode` 与 persona `{{cwd}}`）。
 - **一个可用的 LLM 网关**：默认需要 OpenAI 兼容 endpoint（DeepSeek / Qwen / 本地 LLM 均可），
   见 [§7 模型配置](#7-模型配置provider-neutral)。
 - **pnpm**（仅“模式 B 全链路校验”需要）：`npm i -g pnpm` 或 `corepack enable pnpm`。
@@ -273,7 +287,10 @@ path-manipulation rejected（需 BGPsec）已在自治流水线中固化验证�
   key 取 credential-ref `LOCAL_INTERVAL_DSV4_API_KEY`，默认模型 `dsv4flash`）。
 
 ⚠️ **仓库里 `profiles/<name>/cordis.patch.yml` 的 `baseURL: http://10.2.165.201:8232/v1`
-是作者私有的内网网关，公网不可达。** 换机器 / 换网关时：
+是作者私有的内网网关（RFC1918 私网地址），公网不可达，且属于**不适合随开源仓库公开的内容**——
+公开 GitHub 前请先把 `profiles/<name>/cordis.patch.yml` 里的 `baseURL` /
+`apiKeyEnv` / 模型 id 替换为你自己的网关（或删掉这两层 overlay 走官方 DeepSeek），
+再重跑 `deploy-profile.sh`。换机器 / 换网关时：
 
 ```bash
 # 方式一：用 base 默认（DeepSeek 官方）
@@ -373,6 +390,14 @@ DSH_HOME=/tmp/dsh-home ./dsh-research/scripts/verify-patch-chain.sh  # CHAIN VER
 `dsh-research` 是一个可作为 npm 包发布的 bundle（`dsh plugin --profile <name> add <pkg>`）。
 当前包名 `@basil/dsh-research` 是作者个人 scope：
 
+> 本仓库**自用为记录仓库、默认不出 npm 包、不 `npm publish`**（作者不对外发版；如你 fork 后要发版，
+> 请按 §4「版本对齐」表配置 `@basil/dsh-research@0.2.1` → 你自己的版本号，再照本节约流程执行）。
+
+- **版本口径**：当前 `@basil/dsh-research@0.2.1`，面向 **dsh runtime `v0.2.1-rc.2`**（与 dsh
+  0.2.x 主版本对齐）；配套选装插件 `@wxg-prc-cpg/dsh-weknora@0.1.0` / `dsh-web-search-plugin@0.5.1`
+  （见 §4 前置条件「版本对齐」表）。升版本号改 `dsh-research/package.json`，写对应 CHANGELOG
+  条目并打 git tag。
+
 - 发布前先经 `pack.sh` 产出 staging（含编译后 JS，位于 `dist/.staging/package`），从该目录
   `npm publish`（版本号在 `dsh-research/package.json`）。
 - **fork 后如换 scope / 包名**，需要同步所有引用处（`grep -rn "basil" . --include=*.json
@@ -384,6 +409,5 @@ DSH_HOME=/tmp/dsh-home ./dsh-research/scripts/verify-patch-chain.sh  # CHAIN VER
 
 ## 13. 许可协议（License）
 
-> ⚠️ **当前尚未选定开源许可证（仓库缺失 `LICENSE` 文件）**。对外开源前请先添加 LICENSE
-> （建议 **Apache-2.0** 或 **MIT**），
-> 并在发布前完成“发布自查”（见 §12 与 `AGENTS.md`）。
+- **本仓库采用 [Apache-2.0](./LICENSE)**（作者自用记录仓库，2026-10-28 选定）。
+- 贡献/使用视同接受 Apache-2.0 条款；保留版权声明与出处即可引用、修改、再分发。

@@ -341,7 +341,7 @@ dsh research "分析 RPKI+BGPsec 的安全能力边界"     # == dsh --profile r
 - **部署 + 运行（用户自己的终端，沙箱无法写 `~/.dsh`）**：
 
   ```bash
-  cd /Users/basil/2500/agents/research-agents
+  cd <repo-root>   # = your local clone of this repository
   DSH_HOME="$HOME/.dsh" ./dsh-research/scripts/deploy-profile.sh
   DSH_HOME="$HOME/.dsh" dsh --profile research --dump-config | grep -E "headless|dsh-research-core"
   dsh research "研究 RPKI+BGPsec 的安全缺口"       # == dsh --profile research "<task>"

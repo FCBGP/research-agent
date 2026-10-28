@@ -1,6 +1,6 @@
 {
   "name": "dsh-profile-experiment",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Deployable experiment profile: web base + @basil/dsh-research, default preset = experiment (Experiment Agent).",
   "type": "module",
   "dsh": {

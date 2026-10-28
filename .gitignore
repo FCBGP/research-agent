@@ -29,3 +29,9 @@ ebgp-ibgp-科研绘图-prompts.md
 projects/
 
 deepseek-harness/
+
+# 本地 Claude Code 会话级设置（含潜在本机路径/密钥，随仓库禁止入库）
+.claude/settings.local.json
+
+# Python 虚拟环境（venv 自带 .gitignore，这里是双重保险）
+.venv/

@@ -1,6 +1,6 @@
 {
   "name": "dsh-profile-reviewer",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Deployable reviewer profile: web base + @basil/dsh-research, default preset = reviewer (Reviewer Agent).",
   "type": "module",
   "dsh": {

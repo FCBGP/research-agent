@@ -13,6 +13,11 @@
 # - weknora 官方插件 @wxg-prc-cpg/dsh-weknora：本行覆盖插件自带 env 默认行，baseUrl 钉死
 #   内网知识库、apiKey/tenantId 走环境变量（key 不进仓库）；插件未装时该行被静默丢弃
 #   （非致命警告 entry not found），装上即生效 → 模板可长期保留（见 README「WeKnora」）
+- id: connection
+  name: '@deepseek-ai/dsh-client-connection'
+  config:
+    trustedHosts: !!js ctx.webStartup.trustedHosts
+    cookieMaxAgeDays: 3650
 - id: ui-settings-general
   name: "@deepseek-ai/dsh-client-ui-settings-general"
   config:

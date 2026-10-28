@@ -1,6 +1,6 @@
 {
   "name": "dsh-profile-engineering",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Deployable engineering profile: web base + @basil/dsh-research, default preset = engineering (Engineering Executor).",
   "type": "module",
   "dsh": {

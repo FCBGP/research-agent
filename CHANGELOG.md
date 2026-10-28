@@ -1,3 +1,50 @@
+## 2026-10-28 · 版本对齐 v0.2.1（= dsh 0.2.x 主版本）+ Apache-2.0 License + GitHub 记录仓库自查（本次全量提交）
+
+需求（用户，2026-10-28）：仓库并入 `main` 分支作为 **GitHub 记录仓库**（自用，**不做 npm 发版**）。
+要求：① 项目版本号对齐 dsh 主版本——`@basil/dsh-research` 定为 **v0.2.1**，git tag 打
+`v0.2.1`；② 开源许可证用 **Apache-2.0**；③ rebase / merge 到 `main`；④ 公开前检查不适合公开的
+内容（密钥 / 私网地址）与不必要提交的文件（编译中间产物 / 本地设置），核对 `.gitignore` 与
+git 历史。
+
+- **版本号**：`dsh-research/package.json` = **`0.2.1`**（与 dsh 0.2.x 主版本对齐，不再另起
+  小版本）；description 注明面向 `dsh runtime v0.2.1-rc.2`（运行时仍是下游升级中的 0.2.1-rc.2）。
+- **版本对齐声明（README §4「版本对齐」表）**：`@deepseek-ai/dsh@0.2.1-rc.2` /
+  `@basil/dsh-research@0.2.1` / `@wxg-prc-cpg/dsh-weknora@0.1.0` / `dsh-web-search-plugin@0.5.1`
+  ——与 `profiles/research/package.json` 的 bundles↔dependencies 实际安装版本逐一核对一致。
+- **License**：新增 `LICENSE`（**Apache-2.0**，标准全文 + COPYRIGHT 头）；README §13
+  「许可协议」从「待定」改为 Apache-2.0。
+- **GitHub 记录仓库**：仅作为提交历史记录，**不出 npm 包、不 `npm publish`**（§12 保留操作
+  说明供 fork 者参考）；`main` 快进至 `dsh-dev` 并打 tag `v0.2.1`。
+- **公开前自查（密钥/凭据）**：全历史 `git log --all -p` sweep 未发现真实 API key / token /
+  私钥 / 高熵凭据；`.credentials.yaml` 未入库，key 一律走 env 引用（`apiKeyEnv` /
+  `!!js process.env.*`）；测试中的 key 均为 `sk-test` / `sk-x` 假值。
+- **公开前自查（私网地址）**：`10.2.165.201`（作者私网 LLM 网关 `:8232` + Web `:23160`）出现在
+  README / CHANGELOG / AGENTS / 5×`profiles/*/cordis.patch.yml`——RFC1918 私网地址、非密钥，
+  但已入库；README §7 已明确标注「公开 GitHub 前请先替换为自己的网关」。**未擅自改动运行配置**
+  （用户当前生产 deploy 依赖该地址）。
+- **公开前自查（本机路径净化）**：`AGENTS.md` / `dsh-intent-survey/huni-min-proto-report.md` /
+  `dsh-research/src/draw/paths.test.ts` 中的 `/Users/basil/...` 绝对路径与 nvm 二进制路径替换为
+  中性写法（`<repo-root>` / 相对 `node --test` / `/Users/example` 测试夹具）。
+- **`.gitignore` 补充**：新增 `.claude/settings.local.json` 与 `.venv/`（本地会话设置 /
+  Python 虚拟环境，禁止随仓库入库）。
+- **git 历史核账**：116 个提交、分支 `dsh-dev`/`main`、无 remote、无旧 tag；历史中已含被删除的
+  旧 Python 栈（`src/research_agent/`、`uv.lock` 等）与 `.gitmodules`、`deepseek-harness`
+  submodule 记录、一次性网页快照 `requirements/zhihu.html`（≈3.1MB，公开网页单文件存档，
+  无密钥）；打包后需推进的 objects 仅 ≈数个 MB，不构成推送障碍；`.git/modules`（≈278MB）为
+  本地 submodule 缓存，**不会**推送到远端。如需「历史完全干净」可另做历史重写（filter-repo /
+  重建根提交），属可选操作、另行决策。
+- **Web token 生命周期**（承 2026-10-28 用户咨询）：`profiles/research/cordis.patch.yml` 新增
+  `connection` patch（`cookieMaxAgeDays: 3650`，即 10 年）；沙箱
+  `DSH_HOME=/tmp/dsh-home --dump-config` 确认加载成功；**真实 `~/.dsh` 未改**，需用户重跑
+  `deploy-profile.sh` 生效。机理：Web 登录 token 存浏览器 cookie，dsh 后端重启不失效，
+  到期按 Max-Age 重新触发。
+- **测试与 SMOKE（真实 0.2.1-rc.2 npm 全局运行时 + `DSH_HOME=/tmp/dsh-home`）**：
+  `node --test "src/**/*.test.ts"` = **278/278 全绿**；runtime-smoke → **SMOKE PASS**
+  （services 15/15、tools 15/15、roles paper/experiment/engineering/reviewer 全 OK、
+  verdict/campaign/policy/autonomous/job/schedule/reflect/subagents/triz/triza/triz-ui/
+  client-graph/triz-auto/draw 全 true）。
+
+---
 ## 2026-10-28 · persona suffix 移除 {{cwd}} 变量修复（提交 c2b706f）
 
 需求（用户，2026-10-28）：真机 dsh research 会话启动即失败——
