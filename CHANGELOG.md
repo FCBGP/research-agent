@@ -1,4 +1,4 @@
-## 2026-10-28 · 版本对齐 v0.2.1（= dsh 0.2.x 主版本）+ Apache-2.0 License + GitHub 记录仓库自查（本次全量提交）
+## 2026-10-28 · 版本对齐 v0.2.1（= dsh 0.2.x 主版本）+ Apache-2.0 License + GitHub 记录仓库自查（提交 5bdcb28）
 
 需求（用户，2026-10-28）：仓库并入 `main` 分支作为 **GitHub 记录仓库**（自用，**不做 npm 发版**）。
 要求：① 项目版本号对齐 dsh 主版本——`@basil/dsh-research` 定为 **v0.2.1**，git tag 打
@@ -93,7 +93,7 @@ research` 及各角色 preset 全部起不来。
   真机路径 `dsh --profile research --no-open --port 4199` 真实 boot 出 Web UI URL；engineering
   角色 profile 亦 boot 且 `default: engineering`。
 
-## 2026-10-28 · README 双语重构 + `deepseek-harness` submodule 移除 + 文档版本对齐 0.2.1-rc.2（本次全量提交）
+## 2026-10-28 · README 双语重构 + `deepseek-harness` submodule 移除 + 文档版本对齐 0.2.1-rc.2（提交 5bdcb28）
 
 需求（用户，2026-10-28）：`dsh research` 0.2.1-rc.2 兼容修复（b5336c2）收尾后，把文档对齐到
 当前版本（运行时 dsh v0.2.1-rc.2；`deepseek-harness` 不再入库），并全量提交一次（本提交）。
