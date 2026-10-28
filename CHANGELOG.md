@@ -1,3 +1,32 @@
+## 2026-10-28 · dsh 0.2.1-rc.2 兼容修复（提交 b5336c2）
+
+需求（用户，2026-10-28）：真机 dsh 由 0.2.0-rc.2 升到 0.2.1-rc.2 后 `dsh research` 无法正常
+运行。沙箱复现：`@deepseek-ai/dsh-tool-subagent` 在 0.2.1-rc.2 不再支持 `toolFilter` /
+`persona` 配置（改由 Agent Preset 承载、以 `agentPreset` 选中），preset 生效（acquireScope /
+recompose）时对每个 delegation 工具实例抛 `agent-preset/invalid` → 组合 boot 失败，`dsh
+research` 及各角色 preset 全部起不来。
+
+- **根因定位**：`dsh-research/presets/research.patch.yml` 与 `roles.patch.yml` 的 delegation
+  组里 `tool-subagent` / `tool-subagent-fork` 仍带 `toolFilter.deny`（刹车 schedule 工具），
+  codex / claude-code 仍带 `backgroundMode`；对照 0.2.1-rc.2 的
+  `dsh-web-app/presets/standard.patch.yml`，两者均已移除。
+- **修复（关键产物）**：两个 preset 文件的 delegation 组逐处移除 `toolFilter` 块与
+  `backgroundMode` 键（spawn/fork/codex/claude-code 四处），对齐 0.2.1-rc.2 standard 口径；
+  语义不变——research/角色 preset 本就不挂 `tool-schedule`，schedule 工具不会进子代理工具
+  目录（toolFilter 冗余），continuable 已是 dsh-subagent 默认。其余 host 平面 / profile
+  模板零改动，symlink 部署即时生效、无需重装。
+- **测试与 SMOKE（DSH_HOME=/tmp/dsh-probe-021，真实 0.2.1-rc.2 npm 全局运行时）**：
+  `node --test "src/**/*.test.ts"` = **278/278 全绿**；runtime-smoke → **SMOKE PASS**
+  （services 15/15、tools 15/15、roles paper/experiment/engineering/reviewer 全 OK、
+  verdict=verified、domain/search/campaign/policy/autonomous/job/schedule/reflect/
+  subagents/triz/triza/triz-ui/clientGraph/triz-auto/draw 全 true）；`--patch` 链
+  （SMOKE_OVERLAYS=chain-research-policy+bgp-research+fcbgp-experiment）同样 **SMOKE PASS**；
+  `dsh --profile research --dump-config` 组合树含 `preset-research` + `default: research`；
+  真机路径 `dsh --profile research --no-open --port 4199` 真实 boot 出 Web UI URL；engineering
+  角色 profile 亦 boot 且 `default: engineering`。
+
+---
+
 ## 2026-10-26 · 域间路由安全调研报告 分篇 01 扩写（提交 4307b0e）
 
 需求（用户，2026-10-26）：推进《域间路由安全调研报告》分篇撰写——先并行复核 APNIC/SCION/IRV
