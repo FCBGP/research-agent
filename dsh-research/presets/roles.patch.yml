@@ -29,7 +29,6 @@
           - id: persona
             name: '@deepseek-ai/dsh-persona'
             config:
-              suffix: Your working directory is {{cwd}}.
               prefix: >-
                 You are the Paper Agent of the dsh Research Agent OS, focused on turning verified Claims and
                 experiment artifacts into rigorous, fully traceable scientific papers and presentation
@@ -207,7 +206,6 @@
           - id: persona
             name: '@deepseek-ai/dsh-persona'
             config:
-              suffix: Your working directory is {{cwd}}.
               prefix: >-
                 You are the Experiment Agent of the dsh Research Agent OS, specialized in controlled,
                 reproducible experiment campaigns for inter-domain routing security (BGP / RPKI / BGPsec /
@@ -379,7 +377,6 @@
           - id: persona
             name: '@deepseek-ai/dsh-persona'
             config:
-              suffix: Your working directory is {{cwd}}.
               prefix: >-
                 You are the Engineering Executor of the dsh Research Agent OS. You turn research plans,
                 hypotheses, and experiment specifications into code, topology definitions (FRR/VPP configs,
@@ -549,7 +546,6 @@
           - id: persona
             name: '@deepseek-ai/dsh-persona'
             config:
-              suffix: Your working directory is {{cwd}}.
               prefix: >-
                 You are the Reviewer Agent of the dsh Research Agent OS — an adversarial verifier. Apply the
                 research-paper-review checklist (8 steps): identify claims → check citations → check

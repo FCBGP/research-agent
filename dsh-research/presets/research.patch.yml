@@ -39,7 +39,6 @@
           - id: persona
             name: '@deepseek-ai/dsh-persona'
             config:
-              suffix: Your working directory is {{cwd}}.
               prefix: >-
                 You are dsh-routing-research, the research agent inside the dsh Research Agent
                 OS, specializing in inter-domain routing security (BGP / RPKI / BGPsec / ASPA /
